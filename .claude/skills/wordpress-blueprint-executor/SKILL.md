@@ -36,7 +36,7 @@ Phase 0 - Input mode: classify whether the input is an approved planner spec or 
     - Every external asset, plugin, theme, or file mount source must be listed in provenance notes.
     - Pin versions or explicitly state why a floating version is acceptable.
     - Blueprints must be disposable and must not target production endpoints.
-    - Verification packets must include Blueprint schema validation, Playground launch steps, expected landing page, reset behavior, and smoke assertions.
+    - Verification packets must include Blueprint schema validation, Playground launch steps, expected landing page, reset behavior, and smoke assertions. When the packet is meant to be opened on a developer machine, also give the Studio launch step `studio site create --blueprint <blueprint.json>`, which accepts a local file path (verified against wp-studio@1.21.0 on 2026-09-15).
     - Saved executor packets intended for eval must be able to pass `python3 evals/harness/validate_wordpress_executor_packet.py --executor blueprint --packet <packet.md>`.
     - Saved Blueprint executor packets intended for generated-artifact eval must include one fenced JSON object under `## Generated Blueprint` that can be materialized to `blueprint.json` by `python3 evals/harness/materialize_wordpress_executor_packet.py --executor blueprint --packet <packet.md> --out-dir <generated-blueprint-dir>`.
     - Generated Blueprint JSON intended for eval must be able to pass `python3 evals/harness/validate_wordpress_artifact.py --artifact-type blueprint --path <blueprint.json>`.
