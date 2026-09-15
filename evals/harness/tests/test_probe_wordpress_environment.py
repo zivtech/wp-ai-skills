@@ -995,6 +995,60 @@ def test_studio_marker_is_labeled_with_the_file_that_matched(tmp_path: Path) -> 
     assert rows and rows[0]["stdout_excerpt"] == "present"
 
 
+def test_studio_1_21_site_is_detected_by_studio_md(tmp_path: Path) -> None:
+    """wp-studio@1.21.0 writes STUDIO.md into the site root and no `.studio` dir.
+
+    Recorded against a real site on 2026-09-15; before this marker existed the
+    probe fell through to generic-local and reported wp_cli_unavailable.
+    """
+    root = tmp_path / "site"
+    root.mkdir()
+    (root / "wp-config.php").write_text("<?php\n", encoding="utf-8")
+    (root / "STUDIO.md").write_text("## IMPORTANT: WP-CLI in WordPress Studio\n", encoding="utf-8")
+    # `studio wp --info` is the ground truth (Phase 2); a fake `studio` that
+    # answers like WP-CLI lets detection resolve instead of staying UNKNOWN.
+    bin_dir = _install_fake_tool(tmp_path, "studio", b"WP-CLI version:\t2.12.0\n")
+
+    manifest = _run_probe(root, [str(bin_dir)])
+
+    assert manifest["environment"]["marker_file"] == "STUDIO.md"
+    assert manifest["environment"]["kind"] == "studio"
+    assert manifest["environment"]["invocation_prefix"] == ["studio", "wp"]
+
+
+def test_studio_loader_mu_plugin_is_a_marker_when_studio_md_is_absent(tmp_path: Path) -> None:
+    root = tmp_path / "site"
+    (root / "wp-content" / "mu-plugins").mkdir(parents=True)
+    (root / "wp-config.php").write_text("<?php\n", encoding="utf-8")
+    (root / "wp-content" / "mu-plugins" / "99-studio-loader.php").write_text("<?php\n", encoding="utf-8")
+    empty_bin = tmp_path / "empty-bin"
+    empty_bin.mkdir()
+
+    manifest = _run_probe(root, [str(empty_bin)])
+
+    assert manifest["environment"]["marker_file"] == "wp-content/mu-plugins/99-studio-loader.php"
+    # No `studio` on PATH: the marker is recorded, but detection must stay
+    # UNKNOWN because `<prefix> --info` is the only proof a prefix works.
+    assert manifest["environment"]["kind"] == "UNKNOWN"
+
+
+def test_studio_markers_require_wp_config_beside_them(tmp_path: Path) -> None:
+    """A stray STUDIO.md in a non-WordPress directory must not claim Studio."""
+    root = tmp_path / "notes"
+    root.mkdir()
+    (root / "STUDIO.md").write_text("notes\n", encoding="utf-8")
+    empty_bin = tmp_path / "empty-bin"
+    empty_bin.mkdir()
+
+    manifest = _run_probe(root, [str(empty_bin)])
+
+    assert manifest["environment"]["kind"] != "studio"
+
+
+def test_studio_invocation_prefix_is_studio_wp(tmp_path: Path) -> None:
+    assert probe.invocation_prefix_for("studio", tmp_path) == ["studio", "wp"]
+
+
 def test_remote_alias_is_not_probed_without_allow_remote(tmp_path: Path) -> None:
     """A checked-in ssh alias must not make a fresh clone dial out."""
     root = tmp_path / "site"
