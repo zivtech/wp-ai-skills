@@ -1,0 +1,1 @@
+{"$schema":"https://playground.wordpress.net/blueprint-schema.json","landingPage":"/","steps":[{"step":"setSiteOptions","options":{"blogname":"Blueprint Verify Site","blogdescription":"created via studio site create --blueprint"}}]}

@@ -1,0 +1,38 @@
+# DB engine check — wp-studio@1.21.0, site created 2026-09-15 with defaults
+
+$ studio wp eval ... get_class($wpdb), DB_HOST, DB_ENGINE, FQDB
+WP_SQLite_DB | DB_HOST=localhost | DB_ENGINE=sqlite | FQDB=.ht.sqlite
+
+$ studio wp db query "SELECT 1"
+Error: Failed to get current SQL modes. Reason: env: mysql: No such file or directory
+
+
+$ ls wp-content/db.php wp-content/mu-plugins wp-content/database
+wp-content/db.php
+
+wp-content/database:
+index.php
+
+wp-content/mu-plugins:
+99-studio-loader.php
+sqlite-database-integration
+
+$ studio wp --info (PHP/MySQL lines)
+PHP binary:	~/.studio/php-bin/8.4.24-studio-2/php
+PHP version:	8.4.24
+MySQL binary:	
+MySQL version:	
+
+$ studio site status
+[K[?25l⠋ Starting process daemon…
+[K[1A[K[?25l✔ Process daemon started
+[?25h[K[?25h[K[?25l⠙ Loading site…
+[K[1A[K[?25l✔ Site loaded
+[?25h┌────────────────┬────────────────────────────────────────────────────────────────────┐
+│ Site URL       │ ]8;;http://localhost:8881/http://localhost:8881/]8;;                                             │
+├────────────────┼────────────────────────────────────────────────────────────────────┤
+│ Auto-login URL │ ]8;;http://localhost:8881/studio-auto-login?redirect_to=%2Fwp-admin%2Fhttp://localhost:8881/studio-auto-login?redirect_to=%2Fwp-admin%2F]8;; │
+├────────────────┼────────────────────────────────────────────────────────────────────┤
+│ Site Path      │ .                                                                  │
+├────────────────┼────────────────────────────────────────────────────────────────────┤
+│ Status         │ 🟢 Online                                                          │

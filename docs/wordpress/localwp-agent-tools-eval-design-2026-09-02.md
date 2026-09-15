@@ -1312,3 +1312,25 @@ recorded in `stack/local-observations.md` with the Local version.
 10. **Local's current default PHP version** and whether the per-site php.ini
     sets `mysqli.default_socket`. Gates the stack pin and the C0 socket
     friction story.
+
+## 14. Lane S (Automattic Studio) — deferred, not designed
+
+Added 2026-09-15. Studio (v1.21.0) ships its own stdio MCP server (`studio mcp`)
+with a `wp_cli` tool and site-lifecycle tools, so a `T-S` arm (agent + Studio
+tools) is an obvious extension. It is **not** added to this design, for two
+reasons that hold regardless of the tool's quality:
+
+1. **Stack confound.** Studio runs native PHP over SQLite with no web-server
+   tier. A `T-S` cell would differ from every other cell in both the tool set
+   and the runtime, so any T-S vs T difference is uninterpretable as a tool
+   effect. §4.3 holds the stack constant for exactly this reason.
+2. **Fixture portability.** Even fixture 1 (plugin fatal) assumes
+   `logs/php/error.log` and a Local-shaped `app/public/` layout; Studio writes
+   only `wp-content/debug.log` and has no access log. Fixtures 2, 4 and the
+   MySQL-shaped faults (slow query, autoload bloat via SQL) do not port at all.
+
+A Studio lane would therefore be a **separate eval with its own fixtures and
+its own control arm**, not a fifth arm here. It stays out until this design is
+frozen and run. The team's environment recommendation for Studio is being made
+by a separate, cheaper procedure (two real tickets, one developer, both
+environments) and does not draw on this eval's numbers.
