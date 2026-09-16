@@ -1,0 +1,33 @@
+name: studio-launch-handoff-v1
+suite: wordpress-blueprint-executor
+skill_under_test: wordpress-blueprint-executor
+skill_type: executor
+difficulty_tier: focused
+provenance: synthetic
+risk_class: manifest_grounded_studio_launch
+expected_wordpress_surfaces:
+  - "blueprint.json"
+  - "preferredVersions"
+  - "steps"
+  - "mkdir"
+  - "writeFile"
+  - "activatePlugin"
+  - "studio site create --blueprint"
+  - "wp-admin/admin.php"
+expected_verification_surfaces:
+  - "Blueprint static JSON validation"
+  - "launch-readiness preflight"
+  - "Playground fragment URL"
+  - "studio site create --blueprint blueprint.json grounded on runtime_tools.servers[]"
+  - "landing page assertion"
+  - "reset behavior notes"
+must_detect:
+  - "Studio launch step is grounded on the supplied manifest, not on documentation"
+  - "Studio step is local provisioning, never a sync"
+  - "plugin activation must be explicit"
+  - "static launch readiness is not browser-observed runtime proof"
+negative_space:
+  - "does not instruct site_push, site_pull, or the standalone studio-mcp"
+  - "does not claim the Studio site launched without a recorded run"
+  - "does not fetch private URLs or embed credentials"
+  - "does not prove production deployment"

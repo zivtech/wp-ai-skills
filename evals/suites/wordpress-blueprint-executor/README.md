@@ -1,7 +1,7 @@
 # wordpress-blueprint-executor Focused Eval Scaffold
 
 Focused evaluation scaffold for `wordpress-blueprint-executor`. The suite now
-contains the original broad smoke fixture plus four focused Blueprint executor
+contains the original broad smoke fixture plus five focused Blueprint executor
 fixtures:
 
 - `minimal-plugin-environment-v1`: local plugin install/activation, login or
@@ -14,6 +14,15 @@ fixtures:
 - `self-contained-plugin-launch-v1`: inline disposable plugin creation,
   activation, launch-readiness, and observed Playground smoke without VFS ZIP
   payloads.
+- `studio-launch-handoff-v1`: the same inline-plugin shape handed to a
+  developer machine whose recorded capability manifest lists Studio's built-in
+  MCP server, so the packet must instruct `studio site create --blueprint`
+  grounded on that manifest and instruct no sync tool. This fixture ships
+  `studio-launch-handoff-v1.capability-manifest.json`, a probe recording of a
+  synthetic Studio project (see
+  `evals/harness/tests/test_fixture_capability_manifests.py`), so its saved
+  outputs are scored with the manifest-gated checks enabled. It has no saved
+  example packet and no static certification run yet.
 
 This is not a benchmark result. Focused saved executor packets now exist under
 `evals/suites/wordpress-blueprint-executor/examples/`, and deterministic static

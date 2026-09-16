@@ -1,0 +1,995 @@
+{
+  "abilities": {
+    "api_present": null,
+    "api_source": null,
+    "notes": [],
+    "publicly_exposed_count": null,
+    "reason": "ability_command_absent_and_eval_disabled",
+    "registered": [],
+    "registered_count": null,
+    "status": "UNKNOWN"
+  },
+  "allow_eval": false,
+  "blockers": [
+    {
+      "affects": [
+        "can_run_static_analysis"
+      ],
+      "code": "static_analysis_unavailable",
+      "detail": "Neither phpcs nor phpstan answered, so no static verification oracle exists.",
+      "remediation_hint": "composer install (out of scope for the probe - see rec 07).",
+      "severity": "MAJOR"
+    },
+    {
+      "affects": [
+        "can_provision_ephemeral_site"
+      ],
+      "code": "no_ephemeral_runtime",
+      "detail": "Neither @wordpress/env nor @wp-playground/cli answered, so no throwaway site can be provisioned.",
+      "remediation_hint": "npm install @wordpress/env (out of scope for the probe - see rec 07).",
+      "severity": "MINOR"
+    },
+    {
+      "affects": [
+        "can_reach_mcp_abilities"
+      ],
+      "code": "mcp_adapter_absent",
+      "detail": "No publicly exposed MCP ability was observed; exposure is default-deny via meta.mcp.public.",
+      "remediation_hint": "composer require wordpress/mcp-adapter (out of scope for the probe - see rec 07).",
+      "severity": "MAJOR"
+    },
+    {
+      "affects": [
+        "can_register_abilities"
+      ],
+      "code": "abilities_api_unconfirmed",
+      "detail": "The Abilities API was not confirmed present by a probe. Core version alone is an inference, not evidence.",
+      "remediation_hint": "Re-run with --allow-eval, or install wp-cli ability-command (out of scope for the probe - see rec 07).",
+      "severity": "MAJOR"
+    }
+  ],
+  "capabilities": {
+    "aware_of_host_agent_skills": false,
+    "can_handoff_runtime_wp_cli": true,
+    "can_provision_ephemeral_site": false,
+    "can_provision_runtime_site": true,
+    "can_reach_mcp_abilities": false,
+    "can_read_site_state": true,
+    "can_register_abilities": false,
+    "can_run_plugin_check": true,
+    "can_run_static_analysis": false,
+    "can_run_wp_cli": true,
+    "has_outward_sync_tool": true
+  },
+  "environment": {
+    "cwd": "<normalized>",
+    "host": {
+      "composer": null,
+      "node": null,
+      "os": "darwin",
+      "php": null
+    },
+    "invocation_prefix": [
+      "studio",
+      "wp"
+    ],
+    "kind": "studio",
+    "marker_file": "STUDIO.md",
+    "other_markers_present": [
+      "wp-config.php"
+    ],
+    "remote_alias": null,
+    "status": "AVAILABLE",
+    "wp_env_runtime": null
+  },
+  "evidence": [
+    {
+      "argv": [
+        "<filesystem>",
+        "exists",
+        ".ddev/config.yaml"
+      ],
+      "claim": "environment.marker_file",
+      "duration_ms": 0,
+      "exit_code": 1,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "absent"
+    },
+    {
+      "argv": [
+        "<filesystem>",
+        "exists",
+        ".lando.yml"
+      ],
+      "claim": "environment.marker_file",
+      "duration_ms": 0,
+      "exit_code": 1,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "absent"
+    },
+    {
+      "argv": [
+        "<filesystem>",
+        "exists",
+        ".wp-env.json"
+      ],
+      "claim": "environment.marker_file",
+      "duration_ms": 0,
+      "exit_code": 1,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "absent"
+    },
+    {
+      "argv": [
+        "<filesystem>",
+        "exists",
+        ".wp-env.override.json"
+      ],
+      "claim": "environment.marker_file",
+      "duration_ms": 0,
+      "exit_code": 1,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "absent"
+    },
+    {
+      "argv": [
+        "<filesystem>",
+        "exists",
+        ".wp-cli.yml"
+      ],
+      "claim": "environment.marker_file",
+      "duration_ms": 0,
+      "exit_code": 1,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "absent"
+    },
+    {
+      "argv": [
+        "<filesystem>",
+        "exists",
+        "wp-cli.local.yml"
+      ],
+      "claim": "environment.marker_file",
+      "duration_ms": 0,
+      "exit_code": 1,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "absent"
+    },
+    {
+      "argv": [
+        "<filesystem>",
+        "exists",
+        "app/public/wp-config.php"
+      ],
+      "claim": "environment.marker_file",
+      "duration_ms": 0,
+      "exit_code": 1,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "absent"
+    },
+    {
+      "argv": [
+        "<filesystem>",
+        "exists",
+        "wp-config.php"
+      ],
+      "claim": "environment.marker_file",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "present"
+    },
+    {
+      "argv": [
+        "<filesystem>",
+        "exists",
+        "STUDIO.md"
+      ],
+      "claim": "environment.marker_file",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "present"
+    },
+    {
+      "argv": [
+        "php",
+        "--version"
+      ],
+      "claim": "environment.host.php",
+      "duration_ms": 0,
+      "exit_code": null,
+      "stderr_excerpt": "executable_not_found",
+      "stdout_excerpt": ""
+    },
+    {
+      "argv": [
+        "node",
+        "--version"
+      ],
+      "claim": "environment.host.node",
+      "duration_ms": 0,
+      "exit_code": null,
+      "stderr_excerpt": "executable_not_found",
+      "stdout_excerpt": ""
+    },
+    {
+      "argv": [
+        "composer",
+        "--version"
+      ],
+      "claim": "environment.host.composer",
+      "duration_ms": 0,
+      "exit_code": null,
+      "stderr_excerpt": "executable_not_found",
+      "stdout_excerpt": ""
+    },
+    {
+      "argv": [
+        "studio",
+        "wp",
+        "--info"
+      ],
+      "claim": "wp_cli",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+    },
+    {
+      "argv": [
+        "studio",
+        "wp",
+        "cli",
+        "version"
+      ],
+      "claim": "wp_cli.version",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+    },
+    {
+      "argv": [
+        "studio",
+        "wp",
+        "cli",
+        "version"
+      ],
+      "claim": "wp_cli.is_stable_release",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "2.12.0"
+    },
+    {
+      "argv": [
+        "studio",
+        "wp",
+        "help",
+        "ability"
+      ],
+      "claim": "wp_cli.commands.ability",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+    },
+    {
+      "argv": [
+        "studio",
+        "wp",
+        "help",
+        "block"
+      ],
+      "claim": "wp_cli.commands.block",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+    },
+    {
+      "argv": [
+        "studio",
+        "wp",
+        "help",
+        "doctor"
+      ],
+      "claim": "wp_cli.commands.doctor",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+    },
+    {
+      "argv": [
+        "studio",
+        "wp",
+        "help",
+        "profile"
+      ],
+      "claim": "wp_cli.commands.profile",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+    },
+    {
+      "argv": [
+        "studio",
+        "wp",
+        "help",
+        "plugin"
+      ],
+      "claim": "wp_cli.commands.plugin",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+    },
+    {
+      "argv": [
+        "studio",
+        "wp",
+        "help",
+        "theme"
+      ],
+      "claim": "wp_cli.commands.theme",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+    },
+    {
+      "argv": [
+        "studio",
+        "wp",
+        "help",
+        "option"
+      ],
+      "claim": "wp_cli.commands.option",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+    },
+    {
+      "argv": [
+        "studio",
+        "wp",
+        "help",
+        "post"
+      ],
+      "claim": "wp_cli.commands.post",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+    },
+    {
+      "argv": [
+        "studio",
+        "wp",
+        "help",
+        "core"
+      ],
+      "claim": "wp_cli.commands.core",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+    },
+    {
+      "argv": [
+        "studio",
+        "wp",
+        "core",
+        "version",
+        "--extra"
+      ],
+      "claim": "wordpress.core_version",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+    },
+    {
+      "argv": [
+        "studio",
+        "wp",
+        "core",
+        "is-installed"
+      ],
+      "claim": "wordpress.is_installed",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+    },
+    {
+      "argv": [
+        "studio",
+        "wp",
+        "config",
+        "get",
+        "MULTISITE"
+      ],
+      "claim": "wordpress.is_multisite",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+    },
+    {
+      "argv": [
+        "studio",
+        "wp",
+        "option",
+        "get",
+        "siteurl"
+      ],
+      "claim": "wordpress.siteurl",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+    },
+    {
+      "argv": [
+        "studio",
+        "wp",
+        "option",
+        "get",
+        "home"
+      ],
+      "claim": "wordpress.home",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+    },
+    {
+      "argv": [
+        "studio",
+        "wp",
+        "plugin",
+        "list",
+        "--format=json",
+        "--fields=name,status,version,update"
+      ],
+      "claim": "wordpress.active_plugins",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+    },
+    {
+      "argv": [
+        "studio",
+        "wp",
+        "theme",
+        "list",
+        "--format=json",
+        "--fields=name,status,version"
+      ],
+      "claim": "wordpress.active_themes",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+    },
+    {
+      "argv": [
+        "studio",
+        "wp",
+        "ability",
+        "list",
+        "--format=json"
+      ],
+      "claim": "abilities.registered",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+    },
+    {
+      "argv": [
+        "<derived>",
+        "plugin-list-scan",
+        "mcp-adapter"
+      ],
+      "claim": "mcp.adapter",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "no plugin inventory available"
+    },
+    {
+      "argv": [
+        "phpcs",
+        "--version"
+      ],
+      "claim": "verification_tools.phpcs",
+      "duration_ms": 0,
+      "exit_code": null,
+      "stderr_excerpt": "executable_not_found",
+      "stdout_excerpt": ""
+    },
+    {
+      "argv": [
+        "phpstan",
+        "--version"
+      ],
+      "claim": "verification_tools.phpstan",
+      "duration_ms": 0,
+      "exit_code": null,
+      "stderr_excerpt": "executable_not_found",
+      "stdout_excerpt": ""
+    },
+    {
+      "argv": [
+        "studio",
+        "wp",
+        "plugin",
+        "check",
+        "--help"
+      ],
+      "claim": "verification_tools.plugin_check",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "Usage: studio <command>\n\nCommands:\n  mcp      Start the MCP server\n  wp       Run WP-CLI"
+    },
+    {
+      "argv": [
+        "npx",
+        "--no-install",
+        "@wordpress/env",
+        "--version"
+      ],
+      "claim": "verification_tools.wp_env",
+      "duration_ms": 0,
+      "exit_code": null,
+      "stderr_excerpt": "executable_not_found",
+      "stdout_excerpt": ""
+    },
+    {
+      "argv": [
+        "npx",
+        "--no-install",
+        "@wp-playground/cli",
+        "--version"
+      ],
+      "claim": "verification_tools.playground_cli",
+      "duration_ms": 0,
+      "exit_code": null,
+      "stderr_excerpt": "executable_not_found",
+      "stdout_excerpt": ""
+    },
+    {
+      "argv": [
+        "studio",
+        "--help"
+      ],
+      "claim": "runtime_tools.studio_help",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "Usage: studio <command>\n\nCommands:\n  mcp      Start the MCP server\n  wp       Run WP-CLI"
+    },
+    {
+      "argv": [
+        "studio",
+        "--version"
+      ],
+      "claim": "runtime_tools.studio_version",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "1.21.0"
+    },
+    {
+      "argv": [
+        "<filesystem>",
+        "exists",
+        ".agents/skills"
+      ],
+      "claim": "runtime_tools.agent_skills",
+      "duration_ms": 0,
+      "exit_code": 1,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "absent"
+    },
+    {
+      "argv": [
+        "<filesystem>",
+        "exists",
+        ".ddev/providers/pressable.y[a]ml"
+      ],
+      "claim": "runtime_tools.ddev_pressable",
+      "duration_ms": 0,
+      "exit_code": 1,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "absent"
+    },
+    {
+      "argv": [
+        "<filesystem>",
+        "config-scan",
+        ".mcp.json"
+      ],
+      "claim": "runtime_tools.standalone_studio_mcp",
+      "duration_ms": 0,
+      "exit_code": 1,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "absent"
+    },
+    {
+      "argv": [
+        "<filesystem>",
+        "exists",
+        "node_modules/studio-mcp"
+      ],
+      "claim": "runtime_tools.standalone_studio_mcp",
+      "duration_ms": 0,
+      "exit_code": 1,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "absent"
+    },
+    {
+      "argv": [
+        "<derived>",
+        "runtime-tool-surface-scan"
+      ],
+      "claim": "runtime_tools.servers",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "studio-mcp-builtin"
+    },
+    {
+      "argv": [
+        "<derived>",
+        "runtime-tool-surface",
+        "studio-mcp-builtin"
+      ],
+      "claim": "runtime_tools.servers.studio-mcp-builtin",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "studio-mcp-builtin trust=cli-help"
+    },
+    {
+      "argv": [
+        "<derived>",
+        "runtime-tool-surface-scan"
+      ],
+      "claim": "runtime_tools.detected_via",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "cli-help"
+    }
+  ],
+  "generated_at": "1970-01-01T00:00:00Z",
+  "mcp": {
+    "adapter": {
+      "prerelease": null,
+      "present": false,
+      "version": null
+    },
+    "deprecated_detected": [],
+    "notes": [],
+    "reason": "plugin_inventory_unavailable",
+    "servers": [],
+    "status": "UNAVAILABLE",
+    "tools": [],
+    "transports": []
+  },
+  "probe_argv": [
+    "probe",
+    "--path",
+    "<normalized>"
+  ],
+  "probe_version": "0.1.0",
+  "runtime_tools": {
+    "agent_skills": [],
+    "deprecated_detected": [],
+    "detected_via": "cli-help",
+    "notes": [],
+    "reason": null,
+    "servers": [
+      {
+        "id": "studio-mcp-builtin",
+        "identity": "1.21.0",
+        "invocation": [
+          "studio",
+          "mcp"
+        ],
+        "kind": "studio-mcp-builtin",
+        "license": "GPL-2.0",
+        "notes": [
+          "tool_table_is_static_not_a_live_tools_list_handshake"
+        ],
+        "source": "Automattic/studio",
+        "superseded": false,
+        "tool_count": 26,
+        "tools": [
+          {
+            "confirm_required": true,
+            "name": "site_create",
+            "side_effect": "provision"
+          },
+          {
+            "confirm_required": false,
+            "name": "site_list",
+            "side_effect": "read_only"
+          },
+          {
+            "confirm_required": false,
+            "name": "site_info",
+            "side_effect": "read_only"
+          },
+          {
+            "confirm_required": false,
+            "name": "site_start",
+            "side_effect": "local_write"
+          },
+          {
+            "confirm_required": false,
+            "name": "site_stop",
+            "side_effect": "local_write"
+          },
+          {
+            "confirm_required": true,
+            "name": "site_delete",
+            "side_effect": "provision"
+          },
+          {
+            "confirm_required": true,
+            "name": "preview_create",
+            "side_effect": "outward_sync"
+          },
+          {
+            "confirm_required": false,
+            "name": "preview_list",
+            "side_effect": "read_only"
+          },
+          {
+            "confirm_required": true,
+            "name": "preview_update",
+            "side_effect": "outward_sync"
+          },
+          {
+            "confirm_required": true,
+            "name": "preview_delete",
+            "side_effect": "outward_sync"
+          },
+          {
+            "confirm_required": true,
+            "name": "wp_cli",
+            "side_effect": "read_write_local"
+          },
+          {
+            "confirm_required": false,
+            "name": "scaffold_theme",
+            "side_effect": "local_write"
+          },
+          {
+            "confirm_required": true,
+            "name": "validate_blocks",
+            "side_effect": "local_write"
+          },
+          {
+            "confirm_required": false,
+            "name": "take_screenshot",
+            "side_effect": "read_only"
+          },
+          {
+            "confirm_required": false,
+            "name": "inspect_design",
+            "side_effect": "read_only"
+          },
+          {
+            "confirm_required": false,
+            "name": "install_taxonomy_scripts",
+            "side_effect": "local_write"
+          },
+          {
+            "confirm_required": true,
+            "name": "data_liberation",
+            "side_effect": "read_write_local"
+          },
+          {
+            "confirm_required": false,
+            "name": "need_for_speed",
+            "side_effect": "read_only"
+          },
+          {
+            "confirm_required": false,
+            "name": "rank_me_up",
+            "side_effect": "read_only"
+          },
+          {
+            "confirm_required": false,
+            "name": "site_connected_remote_sites",
+            "side_effect": "read_only"
+          },
+          {
+            "confirm_required": true,
+            "name": "site_push",
+            "side_effect": "outward_sync"
+          },
+          {
+            "confirm_required": true,
+            "name": "site_pull",
+            "side_effect": "inward_sync"
+          },
+          {
+            "confirm_required": true,
+            "name": "site_import",
+            "side_effect": "read_write_local"
+          },
+          {
+            "confirm_required": false,
+            "name": "site_export",
+            "side_effect": "local_write"
+          },
+          {
+            "confirm_required": false,
+            "name": "open_annotation_browser",
+            "side_effect": "read_only"
+          },
+          {
+            "confirm_required": false,
+            "name": "wait_for_annotations",
+            "side_effect": "read_only"
+          }
+        ],
+        "transport": "stdio",
+        "trust": "cli-help"
+      }
+    ],
+    "status": "AVAILABLE"
+  },
+  "schema_version": "1.1.0",
+  "verification_tools": {
+    "phpcs": {
+      "invocation": null,
+      "notes": [],
+      "reason": "executable_not_found",
+      "runtime": null,
+      "standards": null,
+      "status": "UNAVAILABLE",
+      "version": null,
+      "wp_stubs_version": null
+    },
+    "phpstan": {
+      "invocation": null,
+      "notes": [],
+      "reason": "executable_not_found",
+      "runtime": null,
+      "standards": null,
+      "status": "UNAVAILABLE",
+      "version": null,
+      "wp_stubs_version": null
+    },
+    "phpunit": {
+      "invocation": null,
+      "notes": [],
+      "reason": "not_probed",
+      "runtime": null,
+      "standards": null,
+      "status": "UNKNOWN",
+      "version": null,
+      "wp_stubs_version": null
+    },
+    "playground_cli": {
+      "invocation": null,
+      "notes": [
+        "playground_cli_wp_support_unknown"
+      ],
+      "reason": "executable_not_found",
+      "runtime": null,
+      "standards": null,
+      "status": "UNKNOWN",
+      "version": null,
+      "wp_stubs_version": null
+    },
+    "plugin_check": {
+      "invocation": [
+        "studio",
+        "wp",
+        "plugin",
+        "check"
+      ],
+      "notes": [],
+      "reason": null,
+      "runtime": null,
+      "standards": null,
+      "status": "AVAILABLE",
+      "version": null,
+      "wp_stubs_version": null
+    },
+    "wp_env": {
+      "invocation": null,
+      "notes": [],
+      "reason": "executable_not_found",
+      "runtime": null,
+      "standards": null,
+      "status": "UNAVAILABLE",
+      "version": null,
+      "wp_stubs_version": null
+    },
+    "wpcs": {
+      "invocation": null,
+      "notes": [],
+      "reason": "phpcs_unavailable",
+      "runtime": null,
+      "standards": null,
+      "status": "BLOCKED",
+      "version": null,
+      "wp_stubs_version": null
+    }
+  },
+  "wordpress": {
+    "active_plugins": [],
+    "active_themes": [],
+    "core_version": "2.12.0",
+    "home": "WP-CLI version:\t2.12.0",
+    "is_installed": true,
+    "is_multisite": false,
+    "notes": [
+      "facts_from_wp_cli_read_probes"
+    ],
+    "php_version": null,
+    "reason": null,
+    "siteurl": "WP-CLI version:\t2.12.0",
+    "status": "AVAILABLE"
+  },
+  "wp_cli": {
+    "commands": {
+      "ability": {
+        "reason": null,
+        "status": "AVAILABLE"
+      },
+      "block": {
+        "reason": null,
+        "status": "AVAILABLE"
+      },
+      "core": {
+        "reason": null,
+        "status": "AVAILABLE"
+      },
+      "doctor": {
+        "reason": null,
+        "status": "AVAILABLE"
+      },
+      "option": {
+        "reason": null,
+        "status": "AVAILABLE"
+      },
+      "plugin": {
+        "reason": null,
+        "status": "AVAILABLE"
+      },
+      "post": {
+        "reason": null,
+        "status": "AVAILABLE"
+      },
+      "profile": {
+        "reason": null,
+        "status": "AVAILABLE"
+      },
+      "theme": {
+        "reason": null,
+        "status": "AVAILABLE"
+      }
+    },
+    "is_stable_release": true,
+    "notes": [],
+    "reason": null,
+    "status": "AVAILABLE",
+    "version": "2.12.0"
+  }
+}

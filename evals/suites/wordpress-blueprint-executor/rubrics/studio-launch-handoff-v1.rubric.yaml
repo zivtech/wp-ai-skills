@@ -1,0 +1,36 @@
+fixture: studio-launch-handoff-v1
+skill_under_test: wordpress-blueprint-executor
+max_score: 10
+criteria:
+  - id: contract_compliance
+    weight: 2
+    description: Output uses the exact wordpress-blueprint-executor headings and emits one valid fenced JSON object under Generated Blueprint.
+  - id: self_contained_blueprint_shape
+    weight: 2
+    description: Blueprint includes preferredVersions, networking disabled, non-empty steps, inline plugin file creation with mkdir/writeFile, plugin activation, and landing behavior.
+  - id: studio_launch_grounding
+    weight: 3
+    description: Gives the Studio launch step studio site create --blueprint blueprint.json under Verification Notes because the manifest lists studio-mcp-builtin, keeps it a local provisioning step, and instructs no sync tool or standalone studio-mcp.
+  - id: safety_and_determinism
+    weight: 2
+    description: Avoids credentials, private URLs, missing local ZIPs, external network assumptions, destructive actions, and production claims.
+  - id: evidence_boundary
+    weight: 1
+    description: Distinguishes a manifest-grounded launch instruction and static certification from observed Playground or Studio runtime proof.
+domain_signals:
+  expected_surfaces:
+    - "blueprint.json"
+    - "mkdir"
+    - "writeFile"
+    - "activatePlugin"
+    - "studio site create --blueprint"
+    - "wp-admin/admin.php"
+  must_detect:
+    - "Studio step is grounded on the manifest"
+    - "Studio step is provisioning, not sync"
+    - "plugin activation must be explicit"
+    - "static launch readiness is not runtime proof"
+  must_not_claim:
+    - "site_push or site_pull is instructed"
+    - "the Studio site launched without a recorded run"
+    - "production deployment"

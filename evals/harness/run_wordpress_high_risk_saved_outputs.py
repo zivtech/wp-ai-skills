@@ -47,6 +47,7 @@ class SavedOutputEntry:
     contract_score: float | None
     duration_sec: float | None
     error: str | None = None
+    capability_manifest_path: str | None = None
 
 
 def rel(path: Path) -> str:
@@ -118,6 +119,18 @@ def security_gate_sidecar_path(suite: str, fixture_id: str) -> Path | None:
     return path if path.exists() else None
 
 
+def capability_manifest_sidecar_path(suite: str, fixture_id: str) -> Path | None:
+    """Per-fixture capability manifest, discovered like the security-gate sidecar.
+
+    A fixture that ships ``<fixture>.capability-manifest.json`` opts its saved
+    outputs into the manifest-gated checks (capability grounding, runtime-tool
+    grounding, sync confirmation). Without the sidecar those checks are skipped,
+    matching the optional ``--capability-manifest`` flag on the oracle CLI.
+    """
+    path = fixture_dir_for_suite(suite) / f"{fixture_id}.capability-manifest.json"
+    return path if path.exists() else None
+
+
 def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -128,6 +141,7 @@ def validate_contract(
     output_path: Path,
     contract_path: Path,
     security_gate_path: Path | None = None,
+    capability_manifest_path: Path | None = None,
 ) -> dict[str, Any]:
     if not output_path.exists() or not output_path.read_text(encoding="utf-8").strip():
         result = {
@@ -143,13 +157,21 @@ def validate_contract(
                 if security_gate_path is not None
                 else None
             )
+            capability_manifest = (
+                contract_oracle.load_capability_manifest(capability_manifest_path)
+                if capability_manifest_path is not None
+                else None
+            )
             result = contract_oracle.validate_output(
                 skill_name,
                 output_path.read_text(encoding="utf-8"),
                 security_gate=security_gate,
+                capability_manifest=capability_manifest,
             )
             if security_gate_path is not None:
                 result["security_gate_path"] = rel(security_gate_path)
+            if capability_manifest_path is not None:
+                result["capability_manifest_path"] = rel(capability_manifest_path)
         except Exception as exc:  # pragma: no cover - defensive archive path
             result = {
                 "skill": skill_name,
@@ -217,7 +239,14 @@ def run_saved_output(
     metadata_path = saved_metadata_path(run_id, suite, condition, fixture_id)
     contract_path = contract_result_path(run_id, suite, condition, fixture_id)
     security_gate_path = security_gate_sidecar_path(suite, fixture_id)
-    contract = validate_contract(skill_name, output_path, contract_path, security_gate_path=security_gate_path)
+    capability_manifest_path = capability_manifest_sidecar_path(suite, fixture_id)
+    contract = validate_contract(
+        skill_name,
+        output_path,
+        contract_path,
+        security_gate_path=security_gate_path,
+        capability_manifest_path=capability_manifest_path,
+    )
     generation_ok = True if result is None else result.ok
     duration = None if result is None else result.total_duration_sec
     error = None if result is None else result.error
@@ -229,6 +258,9 @@ def run_saved_output(
         metadata_path=rel(metadata_path),
         contract_path=rel(contract_path),
         security_gate_path=rel(security_gate_path) if security_gate_path is not None else None,
+        capability_manifest_path=(
+            rel(capability_manifest_path) if capability_manifest_path is not None else None
+        ),
         generation_ok=generation_ok,
         contract_pass=bool(contract.get("pass")),
         contract_score=contract.get("score"),

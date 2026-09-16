@@ -5,7 +5,7 @@ skill:
 
 fixtures:
   directory: ./fixtures
-  count: 4
+  count: 5
   pattern: "*.md"
   metadata_suffix: ".metadata.yaml"
 
@@ -38,3 +38,4 @@ output_contract_oracle:
   type: deterministic_wordpress_skill_output_contract
   command: "python3 evals/harness/validate_wordpress_skill_output.py --skill wordpress-planner.migration --output <candidate-output.md>"
   status: available
+  capability_manifest_sidecar: "Optional per-fixture <fixture-id>.capability-manifest.json beside the fixture; run_wordpress_high_risk_saved_outputs.py passes it as --capability-manifest so the manifest-gated checks run for that fixture only."

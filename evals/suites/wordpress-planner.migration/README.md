@@ -1,7 +1,7 @@
 # wordpress-planner.migration Focused Eval Scaffold
 
 Focused evaluation scaffold for `wordpress-planner.migration`. The suite now
-contains the original broad smoke fixture plus three focused migration planning
+contains the original broad smoke fixture plus four focused migration planning
 fixtures:
 
 - `smoke-wordpress-v1`: an exact source-to-block contract for a repository-owned
@@ -14,6 +14,13 @@ fixtures:
   criteria, crawl comparison, query-string handling, and 404 sampling.
 - `cutover-rollback-reconciliation-v1`: dry-run findings, delta migration,
   rollback triggers, reconciliation queues, and launch ownership.
+- `host-sync-staging-cutover-v1`: a ddev-to-Pressable staging push chosen from
+  the fixture's recorded capability manifest, with `Sync tool:` / `Sync target:`
+  records, target confirmation before writing, and the `ddev wp` prefix. This
+  fixture ships `host-sync-staging-cutover-v1.capability-manifest.json`, a probe
+  recording of a synthetic ddev project (see
+  `evals/harness/tests/test_fixture_capability_manifests.py`), so its saved
+  outputs are scored with the manifest-gated checks enabled.
 
 Historical saved outputs and answer-key diagnostics exist under `evals/results/`,
 but they are directional internal evidence only. They do not establish a quality
@@ -34,6 +41,10 @@ python3 evals/harness/validate_wordpress_skill_output.py \
   --skill wordpress-planner.migration \
   --output <candidate-output.md>
 ```
+
+For a fixture that ships a `<fixture-id>.capability-manifest.json` sidecar, add
+`--capability-manifest <that file>`; `run_wordpress_high_risk_saved_outputs.py`
+discovers the sidecar itself and records its path in the contract result.
 
 Strict suite integrity gate:
 

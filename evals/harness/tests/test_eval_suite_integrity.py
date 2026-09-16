@@ -625,3 +625,48 @@ def test_malformed_quality_gap_ledger_fails_the_strict_main_gate(tmp_path, monke
         sys, "argv", ["validate-eval-suite-integrity.py", "--strict-suites", "sample", "--allow-known-gaps"]
     )
     assert integrity.main() == 1
+
+
+GOLDEN_MANIFEST = (
+    Path(__file__).resolve().parent / "fixtures" / "capability_manifest" / "golden-wp-env-docker.json"
+)
+
+
+def test_schema_valid_capability_manifest_sidecar_is_accepted(tmp_path):
+    suite_dir = _suite(tmp_path)
+    sidecar = suite_dir / "fixtures" / "case.capability-manifest.json"
+    sidecar.write_text(GOLDEN_MANIFEST.read_text(encoding="utf-8"), encoding="utf-8")
+    assert _codes(suite_dir) == set()
+
+
+def test_capability_manifest_sidecar_without_fixture_is_extra(tmp_path):
+    suite_dir = _suite(tmp_path)
+    sidecar = suite_dir / "fixtures" / "orphan.capability-manifest.json"
+    sidecar.write_text(GOLDEN_MANIFEST.read_text(encoding="utf-8"), encoding="utf-8")
+    assert _codes(suite_dir) == {"extra_sidecar"}
+
+
+def test_security_gate_sidecar_without_fixture_is_extra(tmp_path):
+    suite_dir = _suite(tmp_path)
+    (suite_dir / "fixtures" / "orphan.security-gate.json").write_text("{}", encoding="utf-8")
+    assert _codes(suite_dir) == {"extra_sidecar"}
+
+
+@pytest.mark.parametrize(
+    "payload",
+    (
+        "not json",
+        "[]",
+        "{}",
+        '{"schema_version": "1.0.0"}',
+    ),
+)
+def test_malformed_capability_manifest_sidecar_is_a_schema_issue(tmp_path, payload):
+    suite_dir = _suite(tmp_path)
+    (suite_dir / "fixtures" / "case.capability-manifest.json").write_text(payload, encoding="utf-8")
+    assert _codes(suite_dir) == {"schema_sidecar_manifest"}
+
+
+def test_schema_sidecar_issue_is_structural_and_never_quarantinable():
+    issue = integrity.Issue("sample-suite", "schema_sidecar_manifest", Path("x"), "bad")
+    assert integrity.is_known(issue, {("sample-suite", "schema_sidecar_manifest")}) is False

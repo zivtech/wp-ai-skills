@@ -40,6 +40,20 @@ Two further checks run under the same flag against the manifest's `runtime_tools
 
 Naming a runtime tool to report it unavailable is not an instruction, under the same polarity rules as WP-CLI commands. The static Studio tool table in the validator mirrors the probe's, and `test_runtime_tool_tables_agree_with_the_probe` fails if they drift.
 
+### Eval lane: per-fixture manifest sidecars
+
+The suite oracle command in `eval.yaml` is one string per suite, so it cannot carry a manifest. The eval lane consumes the manifest per fixture instead, by the same convention as `security-gate.json`: a fixture that ships `<fixture-id>.capability-manifest.json` beside its prompt is scored with the three manifest-gated checks enabled, and `run_wordpress_high_risk_saved_outputs.py` discovers the sidecar itself, passes it as `--capability-manifest`, and records `capability_manifest_path` in the contract result and the run manifest. Fixtures without the sidecar keep the optional-flag semantics: the checks are skipped, not passed.
+
+The committed sidecars are probe recordings, not hand-written JSON. `evals/harness/tests/test_fixture_capability_manifests.py` builds a synthetic project tree per scenario (a ddev project with the Pressable provider file; a Studio-managed project whose `studio --help` names `mcp`), drives the probe with the same fake `wp`, `ddev`, and `studio` shims the probe's own tests use, normalises the result, and writes it beside the fixture. Re-record with:
+
+```bash
+WP_META_SKILLS_RECORD_FIXTURE_MANIFESTS=1 python3 -m pytest evals/harness/tests/test_fixture_capability_manifests.py -q
+```
+
+Without the opt-in the module asserts every committed sidecar is schema-valid, normalised, evidence-complete, paired with a fixture prompt and metadata, and still describes its scenario on every section a validator reads; `environment.host` is the recording machine's and is not compared. `scripts/validate-eval-suite-integrity.py` independently rejects a sidecar with no fixture (`extra_sidecar`) or one that fails the manifest schema or predates `runtime_tools` (`schema_sidecar_manifest`, structural and never quarantinable).
+
+Current sidecars: `wordpress-planner.migration/fixtures/host-sync-staging-cutover-v1` (ddev-pressable, so `ddev push pressable` must be instructed with `Sync tool:`, a staging `Sync target:`, `wp_get_environment_type()`, and the `ddev wp` prefix) and `wordpress-blueprint-executor/fixtures/studio-launch-handoff-v1` (studio-mcp-builtin, so `studio site create --blueprint` grounds and any sync tool or standalone `studio-mcp` fails). What this does not establish: no saved output has been generated against either fixture yet, so the eval lane can now run the checks but has not yet recorded a pass or fail for a real model output.
+
 A probe is a snapshot, not a subscription. `generated_at` is stamped in UTC; treat a manifest older than the current session as stale and re-probe. The manifest establishes what can be run. It does not establish that anyone read the output, and it is not evidence of correctness.
 
 Additional flags: `--allow-remote` opts into validating a `.wp-cli.yml` ssh alias over SSH (off by default so a checked-in alias cannot make a fresh clone dial out to a third-party host — the manifest reports `remote_probing_requires_allow_remote` instead); `--budget-seconds` bounds the whole run's wall clock (default 300; exhausted probes record `global_budget_exhausted` rather than running); `--print` and `--out` compose, and `--print` without `--out` suppresses the default file.
