@@ -3,6 +3,7 @@
   "$id": "https://zivtech.com/wp-meta-skills/schemas/capability-manifest.schema.json",
   "title": "WordPress capability manifest",
   "description": "Machine-readable record of what an agent can actually run in a WordPress environment. LOAD-BEARING RULE: the statuses BLOCKED and UNKNOWN never satisfy a capability requirement. Absence of a failure is not a pass. Any consumer that treats a non-AVAILABLE status as permission to proceed is violating this schema's contract.",
+  "$comment": "schema_version 1.1.0: additive, backward-compatible change. Added the top-level runtime_tools section (Lane 1: config/CLI-only detection of agent-facing runtime tool surfaces running alongside the skills -- Studio's built-in `studio mcp`, the `ddev pull/push pressable` path, and the deprecated standalone `studio-mcp`, plus a names-only awareness list of Studio's built-in Agent Skills) and four derived capabilities bound to it.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -17,6 +18,7 @@
     "abilities",
     "mcp",
     "verification_tools",
+    "runtime_tools",
     "capabilities",
     "blockers",
     "evidence"
@@ -63,6 +65,68 @@
         },
         "runtime": {"type": ["string", "null"]},
         "wp_stubs_version": {"type": ["string", "null"]},
+        "notes": {"$ref": "#/$defs/notes"}
+      }
+    },
+    "runtimeTool": {
+      "description": "A single tool exposed by an agent-facing runtime surface (an MCP server or a host CLI path), classified by its worst-case side effect so a capability consumer can gate on it without inspecting the tool itself.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "side_effect", "confirm_required"],
+      "properties": {
+        "name": {"type": "string"},
+        "side_effect": {
+          "description": "Ordered least to most dangerous.",
+          "type": "string",
+          "enum": [
+            "read_only",
+            "local_write",
+            "read_write_local",
+            "provision",
+            "inward_sync",
+            "outward_sync"
+          ]
+        },
+        "confirm_required": {"type": "boolean"},
+        "target_constraint": {"type": "string"}
+      }
+    },
+    "runtimeServer": {
+      "description": "One agent-facing runtime tool surface: a built-in or standalone MCP server, or a host CLI path such as `ddev pull/push pressable`.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "transport", "trust"],
+      "properties": {
+        "id": {"type": "string"},
+        "kind": {
+          "type": "string",
+          "enum": [
+            "studio-mcp-builtin",
+            "studio-mcp-standalone",
+            "ddev-pressable",
+            "unknown"
+          ]
+        },
+        "identity": {"type": ["string", "null"]},
+        "transport": {"type": "string", "enum": ["stdio", "cli"]},
+        "invocation": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Redacted argv, like other invocation fields in this manifest. Never a command this probe executed against the surface itself -- see trust."
+        },
+        "source": {"type": ["string", "null"]},
+        "license": {"type": ["string", "null"]},
+        "superseded": {"type": "boolean"},
+        "trust": {
+          "description": "How this server's presence was established. 'config' = a config/marker file was found. 'cli-help' = a host CLI's --help output named the surface. Never 'tools-list' in this schema version: an MCP tools/list handshake is out of scope for Lane 1.",
+          "type": "string",
+          "enum": ["config", "cli-help"]
+        },
+        "tool_count": {"type": ["integer", "null"], "minimum": 0},
+        "tools": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/runtimeTool"}
+        },
         "notes": {"$ref": "#/$defs/notes"}
       }
     }
@@ -256,6 +320,42 @@
       },
       "additionalProperties": {"$ref": "#/$defs/toolState"}
     },
+    "runtime_tools": {
+      "description": "Agent-facing runtime tool surfaces running alongside the skills (Studio's built-in `studio mcp`, the `ddev pull/push pressable` path, the deprecated standalone `studio-mcp`), plus a names-only awareness list of Studio's built-in Agent Skills. Detection is config/CLI-only in this schema version: no MCP tools/list handshake, and this probe never executes a runtime tool.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": {"$ref": "#/$defs/status"},
+        "reason": {"$ref": "#/$defs/reason"},
+        "detected_via": {
+          "type": "string",
+          "enum": ["config", "cli-help", "none"]
+        },
+        "servers": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/runtimeServer"}
+        },
+        "agent_skills": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "source", "text_incorporated"],
+            "properties": {
+              "id": {"type": "string"},
+              "source": {"type": "string"},
+              "text_incorporated": {
+                "type": "boolean",
+                "description": "Always false: this is a names-only awareness list. The probe never reads a listed skill's contents."
+              }
+            }
+          }
+        },
+        "deprecated_detected": {"type": "array", "items": {"type": "string"}},
+        "notes": {"$ref": "#/$defs/notes"}
+      }
+    },
     "capabilities": {
       "type": "object",
       "description": "Every value is derived strictly from an AVAILABLE status. A BLOCKED or UNKNOWN input yields false, never true.",
@@ -267,7 +367,11 @@
         "can_run_plugin_check",
         "can_provision_ephemeral_site",
         "can_reach_mcp_abilities",
-        "can_register_abilities"
+        "can_register_abilities",
+        "can_handoff_runtime_wp_cli",
+        "can_provision_runtime_site",
+        "has_outward_sync_tool",
+        "aware_of_host_agent_skills"
       ],
       "properties": {
         "can_run_wp_cli": {"type": "boolean"},
@@ -276,7 +380,23 @@
         "can_run_plugin_check": {"type": "boolean"},
         "can_provision_ephemeral_site": {"type": "boolean"},
         "can_reach_mcp_abilities": {"type": "boolean"},
-        "can_register_abilities": {"type": "boolean"}
+        "can_register_abilities": {"type": "boolean"},
+        "can_handoff_runtime_wp_cli": {
+          "type": "boolean",
+          "description": "True only when runtime_tools is AVAILABLE and carries a wp_cli/read_write_local-class tool."
+        },
+        "can_provision_runtime_site": {
+          "type": "boolean",
+          "description": "True only when runtime_tools is AVAILABLE and carries a provision-class tool."
+        },
+        "has_outward_sync_tool": {
+          "type": "boolean",
+          "description": "True only when runtime_tools is AVAILABLE and carries an outward_sync-class tool."
+        },
+        "aware_of_host_agent_skills": {
+          "type": "boolean",
+          "description": "True only when runtime_tools is AVAILABLE and agent_skills is non-empty."
+        }
       }
     },
     "blockers": {
@@ -372,6 +492,66 @@
       "then": {
         "required": ["abilities"],
         "properties": {"abilities": {"properties": {"status": {"const": "AVAILABLE"}}}}
+      }
+    },
+    {
+      "if": {
+        "required": ["capabilities"],
+        "properties": {
+          "capabilities": {
+            "required": ["can_handoff_runtime_wp_cli"],
+            "properties": {"can_handoff_runtime_wp_cli": {"const": true}}
+          }
+        }
+      },
+      "then": {
+        "required": ["runtime_tools"],
+        "properties": {"runtime_tools": {"properties": {"status": {"const": "AVAILABLE"}}}}
+      }
+    },
+    {
+      "if": {
+        "required": ["capabilities"],
+        "properties": {
+          "capabilities": {
+            "required": ["can_provision_runtime_site"],
+            "properties": {"can_provision_runtime_site": {"const": true}}
+          }
+        }
+      },
+      "then": {
+        "required": ["runtime_tools"],
+        "properties": {"runtime_tools": {"properties": {"status": {"const": "AVAILABLE"}}}}
+      }
+    },
+    {
+      "if": {
+        "required": ["capabilities"],
+        "properties": {
+          "capabilities": {
+            "required": ["has_outward_sync_tool"],
+            "properties": {"has_outward_sync_tool": {"const": true}}
+          }
+        }
+      },
+      "then": {
+        "required": ["runtime_tools"],
+        "properties": {"runtime_tools": {"properties": {"status": {"const": "AVAILABLE"}}}}
+      }
+    },
+    {
+      "if": {
+        "required": ["capabilities"],
+        "properties": {
+          "capabilities": {
+            "required": ["aware_of_host_agent_skills"],
+            "properties": {"aware_of_host_agent_skills": {"const": true}}
+          }
+        }
+      },
+      "then": {
+        "required": ["runtime_tools"],
+        "properties": {"runtime_tools": {"properties": {"status": {"const": "AVAILABLE"}}}}
       }
     }
   ]

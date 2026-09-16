@@ -33,13 +33,17 @@
     }
   ],
   "capabilities": {
+    "aware_of_host_agent_skills": false,
+    "can_handoff_runtime_wp_cli": false,
     "can_provision_ephemeral_site": true,
+    "can_provision_runtime_site": false,
     "can_reach_mcp_abilities": false,
     "can_read_site_state": true,
     "can_register_abilities": false,
     "can_run_plugin_check": true,
     "can_run_static_analysis": true,
-    "can_run_wp_cli": true
+    "can_run_wp_cli": true,
+    "has_outward_sync_tool": false
   },
   "environment": {
     "cwd": "<normalized>",
@@ -607,6 +611,17 @@
       "exit_code": 1,
       "stderr_excerpt": "npm warn Unknown user config \"min-release-age\". This will stop working in the next major version of npm.\nnpm error npx canceled due to missing packages and no YES option: [\"@wp-playground/cli@3.1.49\"]\nnpm error A complete log of this run can be found in: ~/.npm/_logs/<normalized>-debug-0.log",
       "stdout_excerpt": ""
+    },
+    {
+      "argv": [
+        "<derived>",
+        "runtime-tool-surface-scan"
+      ],
+      "claim": "runtime_tools.detected_via",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "none"
     }
   ],
   "generated_at": "1970-01-01T00:00:00Z",
@@ -630,7 +645,16 @@
     "."
   ],
   "probe_version": "0.1.0",
-  "schema_version": "1.0.0",
+  "runtime_tools": {
+    "agent_skills": [],
+    "deprecated_detected": [],
+    "detected_via": "none",
+    "notes": [],
+    "reason": "no_runtime_surface_detected",
+    "servers": [],
+    "status": "UNAVAILABLE"
+  },
+  "schema_version": "1.1.0",
   "verification_tools": {
     "phpcs": {
       "invocation": [

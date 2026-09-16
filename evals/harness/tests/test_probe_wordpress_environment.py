@@ -1049,6 +1049,233 @@ def test_studio_invocation_prefix_is_studio_wp(tmp_path: Path) -> None:
     assert probe.invocation_prefix_for("studio", tmp_path) == ["studio", "wp"]
 
 
+# --- runtime_tools: agent-facing runtime surfaces alongside the skills ------
+#
+# Lane 1 scope: config/CLI-only detection. No MCP tools/list handshake, and
+# the probe must never execute a runtime tool (no push/pull, no starting an
+# MCP server).
+
+FAKE_STUDIO_TEMPLATE = """#!{interpreter}
+import sys
+args = sys.argv[1:]
+if "--help" in args:
+    sys.stdout.write({help_text!r})
+    raise SystemExit(0)
+if "--version" in args:
+    sys.stdout.write({version!r} + "\\n")
+    raise SystemExit(0)
+if args and args[0] == "wp":
+    sys.stdout.write("WP-CLI version:\\t2.12.0\\n")
+    raise SystemExit(0)
+raise SystemExit(1)
+"""
+
+DEFAULT_STUDIO_HELP = (
+    "Usage: studio <command>\n\nCommands:\n  mcp      Start the MCP server\n  wp       Run WP-CLI\n"
+)
+
+
+def _install_fake_studio(
+    tmp_path: Path,
+    *,
+    help_text: str = DEFAULT_STUDIO_HELP,
+    version: str = "1.21.0",
+) -> Path:
+    """Write a fake `studio` onto a private PATH directory and return that dir.
+
+    The fake never handles `mcp` as a real subcommand: a probe bug that
+    actually invoked `studio mcp` would hang against this fake exactly as it
+    would against the real stdio server, which is the point.
+    """
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    script = bin_dir / "studio"
+    script.write_text(
+        FAKE_STUDIO_TEMPLATE.format(interpreter=sys.executable, help_text=help_text, version=version),
+        encoding="utf-8",
+    )
+    script.chmod(script.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    return bin_dir
+
+
+def _studio_project(tmp_path: Path) -> Path:
+    root = tmp_path / "site"
+    root.mkdir()
+    (root / "wp-config.php").write_text("<?php\n", encoding="utf-8")
+    (root / "STUDIO.md").write_text("## IMPORTANT: WP-CLI in WordPress Studio\n", encoding="utf-8")
+    return root
+
+
+def test_runtime_tools_detects_studio_builtin_mcp_from_help_text(tmp_path: Path) -> None:
+    root = _studio_project(tmp_path)
+    bin_dir = _install_fake_studio(tmp_path)
+
+    manifest = _run_probe(root, [str(bin_dir)])
+
+    runtime_tools = manifest["runtime_tools"]
+    assert runtime_tools["status"] == "AVAILABLE"
+    assert runtime_tools["detected_via"] == "cli-help"
+    assert len(runtime_tools["servers"]) == 1
+    server = runtime_tools["servers"][0]
+    assert server["kind"] == "studio-mcp-builtin"
+    assert server["trust"] == "cli-help"
+    assert server["transport"] == "stdio"
+
+    push_tools = [tool for tool in server["tools"] if tool["name"] == "site_push"]
+    assert push_tools and push_tools[0]["confirm_required"] is True
+    assert push_tools[0]["side_effect"] == "outward_sync"
+
+    assert manifest["capabilities"]["can_handoff_runtime_wp_cli"] is True
+    assert manifest["capabilities"]["has_outward_sync_tool"] is True
+
+    # `studio mcp` starts a stdio server and must never be invoked by the
+    # probe; every recorded `studio` call is --help, --version, or `wp ...`.
+    for entry in manifest["evidence"]:
+        if entry["argv"][:1] == ["studio"]:
+            assert entry["argv"][1] in {"--help", "--version", "wp"}, entry["argv"]
+    assert not any(entry["argv"][:2] == ["studio", "mcp"] for entry in manifest["evidence"])
+
+
+def test_runtime_tools_studio_absent_from_help_text_is_unavailable(tmp_path: Path) -> None:
+    root = _studio_project(tmp_path)
+    bin_dir = _install_fake_studio(tmp_path, help_text="Usage: studio <command>\n\nCommands:\n  wp   Run WP-CLI\n")
+
+    manifest = _run_probe(root, [str(bin_dir)])
+
+    assert manifest["runtime_tools"]["status"] == "UNAVAILABLE"
+    assert manifest["runtime_tools"]["servers"] == []
+
+
+def test_runtime_tools_detects_ddev_pressable_provider(tmp_path: Path) -> None:
+    root = tmp_path / "site"
+    root.mkdir()
+    (root / ".ddev" / "providers").mkdir(parents=True)
+    (root / ".ddev" / "providers" / "pressable.yaml").write_text("provider: pressable\n", encoding="utf-8")
+    empty_bin = tmp_path / "empty-bin"
+    empty_bin.mkdir()
+
+    manifest = _run_probe(root, [str(empty_bin)])
+
+    runtime_tools = manifest["runtime_tools"]
+    assert runtime_tools["status"] == "AVAILABLE"
+    assert runtime_tools["detected_via"] == "config"
+    server = next(s for s in runtime_tools["servers"] if s["kind"] == "ddev-pressable")
+    assert server["trust"] == "config"
+    assert server["license"] == "Apache-2.0"
+
+    push = next(tool for tool in server["tools"] if tool["name"] == "ddev push pressable")
+    assert push["side_effect"] == "outward_sync"
+    assert push["confirm_required"] is True
+    assert push["target_constraint"] == "staging-only"
+
+    pull = next(tool for tool in server["tools"] if tool["name"] == "ddev pull pressable")
+    assert pull["side_effect"] == "inward_sync"
+    assert pull["confirm_required"] is True
+
+    assert manifest["capabilities"]["has_outward_sync_tool"] is True
+
+
+def test_runtime_tools_detects_deprecated_standalone_studio_mcp(tmp_path: Path) -> None:
+    root = tmp_path / "site"
+    root.mkdir()
+    (root / ".mcp.json").write_text(
+        json.dumps({"mcpServers": {"studio-mcp": {"command": "node", "args": ["studio-mcp/index.js"]}}}),
+        encoding="utf-8",
+    )
+    empty_bin = tmp_path / "empty-bin"
+    empty_bin.mkdir()
+
+    manifest = _run_probe(root, [str(empty_bin)])
+
+    runtime_tools = manifest["runtime_tools"]
+    server = next(s for s in runtime_tools["servers"] if s["kind"] == "studio-mcp-standalone")
+    assert server["superseded"] is True
+    assert "studio-mcp-standalone" in runtime_tools["deprecated_detected"]
+    assert "deprecated_runtime_tooling_detected" in runtime_tools["notes"]
+
+
+def test_runtime_tools_lists_agent_skill_names_without_reading_contents(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _studio_project(tmp_path)
+    skill_dir = root / ".agents" / "skills" / "site-audit"
+    skill_dir.mkdir(parents=True)
+    skill_md = skill_dir / "SKILL.md"
+    skill_md.write_text("SENTINEL: reading this file's contents is a probe bug\n", encoding="utf-8")
+    (root / ".agents" / "skills" / "seo-helper").mkdir(parents=True)
+    empty_bin = tmp_path / "empty-bin"
+    empty_bin.mkdir()
+
+    real_read_text = Path.read_text
+
+    def spying_read_text(self: Path, *args: object, **kwargs: object) -> str:
+        if self == skill_md:
+            raise AssertionError("probe must never read a skill's SKILL.md contents")
+        return real_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", spying_read_text)
+
+    manifest = _run_probe(root, [str(empty_bin)])
+
+    agent_skills = manifest["runtime_tools"]["agent_skills"]
+    assert {entry["id"] for entry in agent_skills} == {"site-audit", "seo-helper"}
+    assert all(entry["source"] == "studio-builtin" for entry in agent_skills)
+    assert all(entry["text_incorporated"] is False for entry in agent_skills)
+    assert manifest["capabilities"]["aware_of_host_agent_skills"] is True
+
+
+def test_runtime_tools_fallback_on_bare_host(tmp_path: Path) -> None:
+    """Absence is the clean fallback, not a failure: no blocker is raised
+    for a missing runtime surface, and no existing section is disturbed."""
+    empty_bin = tmp_path / "empty-bin"
+    empty_bin.mkdir()
+    root = tmp_path / "nothing"
+    root.mkdir()
+
+    manifest = _run_probe(root, [str(empty_bin)])
+
+    runtime_tools = manifest["runtime_tools"]
+    assert runtime_tools["status"] == "UNAVAILABLE"
+    assert runtime_tools["reason"] == "no_runtime_surface_detected"
+    assert runtime_tools["detected_via"] == "none"
+    assert runtime_tools["servers"] == []
+    assert runtime_tools["agent_skills"] == []
+    assert runtime_tools["deprecated_detected"] == []
+
+    capabilities = manifest["capabilities"]
+    assert capabilities["can_handoff_runtime_wp_cli"] is False
+    assert capabilities["can_provision_runtime_site"] is False
+    assert capabilities["has_outward_sync_tool"] is False
+    assert capabilities["aware_of_host_agent_skills"] is False
+    # Adding runtime_tools must not disturb any pre-existing capability.
+    assert capabilities["can_run_wp_cli"] is False
+
+    assert not any(code.startswith("runtime_tool") for code in {b["code"] for b in manifest["blockers"]})
+    assert _schema_errors(manifest) == []
+    assert probe.evidence_gaps(manifest) == []
+
+
+def test_runtime_tools_manifest_passes_schema_validation(tmp_path: Path) -> None:
+    root = _studio_project(tmp_path)
+    bin_dir = _install_fake_studio(tmp_path)
+
+    manifest = _run_probe(root, [str(bin_dir)])
+
+    assert manifest["runtime_tools"]["status"] == "AVAILABLE"
+    assert _schema_errors(manifest) == []
+    assert probe.evidence_gaps(manifest) == [], "no runtime_tools:AVAILABLE-without-evidence gap"
+
+
+def test_runtime_capability_true_without_available_status_fails_schema(tmp_path: Path) -> None:
+    manifest = probe._blank_manifest([], False, tmp_path)
+    # runtime_tools.status stays UNAVAILABLE (the blank default) while a
+    # runtime capability is forced true: the allOf binding must reject this.
+    manifest["capabilities"]["can_handoff_runtime_wp_cli"] = True
+
+    errors = _schema_errors(manifest)
+    assert any("runtime_tools" in error for error in errors)
+
+
 def test_remote_alias_is_not_probed_without_allow_remote(tmp_path: Path) -> None:
     """A checked-in ssh alias must not make a fresh clone dial out."""
     root = tmp_path / "site"
@@ -1420,3 +1647,64 @@ def test_the_wordpress_standard_is_attributed_to_wpcs_not_phpcs() -> None:
 
     assert check.passed is False
     assert "wordpress_standard_not_installed" in check.detail
+
+
+# --- Security hardening: hostile-filesystem robustness for the runtime_tools probe ---
+
+
+def test_read_json_degrades_on_hostile_config(tmp_path: Path) -> None:
+    """_read_json must degrade to None on a JSON bomb or oversized file, never raise."""
+    bomb = tmp_path / "bomb.json"
+    bomb.write_text("[" * 100000 + "]" * 100000, encoding="utf-8")  # RecursionError in json.loads
+    assert probe._read_json(bomb) is None
+
+    huge = tmp_path / "huge.json"
+    huge.write_bytes(b"0" * (probe._MAX_CONFIG_BYTES + 1))  # refused by the size cap
+    assert probe._read_json(huge) is None
+
+    good = tmp_path / "good.json"
+    good.write_text(json.dumps({"runtime": "docker"}), encoding="utf-8")
+    assert probe._read_json(good) == {"runtime": "docker"}
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="FIFO requires POSIX mkfifo")
+def test_read_json_does_not_hang_on_fifo(tmp_path: Path) -> None:
+    """A FIFO with no writer would block a naive read_text forever; is_file() rejects it."""
+    fifo = tmp_path / "pipe.json"
+    os.mkfifo(fifo)
+    assert probe._read_json(fifo) is None
+
+
+def test_runtime_tools_survives_hostile_mcp_json(tmp_path: Path) -> None:
+    """A JSON-bomb .mcp.json must not crash the probe; it degrades to 'not detected'."""
+    root = tmp_path / "site"
+    root.mkdir()
+    (root / ".mcp.json").write_text("[" * 100000 + "]" * 100000, encoding="utf-8")
+    empty_bin = tmp_path / "empty-bin"
+    empty_bin.mkdir()
+
+    manifest = _run_probe(root, [str(empty_bin)])  # must not raise
+
+    rt = manifest["runtime_tools"]
+    assert not any(s["kind"] == "studio-mcp-standalone" for s in rt["servers"])
+    assert "studio-mcp-standalone" not in rt["deprecated_detected"]
+
+
+def test_runtime_tools_validates_agent_skill_names(tmp_path: Path) -> None:
+    """Attacker-chosen skill dir names are constrained to slugs and capped."""
+    root = _studio_project(tmp_path)
+    skills = root / ".agents" / "skills"
+    skills.mkdir(parents=True, exist_ok=True)
+    (skills / "valid-skill").mkdir()
+    (skills / "evil name; rm -rf").mkdir()  # non-slug -> dropped
+    for i in range(probe._MAX_AGENT_SKILLS + 5):
+        (skills / f"skill-{i:03d}").mkdir()
+    empty_bin = tmp_path / "empty-bin"
+    empty_bin.mkdir()
+
+    manifest = _run_probe(root, [str(empty_bin)])
+
+    ids = [entry["id"] for entry in manifest["runtime_tools"]["agent_skills"]]
+    assert "evil name; rm -rf" not in ids
+    assert all(probe._AGENT_SKILL_ID_RE.match(i) for i in ids)
+    assert len(ids) <= probe._MAX_AGENT_SKILLS
