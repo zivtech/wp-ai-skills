@@ -1708,3 +1708,187 @@ def test_runtime_tools_validates_agent_skill_names(tmp_path: Path) -> None:
     assert "evil name; rm -rf" not in ids
     assert all(probe._AGENT_SKILL_ID_RE.match(i) for i in ids)
     assert len(ids) <= probe._MAX_AGENT_SKILLS
+
+
+# ---------------------------------------------------------------------------
+# Lane 2: runtime-tool grounding and sync confirmation.
+# ---------------------------------------------------------------------------
+
+
+def _runtime_manifest(*kinds: str, status: str = "AVAILABLE") -> dict:
+    tables = {
+        "studio-mcp-builtin": probe.STUDIO_MCP_TOOLS,
+        "ddev-pressable": probe.DDEV_PRESSABLE_TOOLS,
+        "studio-mcp-standalone": (),
+    }
+    servers = [
+        {
+            "id": kind,
+            "kind": kind,
+            "superseded": kind == "studio-mcp-standalone",
+            "tools": [dict(tool) for tool in tables[kind]],
+        }
+        for kind in kinds
+    ]
+    return {
+        "wp_cli": {"status": "AVAILABLE", "commands": {}},
+        "runtime_tools": {
+            "status": status,
+            "reason": None if status == "AVAILABLE" else "no_runtime_surface_detected",
+            "servers": servers,
+        },
+    }
+
+
+def test_runtime_tool_tables_agree_with_the_probe() -> None:
+    """The validator carries a static copy of the probe's tool names; they must not drift."""
+    assert {tool["name"] for tool in probe.STUDIO_MCP_TOOLS} == output_oracle.STUDIO_MCP_TOOL_NAMES
+    ddev_names = {tool["name"] for tool in probe.DDEV_PRESSABLE_TOOLS}
+    cli_names = {tool for _, tool, _ in output_oracle.RUNTIME_CLI_INVOCATIONS if tool}
+    assert cli_names == ddev_names
+    assert not (ddev_names & output_oracle.STUDIO_MCP_TOOL_NAMES)
+
+
+def test_runtime_grounding_passes_when_nothing_is_instructed() -> None:
+    check = output_oracle.check_runtime_tool_grounding("Run `wp plugin list`.\n", _runtime_manifest())
+    assert check.passed is True
+    assert check.weight == 3
+
+
+def test_runtime_grounding_fails_a_server_the_manifest_did_not_detect() -> None:
+    manifest = _runtime_manifest()  # AVAILABLE status but no servers listed
+    candidate = "## Execution\n\nRun `ddev push pressable` after the freeze.\n"
+    check = output_oracle.check_runtime_tool_grounding(candidate, manifest)
+    assert check.passed is False
+    assert "ddev push pressable: server ddev-pressable not detected" in check.detail
+
+
+def test_runtime_grounding_fails_when_runtime_tools_are_unavailable() -> None:
+    manifest = _runtime_manifest(status="UNAVAILABLE")
+    candidate = "## Launch\n\n```bash\nstudio site create --blueprint blueprint.json\n```\n"
+    check = output_oracle.check_runtime_tool_grounding(candidate, manifest)
+    assert check.passed is False
+    assert "no_runtime_surface_detected" in check.detail
+    assert "studio site create" in check.detail
+
+
+def test_runtime_grounding_never_accepts_a_superseded_server() -> None:
+    manifest = _runtime_manifest("studio-mcp-standalone")
+    candidate = "Register `npx studio-mcp` in `.mcp.json`.\n"
+    check = output_oracle.check_runtime_tool_grounding(candidate, manifest)
+    assert check.passed is False
+    assert "studio-mcp-standalone is superseded" in check.detail
+
+
+def test_runtime_grounding_reports_a_pre_lane1_manifest_as_not_probed() -> None:
+    manifest = {"wp_cli": {"status": "AVAILABLE", "commands": {}}}
+    candidate = "Use the `site_push` tool.\n"
+    check = output_oracle.check_runtime_tool_grounding(candidate, manifest)
+    assert check.passed is True
+    assert "runtime_tools: not probed" in check.detail
+
+
+def test_runtime_grounding_treats_naming_to_report_as_not_an_instruction() -> None:
+    manifest = _runtime_manifest()
+    candidate = "## Blockers\n\n`ddev push pressable` is unavailable: no `.ddev/providers/pressable.yaml`.\n"
+    check = output_oracle.check_runtime_tool_grounding(candidate, manifest)
+    assert check.passed is True
+
+
+def test_runtime_grounding_wp_cli_tool_needs_the_citation_form() -> None:
+    manifest = _runtime_manifest()  # no Studio server
+    bare = "Read `wp_cli.status` from the manifest before planning.\n"
+    assert output_oracle.check_runtime_tool_grounding(bare, manifest).passed is True
+    cited = "Forward the command through `runtime_tools.studio-mcp-builtin.wp_cli`.\n"
+    check = output_oracle.check_runtime_tool_grounding(cited, manifest)
+    assert check.passed is False
+    assert "server studio-mcp-builtin not detected" in check.detail
+
+
+def test_runtime_grounding_rejects_a_tool_the_server_does_not_list() -> None:
+    manifest = _runtime_manifest("studio-mcp-builtin")
+    candidate = "Call `runtime_tools.studio-mcp-builtin.site_nuke`.\n"
+    check = output_oracle.check_runtime_tool_grounding(candidate, manifest)
+    assert check.passed is False
+    assert "tool not listed on studio-mcp-builtin" in check.detail
+
+
+_CONFIRMED_PUSH = (
+    "## Transform And Execution Plan\n\n"
+    "Sync tool: ddev push pressable\n"
+    "Sync target: milkjawn staging (Pressable)\n\n"
+    "Confirm the destination first:\n\n"
+    "```bash\n"
+    "ddev wp eval 'echo wp_get_environment_type();'\n"
+    "ddev push pressable\n"
+    "```\n"
+)
+
+
+def test_sync_confirmation_passes_a_fully_confirmed_push() -> None:
+    manifest = _runtime_manifest("ddev-pressable")
+    grounding = output_oracle.check_runtime_tool_grounding(_CONFIRMED_PUSH, manifest)
+    confirmation = output_oracle.check_runtime_sync_confirmation(_CONFIRMED_PUSH, manifest)
+    assert grounding.passed is True
+    assert confirmation.passed is True
+    assert confirmation.weight == 3
+    assert "ddev push pressable" in confirmation.detail
+
+
+def test_sync_confirmation_fails_a_push_with_no_target_record() -> None:
+    manifest = _runtime_manifest("ddev-pressable")
+    candidate = "## Transform And Execution Plan\n\n```bash\nddev push pressable\n```\n"
+    check = output_oracle.check_runtime_sync_confirmation(candidate, manifest)
+    assert check.passed is False
+    assert "Sync tool: must be exactly 'ddev push pressable'" in check.detail
+    assert "Sync target: missing or unusable" in check.detail
+    assert "wp_get_environment_type() confirmation absent" in check.detail
+
+
+@pytest.mark.parametrize("target", ["production", "milkjawn prod", "the live site"])
+def test_sync_confirmation_enforces_the_staging_only_constraint(target: str) -> None:
+    manifest = _runtime_manifest("ddev-pressable")
+    candidate = _CONFIRMED_PUSH.replace("milkjawn staging (Pressable)", target)
+    check = output_oracle.check_runtime_sync_confirmation(candidate, manifest)
+    assert check.passed is False
+    assert "violates staging-only" in check.detail
+
+
+def test_sync_confirmation_requires_records_in_the_instructing_section() -> None:
+    manifest = _runtime_manifest("ddev-pressable")
+    candidate = (
+        "## Assumption Register\n\nSync tool: ddev push pressable\nSync target: staging\n"
+        "`wp_get_environment_type()` is printed first.\n\n"
+        "## Transform And Execution Plan\n\n```bash\nddev push pressable\n```\n"
+    )
+    check = output_oracle.check_runtime_sync_confirmation(candidate, manifest)
+    assert check.passed is False
+    assert "in 'Transform And Execution Plan'" in check.detail
+
+
+def test_sync_confirmation_applies_to_studio_sync_tools_but_not_provisioning() -> None:
+    manifest = _runtime_manifest("studio-mcp-builtin")
+    provision = "## Launch\n\nUse the `site_create` tool, then `site_start`.\n"
+    assert output_oracle.check_runtime_sync_confirmation(provision, manifest).passed is True
+    push = "## Cutover\n\nUse the `site_push` tool.\n"
+    check = output_oracle.check_runtime_sync_confirmation(push, manifest)
+    assert check.passed is False
+    assert "site_push in 'Cutover'" in check.detail
+
+
+def test_sync_confirmation_ignores_ungrounded_and_negated_mentions() -> None:
+    manifest = _runtime_manifest()  # nothing detected -> nothing to confirm here
+    candidate = "## Cutover\n\nDo not run `ddev push pressable`; it is not available.\n"
+    assert output_oracle.check_runtime_sync_confirmation(candidate, manifest).passed is True
+
+
+def test_validate_output_runs_both_runtime_checks_only_with_a_manifest() -> None:
+    text = (FIXTURES.parent / "a_short_valid_heading.md").read_text(encoding="utf-8")
+    without = output_oracle.validate_output("wordpress-planner", text)
+    with_manifest = output_oracle.validate_output(
+        "wordpress-planner", text, capability_manifest=_runtime_manifest()
+    )
+    ids_without = {check["id"] for check in without["checks"]}
+    ids_with = {check["id"] for check in with_manifest["checks"]}
+    assert {"runtime_tool_grounding", "runtime_sync_confirmation"}.isdisjoint(ids_without)
+    assert {"runtime_tool_grounding", "runtime_sync_confirmation"} <= ids_with
