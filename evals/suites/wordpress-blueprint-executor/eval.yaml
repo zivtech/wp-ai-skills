@@ -25,6 +25,7 @@ evaluation:
   latest_static_certification_run: wordpress-blueprint-executor-static-cert-20260621
   latest_self_contained_static_certification_run: wordpress-blueprint-executor-self-contained-static-cert-20260621
   latest_self_contained_launch_preflight_run: wordpress-blueprint-executor-self-contained-launch-preflight-20260621
+  latest_sidecar_saved_output_run: wordpress-blueprint-executor-sidecar-saved-outputs-20260916
 
 invocation:
   model: sonnet

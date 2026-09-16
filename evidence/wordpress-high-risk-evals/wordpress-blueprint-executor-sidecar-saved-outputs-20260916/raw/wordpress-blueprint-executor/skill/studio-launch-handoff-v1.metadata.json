@@ -1,0 +1,14 @@
+{
+  "agent": "wordpress-blueprint-executor",
+  "agent_injection": "content",
+  "agent_prompt_path": ".claude/agents/wordpress-blueprint-executor.md",
+  "condition": "skill",
+  "effort": "low",
+  "fixture_id": "studio-launch-handoff-v1",
+  "mode": "executor-direct",
+  "model": "sonnet",
+  "provider": "claude",
+  "runtime": "local_claude_cli",
+  "stage": "single",
+  "suite": "wordpress-blueprint-executor"
+}

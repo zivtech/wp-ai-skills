@@ -21,8 +21,10 @@ fixtures:
   `studio-launch-handoff-v1.capability-manifest.json`, a probe recording of a
   synthetic Studio project (see
   `evals/harness/tests/test_fixture_capability_manifests.py`), so its saved
-  outputs are scored with the manifest-gated checks enabled. It has no saved
-  example packet and no static certification run yet.
+  outputs are scored with the manifest-gated checks enabled. Its first
+  saved-output run is `wordpress-blueprint-executor-sidecar-saved-outputs-20260916`
+  (all lanes generated, none passed); it has no saved example packet and no
+  static certification run yet.
 
 This is not a benchmark result. Focused saved executor packets now exist under
 `evals/suites/wordpress-blueprint-executor/examples/`, and deterministic static

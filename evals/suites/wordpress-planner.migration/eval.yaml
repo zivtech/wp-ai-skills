@@ -24,6 +24,7 @@ evaluation:
   full_run_status: blocked_until_test_critic_or_qa_review
   latest_saved_output_run: wordpress-planner-migration-saved-outputs-20260621
   latest_answer_key_run: wordpress-high-risk-answer-key-20260621
+  latest_sidecar_saved_output_run: wordpress-planner-migration-sidecar-saved-outputs-20260916
 
 invocation:
   model: sonnet
