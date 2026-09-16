@@ -198,3 +198,25 @@ def test_write_stage_stderr_removes_stale_success_file(tmp_path):
     invoke._write_stage_stderr(path, "", 0)
 
     assert not path.exists()
+
+
+def test_every_wordpress_executor_suite_resolves_a_rollout_planner_agent():
+    """Executor mode derives `<prefix>-planner`; every WordPress executor suite must resolve one.
+
+    The blueprint executor exposed the gap: `wordpress-blueprint-planner` does
+    not exist, so its skill lane produced an empty rollout and a zero-score
+    contract instead of a graded output.
+    """
+    suites_root = HARNESS.parent / "suites"
+    executor_suites = sorted(
+        path.name for path in suites_root.iterdir() if path.name.startswith("wordpress-") and path.name.endswith("-executor")
+    )
+    assert executor_suites, "no WordPress executor suites found"
+    for suite in executor_suites:
+        prefix = suite.replace("-executor", "")
+        assert invoke.agent_prompt_path(f"{prefix}-planner") is not None, f"{suite}: no planner agent for {prefix}-planner"
+
+
+def test_blueprint_planner_alias_routes_to_the_general_wordpress_planner():
+    path = invoke.agent_prompt_path("wordpress-blueprint-planner")
+    assert path is not None and path.name == "wordpress-planner.md"

@@ -43,6 +43,10 @@ AGENT_ROOTS = (
     ROOT / ".claude" / "agents",
 )
 AGENT_ALIASES = {
+    # Executor mode derives "<suite-prefix>-planner" for the rollout stage.
+    # Blueprints have no dedicated planner: docs/wordpress/lifecycle.md routes
+    # them through the general wordpress-planner, so the derived name must too.
+    "wordpress-blueprint-planner": "wordpress-planner",
     "wordpress-planner.block": "wordpress-block-planner",
     "wordpress-planner.content-model": "wordpress-content-model-planner",
     "wordpress-planner.migration": "wordpress-migration-planner",
