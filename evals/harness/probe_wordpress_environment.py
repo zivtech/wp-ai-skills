@@ -505,12 +505,27 @@ def _is_localwp(root: Path) -> bool:
     return "local sites" in str(root).lower() or (root / "conf").is_dir()
 
 
+# Studio (Automattic) site markers, in the order they are checked. Verified
+# against wp-studio@1.21.0 on 2026-09-15: a fresh site carries `STUDIO.md`
+# (plus AGENTS.md/CLAUDE.md) in the site root and a `99-studio-loader.php`
+# mu-plugin, and does NOT carry `.studio` or `.wp-studio.json`. The older
+# markers are kept for sites created by earlier builds.
+STUDIO_MARKERS: tuple[str, ...] = (
+    ".wp-studio.json",
+    "STUDIO.md",
+    "wp-content/mu-plugins/99-studio-loader.php",
+)
+
+
 def _studio_marker(root: Path) -> str | None:
     """Return the Studio marker that actually matched, not a presumed one."""
     if (root / ".studio").exists():
         return ".studio"
-    if (root / "wp-config.php").exists() and (root / ".wp-studio.json").exists():
-        return ".wp-studio.json"
+    if not (root / "wp-config.php").exists():
+        return None
+    for marker in STUDIO_MARKERS:
+        if (root / marker).exists():
+            return marker
     return None
 
 

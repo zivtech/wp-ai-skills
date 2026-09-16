@@ -1,0 +1,8 @@
+# Blueprint check
+$ studio site create --name bp-verify --path <scratch>/bp-site --blueprint <local minimal-blueprint.json> --skip-browser
+result: site created on port 8882; blogname/blogdescription set by the blueprint setSiteOptions step:
+Blueprint Verify Site
+created via studio site create --blueprint
+
+blueprint used:
+{"$schema":"https://playground.wordpress.net/blueprint-schema.json","landingPage":"/","steps":[{"step":"setSiteOptions","options":{"blogname":"Blueprint Verify Site","blogdescription":"created via studio site create --blueprint"}}]}

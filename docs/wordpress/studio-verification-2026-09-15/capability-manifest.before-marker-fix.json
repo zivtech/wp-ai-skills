@@ -1,0 +1,448 @@
+{
+  "abilities": {
+    "api_present": null,
+    "api_source": null,
+    "notes": [],
+    "publicly_exposed_count": null,
+    "reason": "wp_cli_unavailable",
+    "registered": [],
+    "registered_count": null,
+    "status": "BLOCKED"
+  },
+  "allow_eval": false,
+  "blockers": [
+    {
+      "affects": [
+        "can_run_wp_cli"
+      ],
+      "code": "marker_matched_but_cli_unreachable",
+      "detail": "Marker wp-config.php matched but the derived prefix did not answer `--info`.",
+      "remediation_hint": null,
+      "severity": "MAJOR"
+    },
+    {
+      "affects": [
+        "can_run_wp_cli"
+      ],
+      "code": "wp_cli_unavailable",
+      "detail": "No validated WP-CLI invocation prefix; every WP-CLI instruction is unverifiable here.",
+      "remediation_hint": "Start the local environment, or run the probe from the project root (out of scope for the probe - see rec 07).",
+      "severity": "CRITICAL"
+    },
+    {
+      "affects": [
+        "can_read_site_state"
+      ],
+      "code": "site_state_unreadable",
+      "detail": "WordPress is not installed or not reachable, so site state cannot ground a plan.",
+      "remediation_hint": "Install or start the site (out of scope for the probe - see rec 07).",
+      "severity": "MAJOR"
+    },
+    {
+      "affects": [
+        "can_run_static_analysis"
+      ],
+      "code": "static_analysis_unavailable",
+      "detail": "Neither phpcs nor phpstan answered, so no static verification oracle exists.",
+      "remediation_hint": "composer install (out of scope for the probe - see rec 07).",
+      "severity": "MAJOR"
+    },
+    {
+      "affects": [
+        "can_run_plugin_check"
+      ],
+      "code": "plugin_check_unavailable",
+      "detail": "Plugin Check's WP-CLI command did not answer.",
+      "remediation_hint": "wp plugin install plugin-check (out of scope for the probe - see rec 07).",
+      "severity": "MINOR"
+    },
+    {
+      "affects": [
+        "can_provision_ephemeral_site"
+      ],
+      "code": "no_ephemeral_runtime",
+      "detail": "Neither @wordpress/env nor @wp-playground/cli answered, so no throwaway site can be provisioned.",
+      "remediation_hint": "npm install @wordpress/env (out of scope for the probe - see rec 07).",
+      "severity": "MINOR"
+    },
+    {
+      "affects": [
+        "can_reach_mcp_abilities"
+      ],
+      "code": "mcp_adapter_absent",
+      "detail": "No publicly exposed MCP ability was observed; exposure is default-deny via meta.mcp.public.",
+      "remediation_hint": "composer require wordpress/mcp-adapter (out of scope for the probe - see rec 07).",
+      "severity": "MAJOR"
+    },
+    {
+      "affects": [
+        "can_register_abilities"
+      ],
+      "code": "abilities_api_unconfirmed",
+      "detail": "The Abilities API was not confirmed present by a probe. Core version alone is an inference, not evidence.",
+      "remediation_hint": "Re-run with --allow-eval, or install wp-cli ability-command (out of scope for the probe - see rec 07).",
+      "severity": "MAJOR"
+    }
+  ],
+  "capabilities": {
+    "can_provision_ephemeral_site": false,
+    "can_reach_mcp_abilities": false,
+    "can_read_site_state": false,
+    "can_register_abilities": false,
+    "can_run_plugin_check": false,
+    "can_run_static_analysis": false,
+    "can_run_wp_cli": false
+  },
+  "environment": {
+    "cwd": "<scratch>/studio-verify/site",
+    "host": {
+      "composer": "2.10.2",
+      "node": "24.19.0",
+      "os": "darwin",
+      "php": "8.5.8"
+    },
+    "invocation_prefix": null,
+    "kind": "UNKNOWN",
+    "marker_file": "wp-config.php",
+    "other_markers_present": [],
+    "remote_alias": null,
+    "status": "UNKNOWN",
+    "wp_env_runtime": null
+  },
+  "evidence": [
+    {
+      "argv": [
+        "<filesystem>",
+        "exists",
+        ".ddev/config.yaml"
+      ],
+      "claim": "environment.marker_file",
+      "duration_ms": 0,
+      "exit_code": 1,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "absent"
+    },
+    {
+      "argv": [
+        "<filesystem>",
+        "exists",
+        ".lando.yml"
+      ],
+      "claim": "environment.marker_file",
+      "duration_ms": 0,
+      "exit_code": 1,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "absent"
+    },
+    {
+      "argv": [
+        "<filesystem>",
+        "exists",
+        ".wp-env.json"
+      ],
+      "claim": "environment.marker_file",
+      "duration_ms": 0,
+      "exit_code": 1,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "absent"
+    },
+    {
+      "argv": [
+        "<filesystem>",
+        "exists",
+        ".wp-env.override.json"
+      ],
+      "claim": "environment.marker_file",
+      "duration_ms": 0,
+      "exit_code": 1,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "absent"
+    },
+    {
+      "argv": [
+        "<filesystem>",
+        "exists",
+        ".wp-cli.yml"
+      ],
+      "claim": "environment.marker_file",
+      "duration_ms": 0,
+      "exit_code": 1,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "absent"
+    },
+    {
+      "argv": [
+        "<filesystem>",
+        "exists",
+        "wp-cli.local.yml"
+      ],
+      "claim": "environment.marker_file",
+      "duration_ms": 0,
+      "exit_code": 1,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "absent"
+    },
+    {
+      "argv": [
+        "<filesystem>",
+        "exists",
+        "app/public/wp-config.php"
+      ],
+      "claim": "environment.marker_file",
+      "duration_ms": 0,
+      "exit_code": 1,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "absent"
+    },
+    {
+      "argv": [
+        "<filesystem>",
+        "exists",
+        "wp-config.php"
+      ],
+      "claim": "environment.marker_file",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "present"
+    },
+    {
+      "argv": [
+        "<filesystem>",
+        "exists",
+        ".studio"
+      ],
+      "claim": "environment.marker_file",
+      "duration_ms": 0,
+      "exit_code": 1,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "absent"
+    },
+    {
+      "argv": [
+        "php",
+        "--version"
+      ],
+      "claim": "environment.host.php",
+      "duration_ms": 61,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "PHP 8.5.8 (cli) (built: Jul  1 2026 03:46:27) (NTS)\nCopyright (c) The PHP Group\nBuilt by Homebrew\nZend Engine v4.5.8, Copyright (c) Zend Technologies\n    with Zend OPcache v8.5.8, Copyright (c), by Zend Technologies"
+    },
+    {
+      "argv": [
+        "node",
+        "--version"
+      ],
+      "claim": "environment.host.node",
+      "duration_ms": 16,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "v24.19.0"
+    },
+    {
+      "argv": [
+        "composer",
+        "--version"
+      ],
+      "claim": "environment.host.composer",
+      "duration_ms": 81,
+      "exit_code": 0,
+      "stderr_excerpt": "PHP version 8.5.8 (/opt/homebrew/Cellar/php/8.5.8/bin/php)\nRun the \"diagnose\" command to get more detailed diagnostics output.",
+      "stdout_excerpt": "Composer version 2.10.2 2026-07-01 11:24:45"
+    },
+    {
+      "argv": [
+        "wp",
+        "--path=<scratch>/studio-verify/site",
+        "--info"
+      ],
+      "claim": "wp_cli",
+      "duration_ms": 1,
+      "exit_code": null,
+      "stderr_excerpt": "executable_not_found",
+      "stdout_excerpt": ""
+    },
+    {
+      "argv": [
+        "<derived>",
+        "plugin-list-scan",
+        "mcp-adapter"
+      ],
+      "claim": "mcp.adapter",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "no plugin inventory available"
+    },
+    {
+      "argv": [
+        "phpcs",
+        "--version"
+      ],
+      "claim": "verification_tools.phpcs",
+      "duration_ms": 1,
+      "exit_code": null,
+      "stderr_excerpt": "executable_not_found",
+      "stdout_excerpt": ""
+    },
+    {
+      "argv": [
+        "phpstan",
+        "--version"
+      ],
+      "claim": "verification_tools.phpstan",
+      "duration_ms": 1,
+      "exit_code": null,
+      "stderr_excerpt": "executable_not_found",
+      "stdout_excerpt": ""
+    },
+    {
+      "argv": [
+        "npx",
+        "--no-install",
+        "@wordpress/env",
+        "--version"
+      ],
+      "claim": "verification_tools.wp_env",
+      "duration_ms": 710,
+      "exit_code": 1,
+      "stderr_excerpt": "npm error npx canceled due to missing packages and no YES option: [\"@wordpress/env@11.14.0\"]\nnpm error A complete log of this run can be found in: ~/.npm/_logs/2026-09-15T19_14_18_399Z-debug-0.log",
+      "stdout_excerpt": ""
+    },
+    {
+      "argv": [
+        "npx",
+        "--no-install",
+        "@wp-playground/cli",
+        "--version"
+      ],
+      "claim": "verification_tools.playground_cli",
+      "duration_ms": 684,
+      "exit_code": 1,
+      "stderr_excerpt": "npm error npx canceled due to missing packages and no YES option: [\"@wp-playground/cli@3.1.53\"]\nnpm error A complete log of this run can be found in: ~/.npm/_logs/2026-09-15T19_14_19_088Z-debug-0.log",
+      "stdout_excerpt": ""
+    }
+  ],
+  "generated_at": "2026-09-15T19:14:18Z",
+  "mcp": {
+    "adapter": {
+      "prerelease": null,
+      "present": false,
+      "version": null
+    },
+    "deprecated_detected": [],
+    "notes": [],
+    "reason": "plugin_inventory_unavailable",
+    "servers": [],
+    "status": "UNKNOWN",
+    "tools": [],
+    "transports": []
+  },
+  "probe_argv": [
+    "probe_wordpress_environment.py",
+    "--path",
+    "<scratch>/studio-verify/site",
+    "--out",
+    "<scratch>/studio-verify/capability-manifest.json",
+    "--budget-seconds",
+    "120"
+  ],
+  "probe_version": "0.1.0",
+  "schema_version": "1.0.0",
+  "verification_tools": {
+    "phpcs": {
+      "invocation": null,
+      "notes": [],
+      "reason": "executable_not_found",
+      "runtime": null,
+      "standards": null,
+      "status": "UNAVAILABLE",
+      "version": null,
+      "wp_stubs_version": null
+    },
+    "phpstan": {
+      "invocation": null,
+      "notes": [],
+      "reason": "executable_not_found",
+      "runtime": null,
+      "standards": null,
+      "status": "UNAVAILABLE",
+      "version": null,
+      "wp_stubs_version": null
+    },
+    "phpunit": {
+      "invocation": null,
+      "notes": [],
+      "reason": "not_probed",
+      "runtime": null,
+      "standards": null,
+      "status": "UNKNOWN",
+      "version": null,
+      "wp_stubs_version": null
+    },
+    "playground_cli": {
+      "invocation": null,
+      "notes": [
+        "playground_cli_wp_support_unknown"
+      ],
+      "reason": "playground_cli_absent",
+      "runtime": null,
+      "standards": null,
+      "status": "UNKNOWN",
+      "version": null,
+      "wp_stubs_version": null
+    },
+    "plugin_check": {
+      "invocation": null,
+      "notes": [],
+      "reason": "wp_cli_unavailable",
+      "runtime": null,
+      "standards": null,
+      "status": "BLOCKED",
+      "version": null,
+      "wp_stubs_version": null
+    },
+    "wp_env": {
+      "invocation": null,
+      "notes": [],
+      "reason": "wp_env_absent",
+      "runtime": null,
+      "standards": null,
+      "status": "UNAVAILABLE",
+      "version": null,
+      "wp_stubs_version": null
+    },
+    "wpcs": {
+      "invocation": null,
+      "notes": [],
+      "reason": "phpcs_unavailable",
+      "runtime": null,
+      "standards": null,
+      "status": "BLOCKED",
+      "version": null,
+      "wp_stubs_version": null
+    }
+  },
+  "wordpress": {
+    "active_plugins": [],
+    "active_themes": [],
+    "core_version": null,
+    "home": null,
+    "is_installed": null,
+    "is_multisite": null,
+    "notes": [],
+    "php_version": null,
+    "reason": "wp_cli_unavailable",
+    "siteurl": null,
+    "status": "BLOCKED"
+  },
+  "wp_cli": {
+    "commands": {},
+    "is_stable_release": null,
+    "notes": [],
+    "reason": "executable_not_found",
+    "status": "UNAVAILABLE",
+    "version": null
+  }
+}

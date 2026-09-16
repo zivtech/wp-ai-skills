@@ -23,7 +23,7 @@ Current status: candidate screening is complete enough to preserve reference-onl
 |---|---:|---|---|---|
 | [WordPress/agent-skills](https://github.com/WordPress/agent-skills) | `aa735ea7111c7924ee988306bcef70439e17dec9` | GPL-2.0-or-later by LICENSE/readme | skills.sh rows: `blueprint`, `wp-plugin-directory-guidelines`, `wp-abilities-audit`, `wp-abilities-verify`, `wordpress-router`, `wp-plugin-development`, `wp-rest-api`, `wp-block-themes`, `wp-performance`, `wp-block-development`, `wp-project-triage`, `wp-wpcli-and-ops`, `wp-phpstan`, `wp-abilities-api`, `wp-playground`, `wp-interactivity-api`, `wpds` | Primary official reference and comparator |
 | [automattic/agent-skills](https://github.com/automattic/agent-skills) | `48d4aa21d0da0e7bda1c7ac155fef2e16b87aa25` | No standard root license found | skills.sh row: `wordpress-router` | Routing comparator only until license verified |
-| [automattic/wordpress-agent-skills](https://github.com/automattic/wordpress-agent-skills) | `ea902bd8301564fa33e336c34114ab121f24c800` | No standard root license found | skills.sh rows: `wordpress-block-theming`, `design-systems`, `site-specification` | Block theming/design-system comparator only until license verified |
+| [automattic/wordpress-agent-skills](https://github.com/automattic/wordpress-agent-skills) | `ea902bd8301564fa33e336c34114ab121f24c800` | No standard root license found (re-checked 2026-09-15 via the GitHub license API: still none) | skills.sh rows: `wordpress-block-theming`, `design-systems`, `site-specification`; also hosts `studio-mcp`, a standalone MCP server wrapping the Studio CLI (see Local-environment agent tooling below) | Block theming/design-system comparator only until license verified |
 | [jeffallan/claude-skills](https://github.com/jeffallan/claude-skills) | `e8be415bc94d8d6ebddc2fb50e5d03c6e27d4319` | MIT | skills.sh row: `wordpress-pro` | Broad WordPress-generalist comparator |
 | [jezweb/claude-skills](https://github.com/jezweb/claude-skills) | `0aa0f4437e0e70dda1e4e62df3a9d9cb8170f8ba` | MIT | skills.sh rows: `wordpress-elementor`, `wordpress-content`, `wordpress-setup`, `wordpress-plugin-core` | Page-builder, setup, content, and plugin-core comparator |
 | [bartekmis/wordpress-performance-best-practises](https://github.com/bartekmis/wordpress-performance-best-practises) | `577a08fb1c157cef1055de450d4550c1af4e0845` | MIT | skills.sh row: `wordpress-performance-best-practices` | Performance critic comparator |
@@ -56,6 +56,32 @@ any project's expression. Nothing surveyed entered a production prompt, so no
 reuse-ledger rows were required; see `reuse-ledger.md` for the standing record
 of that, and `license-reuse-policy.md` for the weak-license-evidence rule the
 survey produced.
+
+### Local-environment agent tooling (surveyed 2026-09-15)
+
+Recorded here because these are environments and MCP servers, not skill
+collections. All are **reference-only comparators**; no text is reused.
+
+| Project | Version / commit | License | What it is | Relationship to this repo |
+|---|---|---|---|---|
+| [Automattic/studio](https://github.com/Automattic/studio) | v1.21.0 (2026-09-07) | GPL-2.0 (root `LICENSE.md`) | Local WordPress environment: desktop app plus standalone `wp-studio` CLI. Native PHP by default (Playground/WASM sandbox optional), SQLite via `sqlite-database-integration`. Ships `studio mcp` (stdio, 29 tools: site lifecycle, previews, `wp_cli`, screenshots, scaffold/validate blocks, audits, push/pull to WordPress.com/Pressable, import/export) and six built-in Agent Skills (`SKILL.md` files installed to `<site>/.agents/skills/` with `.claude/skills/<id>` symlinks). | `wordpress-environment-probe` already detects Studio and uses `studio wp` as the WP-CLI prefix. `wordpress-blueprint-executor` output is Playground Blueprint JSON, which `studio blueprint use` consumes. Studio's six skills are guidance documents in the same install convention as this repo's planner/executor/critic skills; complementary, not overlapping in role. Verification log: `studio-verification-2026-09-15/`. |
+| [pressable/ddev-pressable](https://github.com/pressable/ddev-pressable) | main, pushed 2026-07-23 | Apache-2.0 | Official DDEV provider for Pressable: `ddev pull pressable` / `ddev push pressable` (push targets staging only) over the site's SSH + WP-CLI; no API token or plugin. MyPressable generates per-site config commands (changelog 2026-08-04). | Reference only. Relevant because `wordpress-environment-probe` already resolves ddev sites to the `ddev wp` prefix, so this path needs no probe change and keeps MySQL/MariaDB parity. Pressable documents it alongside Studio Sync. Verified 2026-09-15/16 against a staging site: a non-root docroot breaks both hooks, PHP 8.5 deprecation notices corrupt captured values, and nothing prints the push target — fixes proposed upstream in [#4](https://github.com/pressable/ddev-pressable/pull/4) and [#5](https://github.com/pressable/ddev-pressable/pull/5). |
+| [Automattic/wordpress-agent-skills/studio-mcp](https://github.com/Automattic/wordpress-agent-skills/tree/trunk/studio-mcp) | trunk, 2026-09-15 | No standard root license found | Earlier standalone MCP server that shells out to the Studio CLI; adds `studio_fs_*` file tools and `studio_block_fix`; macOS only per its README. Superseded in practice by the built-in `studio mcp`. | Comparator only. |
+
+Studio Sync was exercised against a Pressable staging site on 2026-09-16; findings and
+the resulting upstream reports ([Automattic/studio#4857](https://github.com/Automattic/studio/pull/4857),
+issues [#4863](https://github.com/Automattic/studio/issues/4863),
+[#4864](https://github.com/Automattic/studio/issues/4864),
+[#4865](https://github.com/Automattic/studio/issues/4865), and
+[Automattic/wp-calypso#114383](https://github.com/Automattic/wp-calypso/pull/114383),
+[pressable/ddev-pressable#6](https://github.com/pressable/ddev-pressable/issues/6),
+[#7](https://github.com/pressable/ddev-pressable/issues/7), and
+[Automattic/jetpack#52385](https://github.com/Automattic/jetpack/issues/52385))
+are in the verification log.
+
+Studio facts above were read from the repository source and developer.wordpress.com
+documentation on 2026-09-15; the SQLite and transport claims are confirmed against a
+live `wp-studio@1.21.0` site in the verification log.
 
 
 ## Evaluation Lanes
