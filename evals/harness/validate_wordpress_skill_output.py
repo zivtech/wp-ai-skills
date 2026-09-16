@@ -679,6 +679,26 @@ def _decision_value(section: str, label: str) -> str | None:
     return matches[0].group("value").strip() if len(matches) == 1 else None
 
 
+def _decision_values(section: str, label: str) -> list[str]:
+    """Every authoritative record for ``label`` in the section, in order.
+
+    ``_decision_value`` is duplicate-rejecting because one decision must have
+    one answer. A section that instructs two sync tools (a ``ddev pull`` baseline
+    before a ``ddev push``) legitimately carries one ``Sync tool:`` record per
+    tool, so the sync check reads the list and matches each instruction to it.
+    Position rules are unchanged: the same regex, the same authoritative text.
+    """
+    section = _strip_non_authoritative_markdown(section)
+    return [
+        match.group("value").strip()
+        for match in re.finditer(
+            rf"(?im)^(?:\*\*)?{re.escape(label)}\s*:"
+            rf"(?:\*\*)?\s*(?P<value>\S.*?)\s*$",
+            section,
+        )
+    ]
+
+
 def _usable_decision(value: str | None, *, allow_none: bool = False) -> bool:
     if not value or NEGATED_DECISION_RE.search(value):
         return False
@@ -1798,15 +1818,19 @@ def check_runtime_sync_confirmation(text: str, manifest: dict[str, Any]) -> Chec
         owner = _h2_owner(text, item.line)
         section = sections.get(owner, "")
         problems: list[str] = []
-        if _decision_value(section, "Sync tool") != item.tool:
+        if item.tool not in _decision_values(section, "Sync tool"):
             problems.append(f"Sync tool: must be exactly {item.tool!r}")
-        target = _decision_value(section, "Sync target")
-        if not _usable_decision(target):
+        targets = _decision_values(section, "Sync target")
+        # Every target named in a section that instructs this tool must be
+        # usable and must honour this tool's constraint: with two sync tools in
+        # one section there is no reliable way to pair targets to tools, so the
+        # strictest reading applies to all of them.
+        if not targets or not all(_usable_decision(target) for target in targets):
             problems.append("Sync target: missing or unusable")
-        elif tool.get("target_constraint") == "staging-only" and (
-            "staging" not in (target or "").lower() or _STAGING_ONLY_FORBIDDEN_RE.search(target or "")
-        ):
-            problems.append(f"Sync target: {target!r} violates staging-only")
+        elif tool.get("target_constraint") == "staging-only":
+            for target in targets:
+                if "staging" not in target.lower() or _STAGING_ONLY_FORBIDDEN_RE.search(target):
+                    problems.append(f"Sync target: {target!r} violates staging-only")
         if "wp_get_environment_type()" not in section:
             problems.append("wp_get_environment_type() confirmation absent")
         if problems:

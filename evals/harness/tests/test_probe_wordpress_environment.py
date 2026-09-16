@@ -1680,6 +1680,42 @@ def test_routed_invocations_in_the_same_span_or_fence_pass(candidate: str) -> No
     assert check.passed is True, check.detail
 
 
+def test_two_sync_tools_in_one_section_each_need_their_own_record() -> None:
+    """A pull baseline before a push is one section with two sync instructions."""
+    manifest = _runtime_manifest("ddev-pressable")
+    both = (
+        "## Transform And Execution Plan\n\n"
+        "Sync tool: ddev pull pressable\n"
+        "Sync tool: ddev push pressable\n"
+        "Sync target: acme-staging\n"
+        "Print the destination and `wp_get_environment_type()` before writing.\n"
+        "Run `ddev pull pressable`, snapshot, then `ddev push pressable`.\n"
+    )
+    check = output_oracle.check_runtime_sync_confirmation(both, manifest)
+    assert check.passed is True, check.detail
+    assert "ddev pull pressable" in check.detail and "ddev push pressable" in check.detail
+
+    only_push = both.replace("Sync tool: ddev pull pressable\n", "")
+    check = output_oracle.check_runtime_sync_confirmation(only_push, manifest)
+    assert check.passed is False
+    assert "ddev pull pressable in 'Transform And Execution Plan': Sync tool: must be exactly" in check.detail
+    assert "ddev push pressable in" not in check.detail
+
+
+def test_every_sync_target_in_a_staging_only_section_must_be_staging() -> None:
+    manifest = _runtime_manifest("ddev-pressable")
+    candidate = (
+        "## Transform And Execution Plan\n\n"
+        "Sync tool: ddev push pressable\n"
+        "Sync target: acme-staging\n"
+        "Sync target: acme-production\n"
+        "Confirm `wp_get_environment_type()` first, then run `ddev push pressable`.\n"
+    )
+    check = output_oracle.check_runtime_sync_confirmation(candidate, manifest)
+    assert check.passed is False
+    assert "'acme-production' violates staging-only" in check.detail
+
+
 def test_the_wordpress_standard_is_attributed_to_wpcs_not_phpcs() -> None:
     """PHPCS present with WPCS missing is the ordinary partial-install case."""
     manifest = {
