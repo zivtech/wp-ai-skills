@@ -16,16 +16,27 @@ paths are replaced with `<scratch>` and `~`.
 
 Same CLI, pushing a ~240 MB WooCommerce site (200 content items, 632 uploads) from a
 local Studio site to a Pressable staging site, alongside the same move done with
-`ddev push pressable`. Site identifiers are omitted. Pull requests opened from these
-findings: [pressable/ddev-pressable#4](https://github.com/pressable/ddev-pressable/pull/4),
-[pressable/ddev-pressable#5](https://github.com/pressable/ddev-pressable/pull/5), and
-[Automattic/studio#4857](https://github.com/Automattic/studio/pull/4857) (surface the remote failure reason in the CLI).
+`ddev push pressable`. Site identifiers are omitted. Upstream reports opened from these
+findings:
+
+- [pressable/ddev-pressable#4](https://github.com/pressable/ddev-pressable/pull/4) and
+  [pressable/ddev-pressable#5](https://github.com/pressable/ddev-pressable/pull/5).
+- [Automattic/studio#4857](https://github.com/Automattic/studio/pull/4857), surface the remote failure reason in the CLI.
+- [Automattic/studio#4863](https://github.com/Automattic/studio/issues/4863), the push archive always includes the local
+  `wp-config.php`. Source check after the run: `apps/cli/lib/archive.ts` adds the file unconditionally, outside the
+  sync selector, so the config the host ended up with was the local Studio one, not an importer-generated file.
+- [Automattic/studio#4864](https://github.com/Automattic/studio/issues/4864), 61 extra tables left on the host.
+- [Automattic/studio#4865](https://github.com/Automattic/studio/issues/4865), no Backup product means unhelpful
+  failures; includes the Pressable docs rewrite.
+- [Automattic/wp-calypso#114383](https://github.com/Automattic/wp-calypso/pull/114383), redact the OAuth token in
+  wpcom.js debug output. The token is logged by `packages/wpcom.js/src/lib/util/send-request.js`, which Studio pins as
+  `wpcom@^7.1.1`; the archived `Automattic/wpcom.js` repo is the pre-2020 home of the same code.
 
 | Claim | Result |
 |---|---|
 | Sync needs only a Jetpack connection | **Disproved.** With Jetpack connected and healthy but the site on Jetpack Free, `studio pull` failed with HTTP 500 on `studio-app/sync/backup` and `studio push` with a bare "Import failed". Attaching the Jetpack license (Complete, here) and letting the first backup complete fixed both. The prerequisite is an active Jetpack Backup product on the target plus one completed backup. |
 | `studio pull` is read-only on the remote | **Disproved.** It asks WordPress.com to run a backup job on the site before downloading, so it is not a safe probe. |
-| The push leaves the host's `wp-config.php` alone | **Disproved.** The importer replaced the host's config with a generic one carrying hard-coded `DB_*` defines and no `WP_ENVIRONMENT_TYPE`; the site reported `production` until the original was restored from the `wp-config.php.jpbak.php` the importer leaves. `ddev push pressable` does not touch the file. |
+| The push leaves the host's `wp-config.php` alone | **Disproved.** The push replaced the host's config with the local Studio site's, carrying hard-coded `DB_*` defines and no `WP_ENVIRONMENT_TYPE` (see studio#4863 for the mechanism); the site reported `production` until the original was restored from the `wp-config.php.jpbak.php` the importer leaves. `ddev push pressable` does not touch the file. |
 | The database ends up as pushed | Partly. Content and options matched, but 56 renamed `__wp_*` backup tables and 5 `wp_sqm_*` tables were left behind (115 tables against 59). |
 | Jetpack survives a full-database push | **Confirmed for Studio**: the connection options were preserved, so re-activating the plugin reconnected without a browser step. A raw `wp db import` (the ddev provider) wipes them. |
 | Failures say why | No. The push reports a fixed "Import failed on <site>" although the API returns `error` and a VaultPress restore message; the pull reports "Invalid parameter(s): backup_id" when the site has no backup product. `DEBUG=*` exposes the reason, and also prints the account's OAuth token in plaintext. |

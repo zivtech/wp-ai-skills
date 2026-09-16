@@ -69,7 +69,11 @@ collections. All are **reference-only comparators**; no text is reused.
 | [Automattic/wordpress-agent-skills/studio-mcp](https://github.com/Automattic/wordpress-agent-skills/tree/trunk/studio-mcp) | trunk, 2026-09-15 | No standard root license found | Earlier standalone MCP server that shells out to the Studio CLI; adds `studio_fs_*` file tools and `studio_block_fix`; macOS only per its README. Superseded in practice by the built-in `studio mcp`. | Comparator only. |
 
 Studio Sync was exercised against a Pressable staging site on 2026-09-16; findings and
-the resulting upstream pull request ([Automattic/studio#4857](https://github.com/Automattic/studio/pull/4857))
+the resulting upstream reports ([Automattic/studio#4857](https://github.com/Automattic/studio/pull/4857),
+issues [#4863](https://github.com/Automattic/studio/issues/4863),
+[#4864](https://github.com/Automattic/studio/issues/4864),
+[#4865](https://github.com/Automattic/studio/issues/4865), and
+[Automattic/wp-calypso#114383](https://github.com/Automattic/wp-calypso/pull/114383))
 are in the verification log.
 
 Studio facts above were read from the repository source and developer.wordpress.com
