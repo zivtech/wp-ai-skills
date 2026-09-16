@@ -35,7 +35,7 @@ from pathlib import Path
 from typing import Any
 
 PROBE_VERSION = "0.1.0"
-SCHEMA_VERSION = "1.0.0"
+SCHEMA_VERSION = "1.1.0"
 SCHEMA_PATH = Path(__file__).resolve().parent / "schemas" / "capability-manifest.schema.json"
 DEFAULT_OUT = "capability-manifest.json"
 DEFAULT_TIMEOUT_SEC = 20
@@ -81,6 +81,72 @@ DEPRECATED_TOOLING = frozenset(
 
 # Delete this once wordpress/mcp-adapter tags 1.0.0.
 MCP_ADAPTER_PRERELEASE_CEILING = 1
+
+# --- Runtime tool surfaces (Lane 1: config/CLI-only detection) --------------
+# These are agent-facing runtime tool surfaces that run *alongside* the
+# skills, not the skills themselves. Detection here never performs an MCP
+# tools/list handshake and never invokes a runtime tool (no push/pull, no
+# starting an MCP server) -- see HOST_TOOL_ALLOWLIST["studio"] and
+# _probe_runtime_tools.
+
+# Verified against a live `studio mcp` tools/list handshake against
+# wp-studio@1.21.0, recorded 2026-09-15 in
+# docs/wordpress/studio-verification-2026-09-15/mcp-tools-list.json (26 tools
+# answered live; the source registry lists ~29, three of them conditional).
+# This probe does not perform that handshake itself; the table is a static
+# fact baked in from that prior recording. Delete/refresh once Studio's tool
+# surface is re-verified against a newer release.
+STUDIO_MCP_TOOLS: tuple[dict[str, Any], ...] = (
+    {"name": "site_create", "side_effect": "provision", "confirm_required": True},
+    {"name": "site_list", "side_effect": "read_only", "confirm_required": False},
+    {"name": "site_info", "side_effect": "read_only", "confirm_required": False},
+    {"name": "site_start", "side_effect": "local_write", "confirm_required": False},
+    {"name": "site_stop", "side_effect": "local_write", "confirm_required": False},
+    {"name": "site_delete", "side_effect": "provision", "confirm_required": True},
+    {"name": "preview_create", "side_effect": "outward_sync", "confirm_required": True},
+    {"name": "preview_list", "side_effect": "read_only", "confirm_required": False},
+    {"name": "preview_update", "side_effect": "outward_sync", "confirm_required": True},
+    {"name": "preview_delete", "side_effect": "outward_sync", "confirm_required": True},
+    # Arbitrary WP-CLI command forwarding: the worst case a caller could pass
+    # is a write, so it is classified conservatively rather than read_only.
+    {"name": "wp_cli", "side_effect": "read_write_local", "confirm_required": True},
+    {"name": "scaffold_theme", "side_effect": "local_write", "confirm_required": False},
+    {"name": "validate_blocks", "side_effect": "local_write", "confirm_required": True},
+    {"name": "take_screenshot", "side_effect": "read_only", "confirm_required": False},
+    {"name": "inspect_design", "side_effect": "read_only", "confirm_required": False},
+    {"name": "install_taxonomy_scripts", "side_effect": "local_write", "confirm_required": False},
+    # Forwards to an external migration engine by a free-text sub-tool name
+    # (e.g. liberate_extract reads a third-party site, liberate_reconstruct_
+    # pages writes to WordPress); classified conservatively as ambiguous.
+    {"name": "data_liberation", "side_effect": "read_write_local", "confirm_required": True},
+    {"name": "need_for_speed", "side_effect": "read_only", "confirm_required": False},
+    {"name": "rank_me_up", "side_effect": "read_only", "confirm_required": False},
+    {"name": "site_connected_remote_sites", "side_effect": "read_only", "confirm_required": False},
+    # target_constraint is intentionally omitted here: unlike ddev-pressable
+    # (catalog-confirmed push-to-staging-only), nothing in the catalog or
+    # Studio's own docs confirms site_push is restricted to a staging target
+    # -- it can push to whatever WordPress.com/Pressable site the caller
+    # names. Asserting "staging-only" here would be an unconfirmed fact.
+    {"name": "site_push", "side_effect": "outward_sync", "confirm_required": True},
+    {"name": "site_pull", "side_effect": "inward_sync", "confirm_required": True},
+    {"name": "site_import", "side_effect": "read_write_local", "confirm_required": True},
+    {"name": "site_export", "side_effect": "local_write", "confirm_required": False},
+    {"name": "open_annotation_browser", "side_effect": "read_only", "confirm_required": False},
+    {"name": "wait_for_annotations", "side_effect": "read_only", "confirm_required": False},
+)
+
+# pressable/ddev-pressable, catalog-verified 2026-09-15/16: push is
+# documented as staging-only over the site's SSH + WP-CLI.
+DDEV_PRESSABLE_TOOLS: tuple[dict[str, Any], ...] = (
+    {"name": "ddev pull pressable", "side_effect": "inward_sync", "confirm_required": True},
+    {
+        "name": "ddev push pressable",
+        "side_effect": "outward_sync",
+        "confirm_required": True,
+        "target_constraint": "staging-only",
+    },
+)
+
 
 # --- Safety ------------------------------------------------------------------
 # The probe is read-only, so it declares exactly what it may run and refuses
@@ -129,6 +195,10 @@ HOST_TOOL_ALLOWLIST: dict[str, frozenset[tuple[str, ...]]] = {
             ("--no-install", "@wp-playground/cli", "--version"),
         }
     ),
+    # `studio mcp` itself is never invoked: it starts a stdio MCP server and
+    # would hang the probe waiting on a handshake it must not perform this
+    # lane. Detection is `studio --help` text-matched for an `mcp` entry.
+    "studio": frozenset({("--version",), ("--help",)}),
 }
 
 # Shared by the value pattern below and by the argv guard in ProbeRunner.run:
@@ -190,7 +260,7 @@ NON_FACT_KEYS = frozenset(
         "api_source",  # names the probe's own method, like reason/notes
     }
 )
-TRACEABLE_SECTIONS = ("wp_cli", "wordpress", "abilities", "mcp", "verification_tools")
+TRACEABLE_SECTIONS = ("wp_cli", "wordpress", "abilities", "mcp", "verification_tools", "runtime_tools")
 
 
 class CommandRefused(RuntimeError):
@@ -446,10 +516,20 @@ MARKERS: tuple[tuple[int, str, str], ...] = (
 )
 
 
+# Config files the probe reads sit on a potentially hostile local filesystem, so
+# a read must degrade to "not detected" -- never raise, never hang. A FIFO would
+# block read_text forever, an oversized file would exhaust memory, and a deeply
+# nested JSON bomb raises RecursionError (not a ValueError). is_file() also
+# excludes FIFOs/devices/dirs; the size cap and broadened except cover the rest.
+_MAX_CONFIG_BYTES = 1 << 20  # 1 MiB; a real wp-env/wp-cli/mcp config is far smaller
+
+
 def _read_json(path: Path) -> dict[str, Any] | None:
     try:
+        if not path.is_file() or path.stat().st_size > _MAX_CONFIG_BYTES:
+            return None
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):
         return None
     return payload if isinstance(payload, dict) else None
 
@@ -879,6 +959,15 @@ def _blank_manifest(argv: list[str], allow_eval: bool, cwd: Path) -> dict[str, A
             "notes": [],
         },
         "verification_tools": {},
+        "runtime_tools": {
+            "status": "UNAVAILABLE",
+            "reason": None,
+            "detected_via": "none",
+            "servers": [],
+            "agent_skills": [],
+            "deprecated_detected": [],
+            "notes": [],
+        },
         "capabilities": {
             "can_run_wp_cli": False,
             "can_read_site_state": False,
@@ -887,6 +976,10 @@ def _blank_manifest(argv: list[str], allow_eval: bool, cwd: Path) -> dict[str, A
             "can_provision_ephemeral_site": False,
             "can_reach_mcp_abilities": False,
             "can_register_abilities": False,
+            "can_handoff_runtime_wp_cli": False,
+            "can_provision_runtime_site": False,
+            "has_outward_sync_tool": False,
+            "aware_of_host_agent_skills": False,
         },
         "blockers": [],
         "evidence": [],
@@ -1403,6 +1496,244 @@ def _wordpress_stubs_version(root: Path) -> str | None:
     return None
 
 
+STUDIO_MCP_HELP_ENTRY_RE = re.compile(r"(?im)^\s*mcp(?:\s|$)")
+
+
+def _studio_mcp_builtin(runner: ProbeRunner) -> dict[str, Any] | None:
+    """Detect the `mcp` subcommand from `studio --help` text alone.
+
+    `studio mcp` itself is never invoked: it starts a stdio MCP server and an
+    invocation with no client on the other end would hang waiting on a
+    handshake this probe must not perform (Lane 1 is config/CLI-only).
+    """
+    help_result = runner.run("runtime_tools.studio_help", ["studio", "--help"])
+    if not help_result["ok"]:
+        return None
+    if not STUDIO_MCP_HELP_ENTRY_RE.search(help_result["stdout"] or ""):
+        return None
+    version_result = runner.run("runtime_tools.studio_version", ["studio", "--version"])
+    identity = _version_string(version_result["stdout"]) if version_result["ok"] else None
+    return {
+        "id": "studio-mcp-builtin",
+        "kind": "studio-mcp-builtin",
+        "identity": identity,
+        "transport": "stdio",
+        # Illustrative launch argv, never executed by this probe.
+        "invocation": _redact_argv(["studio", "mcp"]),
+        "source": "Automattic/studio",
+        "license": "GPL-2.0",
+        "superseded": False,
+        "trust": "cli-help",
+        "tool_count": len(STUDIO_MCP_TOOLS),
+        "tools": [dict(tool) for tool in STUDIO_MCP_TOOLS],
+        "notes": ["tool_table_is_static_not_a_live_tools_list_handshake"],
+    }
+
+
+def _ddev_pressable(runner: ProbeRunner, root: Path) -> dict[str, Any] | None:
+    """Detect a Pressable DDEV provider file. Filesystem-only: no `ddev`
+    invocation is issued, and no new invocation prefix is needed -- a
+    detected site already resolves through the existing `ddev wp` prefix."""
+    providers_dir = root / ".ddev" / "providers"
+    matched: str | None = None
+    if providers_dir.is_dir():
+        for candidate in sorted(providers_dir.iterdir()):
+            if candidate.is_file() and re.fullmatch(r"pressable\.ya?ml", candidate.name):
+                matched = candidate.name
+                break
+    runner.note_filesystem(
+        "runtime_tools.ddev_pressable",
+        "exists",
+        f".ddev/providers/{matched or 'pressable.y[a]ml'}",
+        matched is not None,
+    )
+    if matched is None:
+        return None
+    return {
+        "id": "ddev-pressable",
+        "kind": "ddev-pressable",
+        "identity": None,
+        "transport": "cli",
+        "source": "pressable/ddev-pressable",
+        "license": "Apache-2.0",
+        "superseded": False,
+        "trust": "config",
+        "tool_count": len(DDEV_PRESSABLE_TOOLS),
+        "tools": [dict(tool) for tool in DDEV_PRESSABLE_TOOLS],
+        "notes": [],
+    }
+
+
+def _standalone_studio_mcp(runner: ProbeRunner, root: Path) -> dict[str, Any] | None:
+    """Detect the deprecated standalone `studio-mcp` server via an MCP
+    client-config registration (`.mcp.json`) or an installed package
+    directory. Config/filesystem-only: no client-config server is started."""
+    mcp_config = root / ".mcp.json"
+    payload = _read_json(mcp_config) if mcp_config.exists() else None
+    found = False
+    if isinstance(payload, dict):
+        servers = payload.get("mcpServers")
+        if isinstance(servers, dict):
+            for name, entry in servers.items():
+                haystack = str(name)
+                if isinstance(entry, dict):
+                    command = entry.get("command")
+                    if isinstance(command, str):
+                        haystack += " " + command
+                    args = entry.get("args")
+                    if isinstance(args, list):
+                        haystack += " " + " ".join(str(a) for a in args if isinstance(a, str))
+                if "studio-mcp" in haystack.lower():
+                    found = True
+                    break
+    runner.note_filesystem("runtime_tools.standalone_studio_mcp", "config-scan", ".mcp.json", found)
+    if not found:
+        package_dir = root / "node_modules" / "studio-mcp"
+        found = package_dir.is_dir()
+        runner.note_filesystem(
+            "runtime_tools.standalone_studio_mcp", "exists", "node_modules/studio-mcp", found
+        )
+    if not found:
+        return None
+    return {
+        "id": "studio-mcp-standalone",
+        "kind": "studio-mcp-standalone",
+        "identity": None,
+        "transport": "stdio",
+        "source": "Automattic/wordpress-agent-skills/studio-mcp",
+        "license": None,
+        "superseded": True,
+        "trust": "config",
+        "tool_count": None,
+        "tools": [],
+        "notes": ["superseded_by_studio_builtin_mcp"],
+    }
+
+
+# Skill directory names come off an attacker-writable filesystem; accept only
+# slug-shaped ids and cap the count so a hostile `.agents/skills/` cannot inject
+# arbitrary strings or an unbounded list into the manifest.
+_AGENT_SKILL_ID_RE = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._-]{0,63}\Z")
+_MAX_AGENT_SKILLS = 100
+
+
+def _studio_agent_skills(runner: ProbeRunner, root: Path) -> list[dict[str, Any]]:
+    """Names only: directory names under the Studio site's `.agents/skills/`.
+
+    This never opens a skill's `SKILL.md` -- reading third-party skill text
+    into the manifest would misrepresent an agent as having already read the
+    guidance, which is exactly what `text_incorporated: false` refuses to
+    claim.
+    """
+    skills_dir = root / ".agents" / "skills"
+    present = skills_dir.is_dir()
+    runner.note_filesystem("runtime_tools.agent_skills", "exists", ".agents/skills", present)
+    if not present:
+        return []
+    try:
+        names = sorted(p.name for p in skills_dir.iterdir() if p.is_dir())
+    except OSError:
+        return []
+    entries = [name for name in names if _AGENT_SKILL_ID_RE.match(name)][:_MAX_AGENT_SKILLS]
+    for name in entries:
+        runner.note_filesystem("runtime_tools.agent_skills", "exists", f".agents/skills/{name}", True)
+    return [{"id": name, "source": "studio-builtin", "text_incorporated": False} for name in entries]
+
+
+def _probe_runtime_tools(
+    runner: ProbeRunner,
+    manifest: dict[str, Any],
+    root: Path,
+    kind: str,
+) -> None:
+    """Record agent-facing runtime tool surfaces running alongside the
+    skills: Studio's built-in `studio mcp`, `ddev pull/push pressable`, and
+    the deprecated standalone `studio-mcp`, plus a names-only awareness list
+    of Studio's built-in Agent Skills.
+
+    Config/CLI-only: no MCP tools/list handshake is performed, and this
+    probe never executes a runtime tool (no push/pull, no starting an MCP
+    server). Absence is the clean fallback, not a failure -- no blocker is
+    raised when nothing is found.
+    """
+    runtime_tools = manifest["runtime_tools"]
+    servers: list[dict[str, Any]] = []
+    detected_via: set[str] = set()
+
+    if kind == "studio":
+        studio_server = _studio_mcp_builtin(runner)
+        if studio_server is not None:
+            servers.append(studio_server)
+            detected_via.add("cli-help")
+        runtime_tools["agent_skills"] = _studio_agent_skills(runner, root)
+        if runtime_tools["agent_skills"]:
+            runner.note_derived(
+                "runtime_tools.agent_skills",
+                ["<filesystem>", "listdir", ".agents/skills"],
+                ", ".join(entry["id"] for entry in runtime_tools["agent_skills"]),
+            )
+            # A filesystem-only signal, same class as the ddev/standalone
+            # config checks below -- there is no "filesystem" detected_via
+            # value, so it is recorded as "config".
+            detected_via.add("config")
+
+    ddev_server = _ddev_pressable(runner, root)
+    if ddev_server is not None:
+        servers.append(ddev_server)
+        detected_via.add("config")
+
+    standalone_server = _standalone_studio_mcp(runner, root)
+    if standalone_server is not None:
+        servers.append(standalone_server)
+        detected_via.add("config")
+        if "studio-mcp-standalone" not in runtime_tools["deprecated_detected"]:
+            runtime_tools["deprecated_detected"].append("studio-mcp-standalone")
+
+    runtime_tools["servers"] = servers
+
+    if runtime_tools["deprecated_detected"]:
+        runner.note_derived(
+            "runtime_tools.deprecated_detected",
+            ["<derived>", "config-scan"],
+            ", ".join(runtime_tools["deprecated_detected"]),
+        )
+        runtime_tools["notes"].append("deprecated_runtime_tooling_detected")
+
+    if servers:
+        runner.note_derived(
+            "runtime_tools.servers",
+            ["<derived>", "runtime-tool-surface-scan"],
+            ", ".join(server["id"] for server in servers),
+        )
+        for server in servers:
+            runner.note_derived(
+                f"runtime_tools.servers.{server['id']}",
+                ["<derived>", "runtime-tool-surface", server["id"]],
+                f"{server['kind']} trust={server['trust']}",
+            )
+
+    if servers or runtime_tools["agent_skills"]:
+        # Studio's built-in Agent Skills are a detected surface in their own
+        # right (a names-only awareness list), not merely decoration on a
+        # detected MCP server: can_handoff_runtime_wp_cli's schema binding
+        # requires runtime_tools.status == "AVAILABLE" whenever
+        # aware_of_host_agent_skills is true, including on a host where the
+        # skills directory exists but `studio` itself is not on PATH.
+        runtime_tools["status"] = "AVAILABLE"
+        runtime_tools["reason"] = None
+        runtime_tools["detected_via"] = "config" if "config" in detected_via else "cli-help"
+    else:
+        runtime_tools["status"] = "UNAVAILABLE"
+        runtime_tools["reason"] = "no_runtime_surface_detected"
+        runtime_tools["detected_via"] = "none"
+
+    runner.note_derived(
+        "runtime_tools.detected_via",
+        ["<derived>", "runtime-tool-surface-scan"],
+        runtime_tools["detected_via"],
+    )
+
+
 def _derive_capabilities(manifest: dict[str, Any]) -> None:
     tools = manifest["verification_tools"]
 
@@ -1426,6 +1757,25 @@ def _derive_capabilities(manifest: dict[str, Any]) -> None:
     )
     capabilities["can_register_abilities"] = available(manifest["abilities"]) and bool(
         manifest["abilities"].get("api_present")
+    )
+
+    runtime_tools = manifest["runtime_tools"]
+    runtime_available = runtime_tools.get("status") == "AVAILABLE"
+    all_runtime_tools = [
+        tool for server in runtime_tools.get("servers", []) for tool in server.get("tools", [])
+    ]
+    capabilities["can_handoff_runtime_wp_cli"] = runtime_available and any(
+        tool.get("name") == "wp_cli" or tool.get("side_effect") == "read_write_local"
+        for tool in all_runtime_tools
+    )
+    capabilities["can_provision_runtime_site"] = runtime_available and any(
+        tool.get("side_effect") == "provision" for tool in all_runtime_tools
+    )
+    capabilities["has_outward_sync_tool"] = runtime_available and any(
+        tool.get("side_effect") == "outward_sync" for tool in all_runtime_tools
+    )
+    capabilities["aware_of_host_agent_skills"] = runtime_available and bool(
+        runtime_tools.get("agent_skills")
     )
 
 
@@ -1590,6 +1940,7 @@ def probe(
     _probe_abilities(runner, manifest, prefix, allow_eval)
     _probe_mcp(runner, manifest)
     _probe_verification_tools(runner, manifest, root, prefix)
+    _probe_runtime_tools(runner, manifest, root, kind)
 
     manifest["evidence"] = runner.evidence
     _derive_capabilities(manifest)
