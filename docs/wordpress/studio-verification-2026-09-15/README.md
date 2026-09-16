@@ -21,6 +21,14 @@ findings:
 
 - [pressable/ddev-pressable#4](https://github.com/pressable/ddev-pressable/pull/4) and
   [pressable/ddev-pressable#5](https://github.com/pressable/ddev-pressable/pull/5).
+- [pressable/ddev-pressable#6](https://github.com/pressable/ddev-pressable/issues/6), the raw import replaces
+  platform-owned state (Jetpack connection options, platform plugin activation, the Pressable admin user), and
+  [pressable/ddev-pressable#7](https://github.com/pressable/ddev-pressable/issues/7), a post-push report as the
+  counterpart to #5's pre-push target line.
+- [Automattic/jetpack#52385](https://github.com/Automattic/jetpack/issues/52385), activation fatal on
+  `Heartbeat::get_active_plugins()`. Source check: the method landed in connection package 8.7.9 (2026-07-20,
+  jetpack#50006); WooCommerce 10.9.4 bundles connection 6.19.2, and the already-loaded older class wins inside the
+  activation hook. One reproduction, one non-reproduction on the same site; the issue says so.
 - [Automattic/studio#4857](https://github.com/Automattic/studio/pull/4857), surface the remote failure reason in the CLI.
 - [Automattic/studio#4863](https://github.com/Automattic/studio/issues/4863), the push archive always includes the local
   `wp-config.php`. Source check after the run: `apps/cli/lib/archive.ts` adds the file unconditionally, outside the

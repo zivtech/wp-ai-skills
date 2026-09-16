@@ -73,7 +73,10 @@ the resulting upstream reports ([Automattic/studio#4857](https://github.com/Auto
 issues [#4863](https://github.com/Automattic/studio/issues/4863),
 [#4864](https://github.com/Automattic/studio/issues/4864),
 [#4865](https://github.com/Automattic/studio/issues/4865), and
-[Automattic/wp-calypso#114383](https://github.com/Automattic/wp-calypso/pull/114383))
+[Automattic/wp-calypso#114383](https://github.com/Automattic/wp-calypso/pull/114383),
+[pressable/ddev-pressable#6](https://github.com/pressable/ddev-pressable/issues/6),
+[#7](https://github.com/pressable/ddev-pressable/issues/7), and
+[Automattic/jetpack#52385](https://github.com/Automattic/jetpack/issues/52385))
 are in the verification log.
 
 Studio facts above were read from the repository source and developer.wordpress.com
