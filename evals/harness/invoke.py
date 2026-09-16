@@ -58,7 +58,20 @@ AGENT_ALIASES = {
 # Invocation modes
 # ---------------------------------------------------------------------------
 
-VALID_MODES = ("critic", "planner", "executor")
+VALID_MODES = ("critic", "planner", "executor", "executor-direct")
+
+# Executor suites whose fixtures are already approved planner specs. The
+# three-stage executor pipeline feeds the fixture to "<prefix>-planner" first,
+# and the WordPress planner rightly refuses a fixture addressed to the executor
+# ("Generate a ... packet with wordpress-blueprint-executor"). These run as one
+# stage with the executor agent; the executor skill's Phase 0 classifies the
+# input as an approved spec or a direct request itself.
+DIRECT_SPEC_EXECUTOR_SUITES = frozenset({
+    "wordpress-block-executor",
+    "wordpress-blueprint-executor",
+    "wordpress-plugin-executor",
+    "wordpress-theme-executor",
+})
 
 
 def is_baseline_condition(condition: str) -> bool:
@@ -152,7 +165,10 @@ def get_invocation_mode(suite: str, override: str | None = None) -> str:
     skill_type = (config.get("skill") or {}).get("type", "").lower()
     type_map = {"critic": "critic", "planner": "planner", "executor": "executor"}
     if skill_type in type_map:
-        return type_map[skill_type]
+        mode = type_map[skill_type]
+        if mode == "executor" and suite in DIRECT_SPEC_EXECUTOR_SUITES:
+            return "executor-direct"
+        return mode
 
     return "critic"
 
@@ -270,6 +286,40 @@ def build_codex_command(
     return cmd
 
 
+# The Claude CLI prints some fatal conditions on stdout and exits 0, so exit
+# code plus non-empty stdout is not proof of a generation. A 401 recorded this
+# way became a 59-byte "output" that the contract oracle then scored.
+FATAL_STDOUT_SIGNATURES = (
+    "failed to authenticate",
+    "api error:",
+    "invalid api key",
+    "not logged in",
+)
+
+
+def fatal_stdout_signature(stdout: str) -> str | None:
+    """Return the fatal CLI signature the stdout opens with, else None.
+
+    Only the first non-blank line is inspected: a real plan may quote
+    "API Error:" in prose, but a CLI failure message is the whole output.
+    """
+    head = next((line for line in stdout.splitlines() if line.strip()), "").lower()
+    for signature in FATAL_STDOUT_SIGNATURES:
+        if signature in head:
+            return signature
+    return None
+
+
+def generation_ok(rc: int, stdout: str) -> bool:
+    """One rule for every lane: exit 0, non-empty, not overloaded, not a CLI error."""
+    return (
+        rc == 0
+        and bool(stdout.strip())
+        and "overloaded" not in stdout.lower()
+        and fatal_stdout_signature(stdout) is None
+    )
+
+
 def _run_claude(
     prompt: str,
     agent: str | None,
@@ -291,6 +341,10 @@ def _run_claude(
             proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, timeout=timeout_sec)
             dt = time.time() - t0
             combined = (proc.stdout or "") + (proc.stderr or "")
+            fatal = fatal_stdout_signature(proc.stdout or "")
+            if fatal is not None:
+                # Retrying an auth failure only repeats it; fail closed now.
+                return 1, proc.stdout, (proc.stderr or "") + f"\nfatal CLI output: {fatal}", dt
             if proc.returncode == 0 and proc.stdout.strip() and "overloaded" not in combined.lower():
                 return proc.returncode, proc.stdout, proc.stderr or "", dt
             if attempt < max_retries:
@@ -512,7 +566,7 @@ def invoke_skill(
         settings=settings,
     )
 
-    ok = rc == 0 and bool(stdout.strip()) and "overloaded" not in stdout.lower()
+    ok = generation_ok(rc, stdout)
     stage = StageResult(
         stage="single",
         ok=ok,
@@ -635,7 +689,7 @@ def invoke_executor_pipeline(
         settings=settings,
     )
 
-    ok1 = rc1 == 0 and bool(out1.strip()) and "overloaded" not in out1.lower()
+    ok1 = generation_ok(rc1, out1)
     stages.append(StageResult(
         stage="rollout",
         ok=ok1,
@@ -693,7 +747,7 @@ def invoke_executor_pipeline(
         settings=settings,
     )
 
-    ok2 = rc2 == 0 and bool(out2.strip()) and "overloaded" not in out2.lower()
+    ok2 = generation_ok(rc2, out2)
     stages.append(StageResult(
         stage="reproduction",
         ok=ok2,
@@ -773,7 +827,7 @@ def invoke_executor_pipeline(
         settings=settings,
     )
 
-    ok3 = rc3 == 0 and bool(out3.strip()) and "overloaded" not in out3.lower()
+    ok3 = generation_ok(rc3, out3)
     stages.append(StageResult(
         stage="grading",
         ok=ok3,
@@ -848,7 +902,7 @@ def invoke(
             **executor_kwargs,
         )
 
-    # critic and planner share the single-stage path
+    # critic, planner, and executor-direct share the single-stage path
     return invoke_skill(
         run_id=run_id,
         suite=suite,
