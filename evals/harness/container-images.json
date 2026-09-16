@@ -1,6 +1,6 @@
 {
  "schema_version": 1,
- "verified_at": "2026-08-25",
+ "verified_at": "2026-09-16",
  "images": {
   "node": {
    "tag": "node:22-bookworm-slim",
@@ -20,9 +20,9 @@
   },
   "python": {
    "tag": "python:3.13-slim-bookworm",
-   "index": "sha256:c45a22ea000adfd9cda29364bbe7edd23001ce5cc2ad15857cfbf7766943b9ca",
-   "amd64": "sha256:b6bd71b0dd3811ddbcbc523ec2965fd1e1bcfdf7a20ab24679273d3bee726129",
-   "arm64": "sha256:e424b523c9296fdef9d2533c368facee1dc45be4c1f8e1555f90c4feac439594",
+   "index": "sha256:ed86c82274b3c69b52fb5820f358f0bd7df0b603332063cb5c6e32bd220c3e6e",
+   "amd64": "sha256:2f2e5a876c71a6757f55ec57f2add0225ddaf01c802a33fcc29073943f94d907",
+   "arm64": "sha256:ae8c3b6bb3d02ffffa2bee0bed8c7c99b9478bd042ff4d79a5bbd6eb10398864",
    "license": "PSF-2.0",
    "purpose": "trusted proxy"
   },
@@ -44,9 +44,9 @@
   },
   "wordpress_cli": {
    "tag": "wordpress:cli-2.12.0-php8.3",
-   "index": "sha256:2b5e9d4d3e51909dca1aaa4732e9f5e5bf0377c2114dbd8ff39f060bff202586",
-   "amd64": "sha256:51ff6b7643d9b4c29d74d83b2c3fe12e706812e7add075f189535f498dd5201d",
-   "arm64": "sha256:94645821f1d3032db91c4d09872af0b2506b08cdc600e9ace2b382644a6cdce0",
+   "index": "sha256:4ba861e5417383ce67f5095921c21d55e32e507677853c1d045f73bb0d3f52dc",
+   "amd64": "sha256:aa31002b5ae67cfff25817c8f4379b0e84aa4f8cc9637c83e16757d435adaf49",
+   "arm64": "sha256:1aa7331c40ad7735ce214c4e338667a95666d097e65a0f078b37a6725cfa809f",
    "license": "GPL-2.0-or-later",
    "purpose": "WP-CLI source"
   },
