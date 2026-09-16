@@ -1555,6 +1555,234 @@ def check_capability_grounding(text: str, manifest: dict[str, Any]) -> Check:
     return Check("capability_grounding", not failures, 3, detail)
 
 
+# ---------------------------------------------------------------------------
+# Runtime-tool grounding (capability manifest schema 1.1.0 ``runtime_tools``).
+#
+# Lane 1 recorded co-resident agent-facing runtime surfaces -- Studio's
+# built-in MCP, the ddev-pressable provider, the superseded standalone
+# studio-mcp -- in the manifest without executing any of them. Lane 2 is the
+# consumer side: an instruction to use one of those surfaces fails unless the
+# manifest lists it, and an instruction that moves a whole site fails unless
+# the plan says where it is going. Without this, the skills' host-sync gates
+# are prose the harness never reads.
+#
+# The static tool names below mirror the probe's tables. The probe test
+# module asserts the two agree so they cannot drift apart silently.
+# ---------------------------------------------------------------------------
+
+RUNTIME_SYNC_SIDE_EFFECTS = frozenset({"inward_sync", "outward_sync"})
+
+# CLI-shaped instructions. ``tool`` None means the instruction needs only the
+# server to be present: ``studio site create`` and ``studio mcp`` are Studio
+# CLI subcommands, and the built-in server is detected from ``studio --help``,
+# so its presence is the proof that the CLI answers.
+RUNTIME_CLI_INVOCATIONS: tuple[tuple[str, str | None, re.Pattern[str]], ...] = (
+    ("ddev-pressable", "ddev push pressable", re.compile(r"(?<![\w./-])ddev\s+push\s+pressable\b", re.I)),
+    ("ddev-pressable", "ddev pull pressable", re.compile(r"(?<![\w./-])ddev\s+pull\s+pressable\b", re.I)),
+    ("studio-mcp-builtin", None, re.compile(r"(?<![\w./-])studio\s+(?:site\s+create|mcp)\b", re.I)),
+    ("studio-mcp-standalone", None, re.compile(r"(?<![\w./-])studio-mcp\b", re.I)),
+)
+
+# Studio's built-in MCP tool names, from the live tools/list recorded
+# 2026-09-15 (docs/wordpress/studio-verification-2026-09-15/mcp-tools-list.json).
+STUDIO_MCP_TOOL_NAMES = frozenset(
+    {
+        "site_create", "site_list", "site_info", "site_start", "site_stop", "site_delete",
+        "preview_create", "preview_list", "preview_update", "preview_delete",
+        "wp_cli", "scaffold_theme", "validate_blocks", "take_screenshot", "inspect_design",
+        "install_taxonomy_scripts", "data_liberation", "need_for_speed", "rank_me_up",
+        "site_connected_remote_sites", "site_push", "site_pull", "site_import", "site_export",
+        "open_annotation_browser", "wait_for_annotations",
+    }
+)
+
+# ``wp_cli`` is also the manifest's own top-level key and shows up in ordinary
+# prose (19 inline-code hits across the corpus on 2026-09-16; every other tool
+# name had zero). Bare names therefore ground by pattern, and only ``wp_cli``
+# must be written in the citation form ``runtime_tools.<server-id>.<tool>``.
+RUNTIME_CITATION_ONLY_TOOLS = frozenset({"wp_cli"})
+RUNTIME_CITATION_RE = re.compile(r"runtime_tools\.([a-z0-9-]+)\.([a-z_]+)")
+_BARE_MCP_TOOL_RE = re.compile(
+    r"(?<![\w./-])(" + "|".join(sorted(STUDIO_MCP_TOOL_NAMES - RUNTIME_CITATION_ONLY_TOOLS)) + r")\b"
+)
+
+# A staging-only tool may not be pointed at anything that reads as production.
+_STAGING_ONLY_FORBIDDEN_RE = re.compile(r"\b(?:production|prod|live)\b", re.I)
+
+
+@dataclass(frozen=True)
+class RuntimeInstruction:
+    """One instruction to use a runtime tool surface, with where it was given."""
+
+    server: str
+    tool: str | None
+    label: str
+    line: str
+
+
+def _instructed_runtime_tools(
+    occurrences: list[tuple[str, str, str, str | None]],
+) -> list[RuntimeInstruction]:
+    found: list[RuntimeInstruction] = []
+    seen: set[tuple[str, str | None, str]] = set()
+
+    def add(server: str, tool: str | None, label: str, line: str) -> None:
+        key = (server, tool, label)
+        if key not in seen:
+            seen.add(key)
+            found.append(RuntimeInstruction(server, tool, label, line))
+
+    for code, line, section, lang in occurrences:
+        if not _Occurrence(line, section, lang).is_instruction:
+            continue
+        for server, tool, pattern in RUNTIME_CLI_INVOCATIONS:
+            match = pattern.search(code)
+            if match:
+                add(server, tool, " ".join(match.group(0).lower().split()), line)
+        for match in RUNTIME_CITATION_RE.finditer(code):
+            add(match.group(1), match.group(2), match.group(0), line)
+        for match in _BARE_MCP_TOOL_RE.finditer(code):
+            add("studio-mcp-builtin", match.group(1), match.group(1), line)
+    return found
+
+
+def _runtime_servers(manifest: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, dict[str, Any]]]:
+    runtime = manifest.get("runtime_tools")
+    if not isinstance(runtime, dict):
+        return None, {}
+    servers: dict[str, dict[str, Any]] = {}
+    for server in runtime.get("servers") or []:
+        if isinstance(server, dict):
+            servers[str(server.get("id") or server.get("kind") or "")] = server
+    return runtime, servers
+
+
+def _resolve_runtime_tool(server: dict[str, Any] | None, tool: str | None) -> dict[str, Any] | None:
+    if server is None or tool is None:
+        return None
+    for item in server.get("tools") or []:
+        if isinstance(item, dict) and item.get("name") == tool:
+            return item
+    return None
+
+
+def check_runtime_tool_grounding(text: str, manifest: dict[str, Any]) -> Check:
+    """Fail any output that instructs a runtime tool surface the manifest does not list.
+
+    A superseded server (the standalone ``studio-mcp``) is never an acceptable
+    instruction even when detected. A manifest that predates ``runtime_tools``
+    reports the surface as not probed, matching ``check_capability_grounding``.
+    """
+    instructed = _instructed_runtime_tools(_code_occurrences(text))
+    if not instructed:
+        return Check("runtime_tool_grounding", True, 3, "no runtime tool surface is instructed")
+
+    runtime, servers = _runtime_servers(manifest)
+    failures: list[str] = []
+    unresolved: list[str] = []
+    if runtime is None:
+        unresolved.append("runtime_tools: not probed (manifest predates schema 1.1.0)")
+    elif runtime.get("status") == "UNAVAILABLE":
+        reason = runtime.get("reason") or "runtime_tools_unavailable"
+        labels = ", ".join(sorted({item.label for item in instructed}))
+        failures.append(f"runtime tools unavailable ({reason}) but output instructs: {labels}")
+    else:
+        status = runtime.get("status")
+        if status in UNRESOLVED_STATUSES:
+            unresolved.append(f"runtime_tools.status={status}")
+        for item in instructed:
+            server = servers.get(item.server)
+            if server is None:
+                failures.append(f"{item.label}: server {item.server} not detected")
+            elif server.get("superseded"):
+                failures.append(f"{item.label}: {item.server} is superseded")
+            elif item.tool is not None and _resolve_runtime_tool(server, item.tool) is None:
+                failures.append(f"{item.label}: tool not listed on {item.server}")
+
+    if failures:
+        detail = "ungrounded runtime instructions: " + "; ".join(sorted(set(failures)))
+        if unresolved:
+            detail += " | unresolved: " + "; ".join(sorted(set(unresolved)))
+    elif unresolved:
+        detail = "grounded, unresolved states named: " + "; ".join(sorted(set(unresolved)))
+    else:
+        detail = "every instructed runtime tool is listed by the capability manifest"
+    return Check("runtime_tool_grounding", not failures, 3, detail)
+
+
+def _raw_h2_sections(text: str) -> dict[str, str]:
+    """Level-two sections over the raw text, fences included.
+
+    ``markdown_sections`` blanks fenced code, but a sync instruction usually
+    lives in a shell fence and the ``wp_get_environment_type()`` confirmation
+    may too, so the confirmation check needs the unstripped body.
+    """
+    matches = list(MD_HEADING_RE.finditer(text))
+    sections: dict[str, str] = {}
+    for index, match in enumerate(matches):
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        sections.setdefault(match.group(1).strip(), text[match.end():end])
+    return sections
+
+
+def _h2_owner(text: str, line: str) -> str:
+    owner = ""
+    for candidate in text.splitlines():
+        heading = MD_HEADING_RE.match(candidate)
+        if heading:
+            owner = heading.group(1).strip()
+        elif candidate == line:
+            return owner
+    return owner
+
+
+def check_runtime_sync_confirmation(text: str, manifest: dict[str, Any]) -> Check:
+    """Every whole-site sync instruction must say where it goes, in the section that gives it.
+
+    Applies to manifest tools whose side effect is ``inward_sync`` or
+    ``outward_sync``. Provisioning a disposable local site has no remote
+    destination to confirm, so it is grounding-only. Required in the owning
+    section: ``Sync tool:`` equal to the manifest's tool name, a usable
+    ``Sync target:`` that honours ``target_constraint``, and a
+    ``wp_get_environment_type()`` confirmation before the write.
+    """
+    instructed = _instructed_runtime_tools(_code_occurrences(text))
+    _, servers = _runtime_servers(manifest)
+    sections = _raw_h2_sections(text)
+    failures: list[str] = []
+    confirmed: list[str] = []
+    for item in instructed:
+        tool = _resolve_runtime_tool(servers.get(item.server), item.tool)
+        if tool is None or tool.get("side_effect") not in RUNTIME_SYNC_SIDE_EFFECTS:
+            continue
+        owner = _h2_owner(text, item.line)
+        section = sections.get(owner, "")
+        problems: list[str] = []
+        if _decision_value(section, "Sync tool") != item.tool:
+            problems.append(f"Sync tool: must be exactly {item.tool!r}")
+        target = _decision_value(section, "Sync target")
+        if not _usable_decision(target):
+            problems.append("Sync target: missing or unusable")
+        elif tool.get("target_constraint") == "staging-only" and (
+            "staging" not in (target or "").lower() or _STAGING_ONLY_FORBIDDEN_RE.search(target or "")
+        ):
+            problems.append(f"Sync target: {target!r} violates staging-only")
+        if "wp_get_environment_type()" not in section:
+            problems.append("wp_get_environment_type() confirmation absent")
+        if problems:
+            failures.append(f"{item.tool} in '{owner or '(no section)'}': " + "; ".join(problems))
+        else:
+            confirmed.append(item.tool)
+
+    if failures:
+        detail = "unconfirmed sync instructions: " + " | ".join(sorted(set(failures)))
+    elif confirmed:
+        detail = "sync instructions confirmed: " + ", ".join(sorted(set(confirmed)))
+    else:
+        detail = "no inward or outward sync tool is instructed"
+    return Check("runtime_sync_confirmation", not failures, 3, detail)
+
+
 def validate_output(
     skill: str,
     text: str,
@@ -1588,6 +1816,8 @@ def validate_output(
         # Raw text, not authoritative: check_capability_grounding inspects code
         # occurrences, and _strip_non_authoritative_markdown blanks fenced blocks.
         checks.append(check_capability_grounding(text, capability_manifest))
+        checks.append(check_runtime_tool_grounding(text, capability_manifest))
+        checks.append(check_runtime_sync_confirmation(text, capability_manifest))
     total = sum(check.weight for check in checks)
     earned = sum(check.weight for check in checks if check.passed)
     return {
