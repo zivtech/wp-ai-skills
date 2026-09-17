@@ -679,6 +679,26 @@ def _decision_value(section: str, label: str) -> str | None:
     return matches[0].group("value").strip() if len(matches) == 1 else None
 
 
+def _decision_values(section: str, label: str) -> list[str]:
+    """Every authoritative record for ``label`` in the section, in order.
+
+    ``_decision_value`` is duplicate-rejecting because one decision must have
+    one answer. A section that instructs two sync tools (a ``ddev pull`` baseline
+    before a ``ddev push``) legitimately carries one ``Sync tool:`` record per
+    tool, so the sync check reads the list and matches each instruction to it.
+    Position rules are unchanged: the same regex, the same authoritative text.
+    """
+    section = _strip_non_authoritative_markdown(section)
+    return [
+        match.group("value").strip()
+        for match in re.finditer(
+            rf"(?im)^(?:\*\*)?{re.escape(label)}\s*:"
+            rf"(?:\*\*)?\s*(?P<value>\S.*?)\s*$",
+            section,
+        )
+    ]
+
+
 def _usable_decision(value: str | None, *, allow_none: bool = False) -> bool:
     if not value or NEGATED_DECISION_RE.search(value):
         return False
@@ -1429,21 +1449,40 @@ BUNDLED_WP_CLI_ROOTS = frozenset(
 _PREFIX_ESCAPE_TOKENS = ("--path=", "--ssh=", "@")
 
 
+@dataclass(frozen=True)
+class _WpInvocation:
+    """One instructed WP-CLI invocation, cut at its own code span.
+
+    ``head`` is the code text before ``wp``; ``invocation`` is the ``wp ...``
+    match itself. The prefix rule judges these, never the surrounding prose
+    line: a line that mixes a routed ``ddev wp`` with a bare ``wp`` used to pass
+    because the line as a whole contained the prefix token.
+    """
+
+    root: str
+    head: str
+    invocation: str
+
+
 def _instructed_wp_subcommands(
     occurrences: list[tuple[str, str, str, str | None]],
-) -> list[tuple[str, str]]:
-    """Return (subcommand_root, containing_line) for genuine instructions only."""
-    found: list[tuple[str, str]] = []
-    seen: set[str] = set()
+) -> list[_WpInvocation]:
+    """Return every genuinely instructed WP-CLI invocation, one per regex match.
+
+    Roots repeat when the same subcommand is instructed more than once; callers
+    that report per-root state dedupe themselves, while the prefix rule must see
+    every invocation because a second, bare one is exactly the defect it exists
+    to catch.
+    """
+    found: list[_WpInvocation] = []
     for code, line, section, lang in occurrences:
         occurrence = _Occurrence(line, section, lang)
         if not occurrence.is_instruction:
             continue
         for match in WP_CLI_INVOCATION_RE.finditer(code):
             root = (match.group(1) or "").lower()
-            if root and root not in seen:
-                seen.add(root)
-                found.append((root, line))
+            if root:
+                found.append(_WpInvocation(root, code[: match.start()], match.group(0)))
     return found
 
 
@@ -1463,17 +1502,41 @@ def _instructed_verification_tools(
     return found
 
 
-def _prefix_is_bare_wp(manifest: dict[str, Any]) -> tuple[bool, str]:
+def _prefix_is_bare_wp(manifest: dict[str, Any]) -> tuple[bool, str, str]:
+    """Return (bare wp reaches WP-CLI, first prefix token, expected head).
+
+    The expected head is the manifest's ``invocation_prefix`` minus its final
+    ``wp`` token, i.e. the text that must sit immediately before ``wp`` in a
+    routed invocation (``ddev`` for ``ddev wp``, ``wp-env run cli`` for wp-env).
+    """
     environment = (
         manifest.get("environment") if isinstance(manifest.get("environment"), dict) else {}
     )
     prefix = environment.get("invocation_prefix")
     if not isinstance(prefix, list) or not prefix:
-        return True, ""
+        return True, "", ""
     tokens = [str(token) for token in prefix]
-    if len(tokens) == 1 and tokens[0].endswith("wp"):
-        return True, ""
-    return False, tokens[0]
+    if tokens[0].endswith("wp"):
+        # The prefix starts with the wp binary itself; any further tokens are
+        # flags such as --path that the probe needed from its own cwd, not a
+        # host wrapper the reader must type. Bare `wp` reaches WP-CLI here.
+        return True, "", ""
+    head_tokens = tokens[:-1] if tokens[-1].endswith("wp") else tokens
+    return False, tokens[0], " ".join(head_tokens)
+
+
+def _invocation_is_routed(item: _WpInvocation, expected_head: str) -> bool:
+    """A routed invocation carries the prefix in its own span or escapes it.
+
+    ``--path=`` / ``--ssh=`` / ``@alias`` inside the ``wp`` match route the call
+    themselves. Anything else must have the expected head directly before
+    ``wp``; prose or an earlier command on the same line does not count.
+    """
+    lowered = item.invocation.lower()
+    if any(token in lowered for token in _PREFIX_ESCAPE_TOKENS):
+        return True
+    head = item.head.lower().rstrip()
+    return bool(expected_head) and head.endswith(expected_head.lower())
 
 
 def check_capability_grounding(text: str, manifest: dict[str, Any]) -> Check:
@@ -1491,9 +1554,9 @@ def check_capability_grounding(text: str, manifest: dict[str, Any]) -> Check:
     wp_cli = manifest.get("wp_cli") if isinstance(manifest.get("wp_cli"), dict) else {}
     commands = wp_cli.get("commands") if isinstance(wp_cli.get("commands"), dict) else {}
     instructed = _instructed_wp_subcommands(occurrences)
-    subcommands = [root for root, _ in instructed]
+    subcommands = [item.root for item in instructed]
     cli_status = wp_cli.get("status")
-    bare_ok, prefix_token = _prefix_is_bare_wp(manifest)
+    bare_ok, prefix_token, expected_head = _prefix_is_bare_wp(manifest)
 
     if subcommands and cli_status == "UNAVAILABLE":
         reason = wp_cli.get("reason") or "wp_cli_unavailable"
@@ -1503,7 +1566,7 @@ def check_capability_grounding(text: str, manifest: dict[str, Any]) -> Check:
     else:
         if subcommands and cli_status in UNRESOLVED_STATUSES:
             unresolved.append(f"wp_cli.status={cli_status}")
-        for root, line in instructed:
+        for root in dict.fromkeys(subcommands):
             state = commands.get(root)
             if not isinstance(state, dict):
                 if cli_status == "AVAILABLE" and root in BUNDLED_WP_CLI_ROOTS:
@@ -1517,14 +1580,11 @@ def check_capability_grounding(text: str, manifest: dict[str, Any]) -> Check:
                 unresolved.append(f"wp {root}: {status}")
 
         if not bare_ok:
-            for root, line in instructed:
-                lowered = line.lower()
-                if prefix_token.lower() in lowered:
-                    continue
-                if any(token in lowered for token in _PREFIX_ESCAPE_TOKENS):
+            for item in instructed:
+                if _invocation_is_routed(item, expected_head):
                     continue
                 failures.append(
-                    f"wp {root}: bare_wp_does_not_reach_wp_cli "
+                    f"wp {item.root}: bare_wp_does_not_reach_wp_cli "
                     f"(invocation_prefix starts with {prefix_token!r})"
                 )
 
@@ -1758,15 +1818,19 @@ def check_runtime_sync_confirmation(text: str, manifest: dict[str, Any]) -> Chec
         owner = _h2_owner(text, item.line)
         section = sections.get(owner, "")
         problems: list[str] = []
-        if _decision_value(section, "Sync tool") != item.tool:
+        if item.tool not in _decision_values(section, "Sync tool"):
             problems.append(f"Sync tool: must be exactly {item.tool!r}")
-        target = _decision_value(section, "Sync target")
-        if not _usable_decision(target):
+        targets = _decision_values(section, "Sync target")
+        # Every target named in a section that instructs this tool must be
+        # usable and must honour this tool's constraint: with two sync tools in
+        # one section there is no reliable way to pair targets to tools, so the
+        # strictest reading applies to all of them.
+        if not targets or not all(_usable_decision(target) for target in targets):
             problems.append("Sync target: missing or unusable")
-        elif tool.get("target_constraint") == "staging-only" and (
-            "staging" not in (target or "").lower() or _STAGING_ONLY_FORBIDDEN_RE.search(target or "")
-        ):
-            problems.append(f"Sync target: {target!r} violates staging-only")
+        elif tool.get("target_constraint") == "staging-only":
+            for target in targets:
+                if "staging" not in target.lower() or _STAGING_ONLY_FORBIDDEN_RE.search(target):
+                    problems.append(f"Sync target: {target!r} violates staging-only")
         if "wp_get_environment_type()" not in section:
             problems.append("wp_get_environment_type() confirmation absent")
         if problems:

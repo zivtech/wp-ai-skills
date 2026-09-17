@@ -1,0 +1,88 @@
+{
+  "all_contracts_pass": false,
+  "all_generation_ok": true,
+  "artifact_counts": {
+    "contract_results": 3,
+    "entries": 3,
+    "outputs": 3
+  },
+  "by_condition": {
+    "baseline-few-shot": {
+      "contract_pass": 0,
+      "count": 1,
+      "generation_ok": 1
+    },
+    "baseline-zero-shot": {
+      "contract_pass": 0,
+      "count": 1,
+      "generation_ok": 1
+    },
+    "skill": {
+      "contract_pass": 0,
+      "count": 1,
+      "generation_ok": 1
+    }
+  },
+  "contract_pass_count": 0,
+  "entries": [
+    {
+      "capability_manifest_path": "evals/suites/wordpress-blueprint-executor/fixtures/studio-launch-handoff-v1.capability-manifest.json",
+      "condition": "skill",
+      "contract_pass": false,
+      "contract_path": "evals/results/wordpress-blueprint-executor-sidecar-saved-outputs-20260916/contracts/wordpress-blueprint-executor/skill/studio-launch-handoff-v1.contract.json",
+      "contract_score": 0.3846,
+      "duration_sec": 33.18,
+      "error": null,
+      "fixture_id": "studio-launch-handoff-v1",
+      "generation_ok": true,
+      "metadata_path": "evals/results/wordpress-blueprint-executor-sidecar-saved-outputs-20260916/raw/wordpress-blueprint-executor/skill/studio-launch-handoff-v1.metadata.json",
+      "output_path": "evals/results/wordpress-blueprint-executor-sidecar-saved-outputs-20260916/raw/wordpress-blueprint-executor/skill/studio-launch-handoff-v1.md",
+      "security_gate_path": null,
+      "suite": "wordpress-blueprint-executor"
+    },
+    {
+      "capability_manifest_path": "evals/suites/wordpress-blueprint-executor/fixtures/studio-launch-handoff-v1.capability-manifest.json",
+      "condition": "baseline-zero-shot",
+      "contract_pass": false,
+      "contract_path": "evals/results/wordpress-blueprint-executor-sidecar-saved-outputs-20260916/contracts/wordpress-blueprint-executor/baseline-zero-shot/studio-launch-handoff-v1.contract.json",
+      "contract_score": 0.4231,
+      "duration_sec": 30.12,
+      "error": null,
+      "fixture_id": "studio-launch-handoff-v1",
+      "generation_ok": true,
+      "metadata_path": "evals/results/wordpress-blueprint-executor-sidecar-saved-outputs-20260916/raw/wordpress-blueprint-executor/baseline-zero-shot/studio-launch-handoff-v1.metadata.json",
+      "output_path": "evals/results/wordpress-blueprint-executor-sidecar-saved-outputs-20260916/raw/wordpress-blueprint-executor/baseline-zero-shot/studio-launch-handoff-v1.md",
+      "security_gate_path": null,
+      "suite": "wordpress-blueprint-executor"
+    },
+    {
+      "capability_manifest_path": "evals/suites/wordpress-blueprint-executor/fixtures/studio-launch-handoff-v1.capability-manifest.json",
+      "condition": "baseline-few-shot",
+      "contract_pass": false,
+      "contract_path": "evals/results/wordpress-blueprint-executor-sidecar-saved-outputs-20260916/contracts/wordpress-blueprint-executor/baseline-few-shot/studio-launch-handoff-v1.contract.json",
+      "contract_score": 0.5385,
+      "duration_sec": 31.6,
+      "error": null,
+      "fixture_id": "studio-launch-handoff-v1",
+      "generation_ok": true,
+      "metadata_path": "evals/results/wordpress-blueprint-executor-sidecar-saved-outputs-20260916/raw/wordpress-blueprint-executor/baseline-few-shot/studio-launch-handoff-v1.metadata.json",
+      "output_path": "evals/results/wordpress-blueprint-executor-sidecar-saved-outputs-20260916/raw/wordpress-blueprint-executor/baseline-few-shot/studio-launch-handoff-v1.md",
+      "security_gate_path": null,
+      "suite": "wordpress-blueprint-executor"
+    }
+  ],
+  "evidence_boundary": "Saved-output contract evidence only. This is not answer-key scoring, human review, variance measurement, or public benchmark evidence.",
+  "focused_fixture_summary": {
+    "all_focused_skill_contracts_pass": false,
+    "definition": "non-smoke fixtures",
+    "entry_count": 3,
+    "skill_contract_pass_count": 0,
+    "skill_entry_count": 1
+  },
+  "generated_at": "2026-09-16T17:27:40",
+  "generation_ok_count": 3,
+  "run_dir": "evals/results/wordpress-blueprint-executor-sidecar-saved-outputs-20260916",
+  "run_id": "wordpress-blueprint-executor-sidecar-saved-outputs-20260916",
+  "skill": "wordpress-blueprint-executor",
+  "suite": "wordpress-blueprint-executor"
+}

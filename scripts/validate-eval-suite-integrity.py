@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import math
 import os
 import re
@@ -26,6 +27,8 @@ HARNESS_ROOT = ROOT / "evals" / "harness"
 if str(HARNESS_ROOT) not in sys.path:
     sys.path.insert(0, str(HARNESS_ROOT))
 from runtime_assertions import make_block_runtime_assertion  # noqa: E402
+from probe_wordpress_environment import load_schema as load_manifest_schema  # noqa: E402
+from probe_wordpress_environment import validate_against_schema  # noqa: E402
 
 
 MAX_YAML_BYTES = 1_048_576
@@ -112,6 +115,12 @@ EXPECTATION_FIELDS = frozenset({
 
 # tool-value-ab profile: fixtures are directories, not files (design §9.2 item 3).
 DIRECTORY_FIXTURE_REQUIRED_FILES = ("prompt.md", "metadata.yaml", "oracle.spec.yaml")
+# Optional per-fixture sidecars the saved-output runner discovers by suffix. A
+# sidecar that pairs with no fixture is dead weight the runner would never
+# read, and a capability manifest that fails its own schema would silently
+# skip or misfire the manifest-gated checks instead of enabling them.
+FIXTURE_SIDECAR_SUFFIXES = (".capability-manifest.json", ".security-gate.json")
+CAPABILITY_MANIFEST_SUFFIX = ".capability-manifest.json"
 DIRECTORY_FIXTURE_BUILT_FILES = ("seed.sh", "trigger.sh", "oracle.py", "reference-fix.sh")
 
 RUBRIC_PROFILE_KEYS = {
@@ -644,6 +653,43 @@ def _regular_paths(directory: Path, pattern: str) -> tuple[list[Path], list[Path
     return regular, rejected
 
 
+def _capability_manifest_issues(suite: str, path: Path) -> list[Issue]:
+    try:
+        encoded = _read_bounded_regular(path)
+        if len(encoded) > MAX_YAML_BYTES:
+            raise OSError("capability manifest sidecar exceeds its size limit")
+        document = json.loads(encoded.decode("utf-8"))
+    except (OSError, UnicodeError, ValueError) as exc:
+        return [_schema_issue(suite, "schema_sidecar_manifest", path, f"sidecar is not readable JSON: {exc}")]
+    if not isinstance(document, dict):
+        return [_schema_issue(suite, "schema_sidecar_manifest", path, "sidecar root must be a JSON object")]
+    try:
+        errors = validate_against_schema(document, load_manifest_schema())
+    except (OSError, ValueError) as exc:
+        return [_schema_issue(suite, "schema_sidecar_manifest", path, f"capability manifest schema unavailable: {exc}")]
+    if errors:
+        return [_schema_issue(suite, "schema_sidecar_manifest", path, "; ".join(errors[:5]))]
+    if not isinstance(document.get("runtime_tools"), dict):
+        return [_schema_issue(suite, "schema_sidecar_manifest", path, "sidecar predates runtime_tools (schema 1.1.0)")]
+    return []
+
+
+def _sidecar_issues(suite: str, fixture_dir: Path, stems: set[str]) -> list[Issue]:
+    issues: list[Issue] = []
+    for suffix in FIXTURE_SIDECAR_SUFFIXES:
+        paths, rejected = _regular_paths(fixture_dir, f"*{suffix}")
+        for path in rejected:
+            issues.append(_schema_issue(suite, "schema_inventory_member", path, "inventory member must be a regular file"))
+        for path in paths:
+            stem = path.name[: -len(suffix)]
+            if stem not in stems:
+                issues.append(Issue(suite, "extra_sidecar", path, "sidecar has no matching fixture"))
+                continue
+            if suffix == CAPABILITY_MANIFEST_SUFFIX:
+                issues.extend(_capability_manifest_issues(suite, path))
+    return issues
+
+
 def _pairing_issues(
     suite: str, fixture_dir: Path, rubric_dir: Path, stems: set[str],
     metadata: dict[str, Path], rubrics: dict[str, Path], suffix: str,
@@ -860,6 +906,7 @@ def check_suite(suite_dir: Path) -> list[Issue]:
     metadata = {metadata_stem(path, config.metadata_suffix): path for path in metadata_paths}
     rubrics = {path.name[: -len(".rubric.yaml")]: path for path in rubric_paths}
     issues.extend(_pairing_issues(suite, fixture_dir, rubric_dir, stems, metadata, rubrics, config.metadata_suffix))
+    issues.extend(_sidecar_issues(suite, fixture_dir, stems))
     for path in sorted(fixture_dir.glob("*.rubric.yaml")):
         issues.append(Issue(suite, "misplaced_rubric", path, "rubric is in the fixtures directory"))
     issues.extend(_validate_owned_documents(suite, metadata, rubrics))

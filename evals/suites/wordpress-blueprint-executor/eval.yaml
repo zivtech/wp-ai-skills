@@ -5,7 +5,7 @@ skill:
 
 fixtures:
   directory: ./fixtures
-  count: 5
+  count: 6
   pattern: "*.md"
   metadata_suffix: ".metadata.yaml"
 
@@ -25,6 +25,7 @@ evaluation:
   latest_static_certification_run: wordpress-blueprint-executor-static-cert-20260621
   latest_self_contained_static_certification_run: wordpress-blueprint-executor-self-contained-static-cert-20260621
   latest_self_contained_launch_preflight_run: wordpress-blueprint-executor-self-contained-launch-preflight-20260621
+  latest_sidecar_saved_output_run: wordpress-blueprint-executor-sidecar-saved-outputs-20260916
 
 invocation:
   model: sonnet
@@ -39,6 +40,7 @@ output_contract_oracle:
   type: deterministic_wordpress_skill_output_contract
   command: "python3 evals/harness/validate_wordpress_skill_output.py --skill wordpress-blueprint-executor --output <candidate-output.md>"
   status: available
+  capability_manifest_sidecar: "Optional per-fixture <fixture-id>.capability-manifest.json beside the fixture; run_wordpress_high_risk_saved_outputs.py passes it as --capability-manifest so the manifest-gated checks run for that fixture only."
 
 oracle:
   type: deterministic_executor_packet_contract

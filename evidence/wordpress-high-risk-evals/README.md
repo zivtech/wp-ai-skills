@@ -20,6 +20,10 @@ outside this bundle.
 - `wordpress-performance-critic-regenerated-focused-answer-key-20260621/answer-key-summary.json`
 - `wordpress-planner-migration-saved-outputs-20260621/scorecard.md`
 - `wordpress-planner-migration-saved-outputs-20260621/contract-summary.json`
+- `wordpress-planner-migration-sidecar-saved-outputs-20260916/scorecard.md`
+- `wordpress-planner-migration-sidecar-saved-outputs-20260916/contract-summary.json`
+- `wordpress-blueprint-executor-sidecar-saved-outputs-20260916/scorecard.md`
+- `wordpress-blueprint-executor-sidecar-saved-outputs-20260916/contract-summary.json`
 - `wordpress-high-risk-answer-key-20260621/scorecard.md`
 - `wordpress-high-risk-answer-key-20260621/answer-key-summary.json`
 - `wordpress-high-risk-answer-key-20260621/qa-review.md`

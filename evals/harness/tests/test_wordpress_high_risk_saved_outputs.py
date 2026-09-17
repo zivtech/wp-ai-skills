@@ -187,7 +187,7 @@ def test_run_saved_output_reuses_existing_output(tmp_path, monkeypatch):
     monkeypatch.setattr(
         runner,
         "validate_contract",
-        lambda skill_name, output_path, contract_path, security_gate_path=None: {
+        lambda skill_name, output_path, contract_path, security_gate_path=None, capability_manifest_path=None: {
             "pass": False,
             "score": 0.5,
             "skill": skill_name,
@@ -228,7 +228,7 @@ def test_run_saved_output_passes_fixture_security_gate_sidecar(tmp_path, monkeyp
     output.write_text("saved output", encoding="utf-8")
     metadata.write_text("{}", encoding="utf-8")
 
-    def fake_validate(skill_name, output_path, contract_path, security_gate_path=None):
+    def fake_validate(skill_name, output_path, contract_path, security_gate_path=None, capability_manifest_path=None):
         seen["security_gate_path"] = security_gate_path
         return {"pass": True, "score": 1.0, "skill": skill_name}
 
@@ -260,7 +260,7 @@ def test_run_saved_output_records_invocation_failure(tmp_path, monkeypatch):
     monkeypatch.setattr(
         runner,
         "validate_contract",
-        lambda skill_name, output_path, contract_path, security_gate_path=None: {
+        lambda skill_name, output_path, contract_path, security_gate_path=None, capability_manifest_path=None: {
             "pass": False,
             "score": 0.0,
             "skill": skill_name,
@@ -343,3 +343,97 @@ def test_summarize_preserves_evidence_boundary(tmp_path, monkeypatch):
     assert summary["focused_fixture_summary"]["skill_entry_count"] == 1
     assert summary["focused_fixture_summary"]["all_focused_skill_contracts_pass"] is True
     assert "not answer-key scoring" in summary["evidence_boundary"]
+
+
+def test_validate_contract_threads_capability_manifest_sidecar(tmp_path):
+    """A per-fixture manifest turns on the manifest-gated checks for that fixture."""
+    output = tmp_path / "output.md"
+    output.write_text(
+        "## Execution\n\nRun `ddev push pressable` after the freeze.\n",
+        encoding="utf-8",
+    )
+    manifest = tmp_path / "fixture.capability-manifest.json"
+    manifest.write_text(
+        json.dumps({
+            "wp_cli": {"status": "AVAILABLE", "commands": {}},
+            "runtime_tools": {"status": "UNAVAILABLE", "reason": "no_runtime_surface_detected", "servers": []},
+        }),
+        encoding="utf-8",
+    )
+    contract = tmp_path / "contract.json"
+
+    result = runner.validate_contract(
+        "wordpress-planner.migration", output, contract, capability_manifest_path=manifest
+    )
+
+    names = {check["id"] for check in result["checks"]}
+    assert {"capability_grounding", "runtime_tool_grounding", "runtime_sync_confirmation"} <= names
+    grounding = next(check for check in result["checks"] if check["id"] == "runtime_tool_grounding")
+    assert grounding["passed"] is False
+    assert "ddev push pressable" in grounding["detail"]
+    assert result["pass"] is False
+    archived = json.loads(contract.read_text(encoding="utf-8"))
+    assert archived["capability_manifest_path"].endswith("fixture.capability-manifest.json")
+
+
+def test_validate_contract_skips_manifest_checks_without_sidecar(tmp_path):
+    output = tmp_path / "output.md"
+    output.write_text("## Execution\n\nRun `ddev push pressable`.\n", encoding="utf-8")
+    contract = tmp_path / "contract.json"
+
+    result = runner.validate_contract("wordpress-planner.migration", output, contract)
+
+    names = {check["id"] for check in result["checks"]}
+    assert "runtime_tool_grounding" not in names
+    assert "capability_manifest_path" not in result
+
+
+def test_run_saved_output_passes_fixture_capability_manifest_sidecar(tmp_path, monkeypatch):
+    monkeypatch.setattr(runner, "RESULTS_ROOT", tmp_path)
+    sidecar = tmp_path / "fixtures" / "fixture-a.capability-manifest.json"
+    sidecar.parent.mkdir()
+    sidecar.write_text("{}", encoding="utf-8")
+    seen: dict[str, Path | None] = {}
+
+    monkeypatch.setattr(runner, "invoke_or_reuse", lambda **kwargs: None)
+    monkeypatch.setattr(runner, "security_gate_sidecar_path", lambda suite, fixture_id: None)
+    monkeypatch.setattr(runner, "capability_manifest_sidecar_path", lambda suite, fixture_id: sidecar)
+
+    output = runner.saved_output_path("run-1", "wordpress-planner.migration", "skill", "fixture-a")
+    metadata = runner.saved_metadata_path("run-1", "wordpress-planner.migration", "skill", "fixture-a")
+    output.parent.mkdir(parents=True)
+    output.write_text("saved output", encoding="utf-8")
+    metadata.write_text("{}", encoding="utf-8")
+
+    def fake_validate(skill_name, output_path, contract_path, security_gate_path=None, capability_manifest_path=None):
+        seen["capability_manifest_path"] = capability_manifest_path
+        return {"pass": True, "score": 1.0, "skill": skill_name}
+
+    monkeypatch.setattr(runner, "validate_contract", fake_validate)
+
+    entry = runner.run_saved_output(
+        run_id="run-1",
+        suite="wordpress-planner.migration",
+        fixture_id="fixture-a",
+        condition="skill",
+        skill_name="wordpress-planner.migration",
+        resume=True,
+        timeout_sec=1,
+        max_retries=1,
+        model=None,
+        effort=None,
+    )
+
+    assert seen["capability_manifest_path"] == sidecar
+    assert entry.capability_manifest_path == str(sidecar)
+    assert entry.security_gate_path is None
+
+
+def test_capability_manifest_sidecar_path_uses_fixture_directory(tmp_path, monkeypatch):
+    fixtures = tmp_path / "fixtures"
+    fixtures.mkdir()
+    monkeypatch.setattr(runner, "fixture_dir_for_suite", lambda suite: fixtures)
+    assert runner.capability_manifest_sidecar_path("suite", "case") is None
+    sidecar = fixtures / "case.capability-manifest.json"
+    sidecar.write_text("{}", encoding="utf-8")
+    assert runner.capability_manifest_sidecar_path("suite", "case") == sidecar

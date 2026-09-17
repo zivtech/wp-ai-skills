@@ -1,0 +1,30 @@
+name: host-sync-staging-cutover-v1
+suite: wordpress-planner.migration
+skill_under_test: wordpress-planner.migration
+skill_type: planner
+difficulty_tier: focused
+provenance: synthetic
+risk_class: host_sync_target_confirmation
+expected_wordpress_apis:
+  - "wp_get_environment_type"
+  - "wp db export"
+  - "wp option get"
+  - "wp post list"
+  - "wp search-replace"
+expected_verification_surfaces:
+  - "Sync tool: ddev push pressable"
+  - "Sync target: acme-staging"
+  - "wp_get_environment_type() printed before any write"
+  - "pre-push staging export as the rollback point"
+  - "post-sync siteurl and post count checks"
+  - "runtime_tools.servers[] from capability-manifest.json"
+must_detect:
+  - "host sync path must come from the manifest's runtime_tools.servers[] entry"
+  - "the push is staging-only and the target must be confirmed before writing"
+  - "every WP-CLI instruction must carry the ddev wp prefix"
+  - "the previous sync failure was a missing target confirmation, not a tooling bug"
+negative_space:
+  - "does not instruct Studio site_push, site_pull, or the standalone studio-mcp"
+  - "does not target the production site"
+  - "does not claim production readiness from a staging push"
+  - "does not re-plan the content transform that an earlier plan covered"

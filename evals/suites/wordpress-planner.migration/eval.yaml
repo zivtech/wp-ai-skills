@@ -5,7 +5,7 @@ skill:
 
 fixtures:
   directory: ./fixtures
-  count: 4
+  count: 5
   pattern: "*.md"
   metadata_suffix: ".metadata.yaml"
 
@@ -24,6 +24,7 @@ evaluation:
   full_run_status: blocked_until_test_critic_or_qa_review
   latest_saved_output_run: wordpress-planner-migration-saved-outputs-20260621
   latest_answer_key_run: wordpress-high-risk-answer-key-20260621
+  latest_sidecar_saved_output_run: wordpress-planner-migration-sidecar-saved-outputs-20260916
 
 invocation:
   model: sonnet
@@ -38,3 +39,4 @@ output_contract_oracle:
   type: deterministic_wordpress_skill_output_contract
   command: "python3 evals/harness/validate_wordpress_skill_output.py --skill wordpress-planner.migration --output <candidate-output.md>"
   status: available
+  capability_manifest_sidecar: "Optional per-fixture <fixture-id>.capability-manifest.json beside the fixture; run_wordpress_high_risk_saved_outputs.py passes it as --capability-manifest so the manifest-gated checks run for that fixture only."

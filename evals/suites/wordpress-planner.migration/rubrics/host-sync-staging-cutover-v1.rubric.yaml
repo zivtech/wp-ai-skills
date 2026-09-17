@@ -1,0 +1,36 @@
+fixture: host-sync-staging-cutover-v1
+skill_under_test: wordpress-planner.migration
+max_score: 10
+criteria:
+  - id: contract_compliance
+    weight: 2
+    description: Output uses the exact wordpress-migration-planner headings and records Runtime tools in Current-State Evidence from the supplied manifest.
+  - id: sync_tool_grounding
+    weight: 3
+    description: Names ddev push pressable from the manifest's runtime_tools.servers[] entry, emits Sync tool and a staging-only Sync target in the section that instructs it, and names no sync surface the manifest does not list.
+  - id: target_confirmation_and_rollback
+    weight: 2
+    description: Requires a destination and wp_get_environment_type() confirmation printed before any write, a pre-push staging export as the rollback point, and a named rollback trigger and owner.
+  - id: prefix_and_verification
+    weight: 2
+    description: Prefixes every WP-CLI instruction with ddev wp and defines post-sync checks for siteurl, post counts, and a search-replace dry run.
+  - id: calibration
+    weight: 1
+    description: Keeps production out of scope and does not claim production readiness or a current manifest beyond its generated_at timestamp.
+domain_signals:
+  expected_wordpress_apis:
+    - "wp_get_environment_type"
+    - "wp db export"
+    - "wp option get"
+    - "wp post list"
+    - "wp search-replace"
+    - "WP-CLI"
+  must_detect:
+    - "sync path is chosen from the manifest, not from documentation"
+    - "target confirmation is missing from the previous sync"
+    - "push is staging-only"
+    - "WP-CLI needs the ddev wp prefix"
+  must_not_claim:
+    - "production readiness is proven"
+    - "Studio sync tools are available"
+    - "the manifest is current indefinitely"

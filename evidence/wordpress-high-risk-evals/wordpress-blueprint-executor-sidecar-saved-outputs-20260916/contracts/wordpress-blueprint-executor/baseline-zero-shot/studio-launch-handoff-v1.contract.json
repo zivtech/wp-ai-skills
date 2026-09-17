@@ -1,0 +1,70 @@
+{
+  "capability_manifest_path": "evals/suites/wordpress-blueprint-executor/fixtures/studio-launch-handoff-v1.capability-manifest.json",
+  "checks": [
+    {
+      "detail": "missing headings: Input Summary, Provenance Notes, Safety And Determinism Notes, Deviation Log, Verification Notes, Critic Handoff",
+      "id": "required_output_headings",
+      "passed": false,
+      "weight": 4
+    },
+    {
+      "detail": "verdict not required for this role",
+      "id": "critic_verdict",
+      "passed": true,
+      "weight": 1
+    },
+    {
+      "detail": "matched 0 exact WordPress surfaces; expected at least 3",
+      "id": "exact_wordpress_surfaces",
+      "passed": false,
+      "weight": 3
+    },
+    {
+      "detail": "no concrete verification oracle named",
+      "id": "verification_specificity",
+      "passed": false,
+      "weight": 3
+    },
+    {
+      "detail": "no negative-space or uncertainty language found",
+      "id": "negative_space",
+      "passed": false,
+      "weight": 2
+    },
+    {
+      "detail": "no placeholder markers found",
+      "id": "no_placeholders",
+      "passed": true,
+      "weight": 2
+    },
+    {
+      "detail": "no generic WordPress labels found",
+      "id": "no_generic_wp_labels",
+      "passed": true,
+      "weight": 2
+    },
+    {
+      "detail": "every instructed command is AVAILABLE in the capability manifest",
+      "id": "capability_grounding",
+      "passed": true,
+      "weight": 3
+    },
+    {
+      "detail": "ungrounded runtime instructions: studio-mcp: server studio-mcp-standalone not detected",
+      "id": "runtime_tool_grounding",
+      "passed": false,
+      "weight": 3
+    },
+    {
+      "detail": "no inward or outward sync tool is instructed",
+      "id": "runtime_sync_confirmation",
+      "passed": true,
+      "weight": 3
+    }
+  ],
+  "pass": false,
+  "requested_skill": "wordpress-blueprint-executor",
+  "role": "executor",
+  "score": 0.4231,
+  "skill": "wordpress-blueprint-executor"
+}

@@ -1,0 +1,76 @@
+{
+  "capability_manifest_path": "evals/suites/wordpress-planner.migration/fixtures/host-sync-staging-cutover-v1.capability-manifest.json",
+  "checks": [
+    {
+      "detail": "all required headings present exactly once",
+      "id": "required_output_headings",
+      "passed": true,
+      "weight": 4
+    },
+    {
+      "detail": "verdict not required for this role",
+      "id": "critic_verdict",
+      "passed": true,
+      "weight": 1
+    },
+    {
+      "detail": "matched 5 exact WordPress surfaces (core_function:wp, wp_cli_command:WP-CLI, named_oracle:phpunit, core_function:wp_get_environment_type(), wp_cli_command:wp search-replace --dry-run)",
+      "id": "exact_wordpress_surfaces",
+      "passed": true,
+      "weight": 3
+    },
+    {
+      "detail": "verification terms present: dry-run, phpcs, phpstan, phpunit, playground, wp post list, wp search-replace, wpcs",
+      "id": "verification_specificity",
+      "passed": true,
+      "weight": 3
+    },
+    {
+      "detail": "boundary terms present: assumption, does not claim, out of scope, unknown",
+      "id": "negative_space",
+      "passed": true,
+      "weight": 2
+    },
+    {
+      "detail": "no placeholder markers found",
+      "id": "no_placeholders",
+      "passed": true,
+      "weight": 2
+    },
+    {
+      "detail": "no generic WordPress labels found",
+      "id": "no_generic_wp_labels",
+      "passed": true,
+      "weight": 2
+    },
+    {
+      "detail": "plan does not affirmatively claim a Gutenberg/block transformation",
+      "id": "gutenberg_migration_scope",
+      "passed": true,
+      "weight": 1
+    },
+    {
+      "detail": "every instructed command is AVAILABLE in the capability manifest",
+      "id": "capability_grounding",
+      "passed": true,
+      "weight": 3
+    },
+    {
+      "detail": "every instructed runtime tool is listed by the capability manifest",
+      "id": "runtime_tool_grounding",
+      "passed": true,
+      "weight": 3
+    },
+    {
+      "detail": "unconfirmed sync instructions: ddev pull pressable in 'Transform And Execution Plan': Sync tool: must be exactly 'ddev pull pressable'; Sync target: missing or unusable | ddev push pressable in 'Transform And Execution Plan': Sync tool: must be exactly 'ddev push pressable'; Sync target: missing or unusable",
+      "id": "runtime_sync_confirmation",
+      "passed": false,
+      "weight": 3
+    }
+  ],
+  "pass": false,
+  "requested_skill": "wordpress-planner.migration",
+  "role": "planner",
+  "score": 0.8889,
+  "skill": "wordpress-migration-planner"
+}

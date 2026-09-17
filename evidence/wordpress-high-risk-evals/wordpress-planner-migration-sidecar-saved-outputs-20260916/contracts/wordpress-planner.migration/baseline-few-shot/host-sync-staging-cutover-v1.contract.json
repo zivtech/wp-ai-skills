@@ -1,0 +1,76 @@
+{
+  "capability_manifest_path": "evals/suites/wordpress-planner.migration/fixtures/host-sync-staging-cutover-v1.capability-manifest.json",
+  "checks": [
+    {
+      "detail": "all required headings present exactly once",
+      "id": "required_output_headings",
+      "passed": true,
+      "weight": 4
+    },
+    {
+      "detail": "verdict not required for this role",
+      "id": "critic_verdict",
+      "passed": true,
+      "weight": 1
+    },
+    {
+      "detail": "matched 6 exact WordPress surfaces (wp_cli_command:WP-CLI, core_function:wp, named_oracle:phpunit, core_function:wp_get_environment_type(), named_oracle:Plugin Check, wp_cli_command:wp search-replace --dry-run)",
+      "id": "exact_wordpress_surfaces",
+      "passed": true,
+      "weight": 3
+    },
+    {
+      "detail": "verification terms present: dry-run, phpcs, phpunit, playground, plugin check, wp post list, wp search-replace",
+      "id": "verification_specificity",
+      "passed": true,
+      "weight": 3
+    },
+    {
+      "detail": "boundary terms present: assumption, not claiming, out of scope, unknown",
+      "id": "negative_space",
+      "passed": true,
+      "weight": 2
+    },
+    {
+      "detail": "no placeholder markers found",
+      "id": "no_placeholders",
+      "passed": true,
+      "weight": 2
+    },
+    {
+      "detail": "no generic WordPress labels found",
+      "id": "no_generic_wp_labels",
+      "passed": true,
+      "weight": 2
+    },
+    {
+      "detail": "plan does not affirmatively claim a Gutenberg/block transformation",
+      "id": "gutenberg_migration_scope",
+      "passed": true,
+      "weight": 1
+    },
+    {
+      "detail": "every instructed command is AVAILABLE in the capability manifest",
+      "id": "capability_grounding",
+      "passed": true,
+      "weight": 3
+    },
+    {
+      "detail": "ungrounded runtime instructions: site_pull: server studio-mcp-builtin not detected; site_push: server studio-mcp-builtin not detected; studio-mcp: server studio-mcp-standalone not detected",
+      "id": "runtime_tool_grounding",
+      "passed": false,
+      "weight": 3
+    },
+    {
+      "detail": "unconfirmed sync instructions: ddev pull pressable in 'Source Audit': Sync tool: must be exactly 'ddev pull pressable'; Sync target: missing or unusable; wp_get_environment_type() confirmation absent | ddev push pressable in 'Transform And Execution Plan': Sync tool: must be exactly 'ddev push pressable'",
+      "id": "runtime_sync_confirmation",
+      "passed": false,
+      "weight": 3
+    }
+  ],
+  "pass": false,
+  "requested_skill": "wordpress-planner.migration",
+  "role": "planner",
+  "score": 0.7778,
+  "skill": "wordpress-migration-planner"
+}

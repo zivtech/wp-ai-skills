@@ -1,0 +1,70 @@
+{
+  "capability_manifest_path": "evals/suites/wordpress-blueprint-executor/fixtures/studio-launch-handoff-v1.capability-manifest.json",
+  "checks": [
+    {
+      "detail": "missing headings: Provenance Notes, Safety And Determinism Notes, Deviation Log, Verification Notes, Critic Handoff",
+      "id": "required_output_headings",
+      "passed": false,
+      "weight": 4
+    },
+    {
+      "detail": "verdict not required for this role",
+      "id": "critic_verdict",
+      "passed": true,
+      "weight": 1
+    },
+    {
+      "detail": "matched 2 exact WordPress surfaces (core_function:WP, named_oracle:phpunit); expected at least 3",
+      "id": "exact_wordpress_surfaces",
+      "passed": false,
+      "weight": 3
+    },
+    {
+      "detail": "verification terms present: phpcs, phpstan, phpunit, playground, wpcs",
+      "id": "verification_specificity",
+      "passed": true,
+      "weight": 3
+    },
+    {
+      "detail": "boundary terms present: unknown",
+      "id": "negative_space",
+      "passed": true,
+      "weight": 2
+    },
+    {
+      "detail": "no placeholder markers found",
+      "id": "no_placeholders",
+      "passed": true,
+      "weight": 2
+    },
+    {
+      "detail": "no generic WordPress labels found",
+      "id": "no_generic_wp_labels",
+      "passed": true,
+      "weight": 2
+    },
+    {
+      "detail": "ungrounded instructions: wp plugin: bare_wp_does_not_reach_wp_cli (invocation_prefix starts with 'studio')",
+      "id": "capability_grounding",
+      "passed": false,
+      "weight": 3
+    },
+    {
+      "detail": "ungrounded runtime instructions: studio-mcp: server studio-mcp-standalone not detected",
+      "id": "runtime_tool_grounding",
+      "passed": false,
+      "weight": 3
+    },
+    {
+      "detail": "unconfirmed sync instructions: preview_create in 'Verification Notes': Sync tool: must be exactly 'preview_create'; Sync target: missing or unusable; wp_get_environment_type() confirmation absent | site_pull in 'Verification Notes': Sync tool: must be exactly 'site_pull'; Sync target: missing or unusable; wp_get_environment_type() confirmation absent | site_push in 'Verification Notes': Sync tool: must be exactly 'site_push'; Sync target: missing or unusable; wp_get_environment_type() confirmation absent",
+      "id": "runtime_sync_confirmation",
+      "passed": false,
+      "weight": 3
+    }
+  ],
+  "pass": false,
+  "requested_skill": "wordpress-blueprint-executor",
+  "role": "executor",
+  "score": 0.3846,
+  "skill": "wordpress-blueprint-executor"
+}
