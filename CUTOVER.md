@@ -8,7 +8,7 @@ was established and the rule that now governs edits.
 
 The WordPress collection was assembled from the earlier `zivtech-meta-skills`
 monorepo, validated as a standalone tree, and imported into
-[zivtech/wp-meta-skills](https://github.com/zivtech/wp-meta-skills) with a clean
+[zivtech/wp-ai-skills](https://github.com/zivtech/wp-ai-skills) with a clean
 root. The initial public commit is
 `6de8aa99ea8f7106cf1016b740abeb152791d53e`.
 
@@ -18,7 +18,7 @@ claiming a path-preserving migration.
 
 ## Active Source-of-Truth Rule
 
-`zivtech/wp-meta-skills` is the source of truth for this package. Make WordPress
+`zivtech/wp-ai-skills` is the source of truth for this package. Make WordPress
 skill, harness, documentation, workflow, and distribution-surface changes here.
 Do not regenerate or overwrite the repository from the historical monorepo
 package path.

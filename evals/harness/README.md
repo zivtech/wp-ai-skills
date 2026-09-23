@@ -1,7 +1,7 @@
 # WordPress Evaluation and Certification Harness
 
 This directory contains the WordPress-specific generation, certification,
-runtime, and diagnostic tools shipped by `wp-meta-skills`. It is not a generic
+runtime, and diagnostic tools shipped by `wp-ai-skills`. It is not a generic
 cross-domain evaluation harness. The inventory below covers supported
 operator-facing tools and selected internal helpers; it is deliberately not an
 exhaustive list of every top-level module. Every executable named in the

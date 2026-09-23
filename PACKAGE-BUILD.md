@@ -5,7 +5,7 @@ the live repository state.
 
 This tree was initially assembled from WordPress-specific content in the
 `zivtech-meta-skills` monorepo and then hardened as the standalone
-`zivtech/wp-meta-skills` repository. The clean public import, not the historical
+`zivtech/wp-ai-skills` repository. The clean public import, not the historical
 package-generation process, is the current source.
 
 ## Current Build and Edit Path

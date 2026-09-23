@@ -16,7 +16,7 @@ Security reports are still in scope when they affect:
 ## Reporting
 
 Report vulnerabilities privately through GitHub Security Advisories:
-https://github.com/zivtech/wp-meta-skills/security/advisories/new
+https://github.com/zivtech/wp-ai-skills/security/advisories/new
 ("Report a vulnerability" on the repository's Security tab). Maintainers will
 acknowledge reports there and coordinate any fix and disclosure.
 
@@ -72,7 +72,7 @@ run in ordinary CI.
 is unavailable:
 
 ```bash
-validation_venv="$(mktemp -d "${TMPDIR:-/tmp}/wp-meta-skills-validation.XXXXXX")"
+validation_venv="$(mktemp -d "${TMPDIR:-/tmp}/wp-ai-skills-validation.XXXXXX")"
 trap 'rm -rf "$validation_venv"' EXIT
 python3.13 -m venv "$validation_venv"
 "$validation_venv/bin/python" -m pip install --require-hashes \

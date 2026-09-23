@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate every published wp-meta-skills host representation."""
+"""Validate every published wp-ai-skills host representation."""
 
 from __future__ import annotations
 

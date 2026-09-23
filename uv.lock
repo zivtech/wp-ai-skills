@@ -82,7 +82,7 @@ wheels = [
 ]
 
 [[package]]
-name = "wp-meta-skills-validation"
+name = "wp-ai-skills-validation"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

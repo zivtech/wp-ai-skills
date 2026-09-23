@@ -32,7 +32,7 @@ packaging limitation is recorded in [EVIDENCE.md](EVIDENCE.md).
 
 ## Current Ownership
 
-The standalone `zivtech/wp-meta-skills` repository is now authoritative. Its
+The standalone `zivtech/wp-ai-skills` repository is now authoritative. Its
 skills, harness, evidence map, controls, and validation workflow are edited and
 reviewed directly. The historical monorepo assembly process is not a supported
 current build path.

@@ -257,7 +257,7 @@ def test_lock_contains_project_and_resolved_direct_dependencies():
     lock = tomllib.loads((ROOT / "uv.lock").read_text(encoding="utf-8"))
     packages = {item["name"]: item for item in lock["package"]}
     assert lock["requires-python"] == "==3.13.*"
-    assert packages["wp-meta-skills-validation"]
+    assert packages["wp-ai-skills-validation"]
     assert packages["pytest"]["version"] == "9.1.0"
     assert packages["pyyaml"]["version"] == "6.0.3"
 
@@ -437,7 +437,7 @@ def test_contributor_and_security_docs_publish_canonical_commands():
         for selector in (GENERAL, SANDBOX, GENERATED):
             assert selector in source
             assert "uv run --locked --extra test python -m pytest" in source
-        assert 'mktemp -d "${TMPDIR:-/tmp}/wp-meta-skills-validation.XXXXXX"' in source
+        assert 'mktemp -d "${TMPDIR:-/tmp}/wp-ai-skills-validation.XXXXXX"' in source
         assert 'trap \'rm -rf "$validation_venv"\' EXIT' in source
         assert '"$validation_venv/bin/python" -m pip install --require-hashes' in source
 

@@ -4,7 +4,7 @@ Updated: 2026-06-16. Standalone status note added 2026-07-02.
 
 > **Standalone status (2026-07-02, license updated 2026-07-03):** this
 > document was written inside the `zivtech-meta-skills` monorepo, before that
-> repository had a root `LICENSE` file. The standalone `wp-meta-skills`
+> repository had a root `LICENSE` file. The standalone `wp-ai-skills`
 > repository you are reading has a root **GPL-3.0** `LICENSE` (relicensed
 > from Apache-2.0 on 2026-07-03, before first public release; all content is
 > original Zivtech work). The conservative rule below — no copied or closely
@@ -14,7 +14,7 @@ Updated: 2026-06-16. Standalone status note added 2026-07-02.
 > explicit license-compatibility check against GPL-3.0 (GPL-family and
 > permissive sources qualify) plus a reuse-ledger entry.
 
-This policy governs WordPress V1 work in the standalone `wp-meta-skills` repository and preserves the clean-room operating rule chosen during the earlier `zivtech-meta-skills` phase.
+This policy governs WordPress V1 work in the standalone `wp-ai-skills` repository and preserves the clean-room operating rule chosen during the earlier `zivtech-meta-skills` phase.
 
 ## Current Decision
 
@@ -24,7 +24,7 @@ This remains intentionally conservative even after the standalone GPL-3.0 relice
 
 ## License Matrix
 
-| Upstream license | In-repo V1 handling | Standalone `wp-meta-skills` handling |
+| Upstream license | In-repo V1 handling | Standalone `wp-ai-skills` handling |
 |---|---|---|
 | GPL-2.0-only | Reference/eval comparator only. Do not copy or closely adapt prompt passages into this repo. | Allowed only if the standalone repo is explicitly GPL-2.0-compatible and attribution/provenance is logged. |
 | GPL-2.0-or-later | Reference/eval comparator only. Do not copy or closely adapt prompt passages into this repo. | Allowed only if the standalone repo is explicitly GPL-compatible and attribution/provenance is logged. |

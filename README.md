@@ -1,12 +1,12 @@
 # WP Meta Skills
 
-[![skills.sh: zivtech/wp-meta-skills](https://img.shields.io/badge/skills.sh-zivtech%2Fwp--meta--skills-111111)](https://www.skills.sh/zivtech/wp-meta-skills)
+[![skills.sh: zivtech/wp-ai-skills](https://img.shields.io/badge/skills.sh-zivtech%2Fwp--ai--skills-111111)](https://www.skills.sh/zivtech/wp-ai-skills)
 
 WP Meta Skills is a verification-first WordPress skill and harness collection.
 It combines planner, executor, and critic instructions with deterministic checks
 for generated WordPress artifacts. As observed on 2026-07-15, the
-[GitHub repository](https://github.com/zivtech/wp-meta-skills) was public and
-[skills.sh](https://www.skills.sh/zivtech/wp-meta-skills) listed 14 skills.
+[GitHub repository](https://github.com/zivtech/wp-ai-skills) was public and
+[skills.sh](https://www.skills.sh/zivtech/wp-ai-skills) listed 14 skills.
 
 That external state is dated; the current project snapshot is maintained through the
 [stable status pointer](docs/wordpress/project-status-current.md). Evidence
@@ -34,7 +34,7 @@ proof, and a passing runtime smoke is not production proof.
 ## Install the skills
 
 ```bash
-npx skills add zivtech/wp-meta-skills
+npx skills add zivtech/wp-ai-skills
 ```
 
 The local installer can also link the shipped skills and agents into supported

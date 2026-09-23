@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh — Symlink wp-meta-skills into Claude and Codex skill dirs.
+# install.sh — Symlink wp-ai-skills into Claude and Codex skill dirs.
 #
 # Usage:
 #   ./install.sh              # install (symlink) all skills
@@ -436,7 +436,7 @@ install_repo_tree() {
   fi
 }
 
-printf 'Installing wp-meta-skills from %q\n' "$REPO_DIR"
+printf 'Installing wp-ai-skills from %q\n' "$REPO_DIR"
 printf '  Claude skills -> %q\n' "$CLAUDE_SKILLS_DIR"
 printf '  Codex skills  -> %q\n' "$CODEX_SKILLS_DIR"
 printf '  Legacy skills -> %q\n' "$LEGACY_AGENTS_SKILLS_DIR"
