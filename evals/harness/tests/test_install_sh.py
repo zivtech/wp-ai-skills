@@ -19,7 +19,7 @@ def _write(path: Path, content: str = "test\n") -> Path:
 
 
 def _make_repo(tmp_path: Path) -> tuple[Path, Path]:
-    repo = tmp_path / "wp-meta-skills"
+    repo = tmp_path / "wp-ai-skills"
     home = tmp_path / "home"
     repo.mkdir()
     home.mkdir()
@@ -275,7 +275,7 @@ def test_remove_preserves_sibling_and_unrelated_links(
 
 def test_remove_rejects_repo_name_prefix_lookalike(tmp_path: Path) -> None:
     repo, home = _make_repo(tmp_path)
-    lookalike = _write(tmp_path / "wp-meta-skills-lookalike/item")
+    lookalike = _write(tmp_path / "wp-ai-skills-lookalike/item")
     link = _skill_link(home, ".claude", "lookalike")
     link.parent.mkdir(parents=True)
     link.symlink_to(lookalike)

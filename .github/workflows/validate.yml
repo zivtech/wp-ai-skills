@@ -1,4 +1,4 @@
-name: Validate wp-meta-skills
+name: Validate wp-ai-skills
 
 on:
   workflow_dispatch:

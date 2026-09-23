@@ -6,16 +6,16 @@ cutover and keeps a separate checklist for any future tagged release.
 
 ## Public State Observed 2026-07-15
 
-- Repository: [zivtech/wp-meta-skills](https://github.com/zivtech/wp-meta-skills),
+- Repository: [zivtech/wp-ai-skills](https://github.com/zivtech/wp-ai-skills),
   visibility `PUBLIC`.
 - Initial public import: commit `6de8aa99ea8f7106cf1016b740abeb152791d53e`.
 - Publication approval issue:
-  [#1](https://github.com/zivtech/wp-meta-skills/issues/1), closed.
+  [#1](https://github.com/zivtech/wp-ai-skills/issues/1), closed.
 - Latest successful `validate.yml` push on `main` observed that day:
-  [run 28811640050](https://github.com/zivtech/wp-meta-skills/actions/runs/28811640050)
+  [run 28811640050](https://github.com/zivtech/wp-ai-skills/actions/runs/28811640050)
   at `e0ebf6a3bee38fa3477e835c45325d078adde6fa`.
 - Discovery page:
-  [skills.sh/zivtech/wp-meta-skills](https://www.skills.sh/zivtech/wp-meta-skills),
+  [skills.sh/zivtech/wp-ai-skills](https://www.skills.sh/zivtech/wp-ai-skills),
   HTTP 200 and listing 14 skills when observed.
 - Formal release state: no Git tags and no GitHub Releases were present.
 

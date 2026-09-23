@@ -1,6 +1,6 @@
-# wp-meta-skills
+# wp-ai-skills
 
-WordPress-focused planner, executor, and critic skill collection from the Zivtech meta-skills ecosystem, packaged as the standalone `wp-meta-skills` repository.
+WordPress-focused planner, executor, and critic skill collection from the Zivtech meta-skills ecosystem, packaged as the standalone `wp-ai-skills` repository.
 
 ## Purpose
 

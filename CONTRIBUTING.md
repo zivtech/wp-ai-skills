@@ -1,6 +1,6 @@
 # Contributing
 
-Contributions to `wp-meta-skills` should improve the WordPress skill contracts,
+Contributions to `wp-ai-skills` should improve the WordPress skill contracts,
 API specificity, validation harness, or evidence quality without overstating
 what the repository proves.
 
@@ -77,7 +77,7 @@ If uv bootstrap is temporarily unavailable, the committed, hash-locked pip
 export is a tested installation fallback for the general partition only:
 
 ```bash
-validation_venv="$(mktemp -d "${TMPDIR:-/tmp}/wp-meta-skills-validation.XXXXXX")"
+validation_venv="$(mktemp -d "${TMPDIR:-/tmp}/wp-ai-skills-validation.XXXXXX")"
 trap 'rm -rf "$validation_venv"' EXIT
 python3.13 -m venv "$validation_venv"
 "$validation_venv/bin/python" -m pip install --require-hashes \

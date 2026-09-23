@@ -27,7 +27,7 @@ Use `wordpress-skills/docs/reuse-ledger.md` for durable entries. The active in-r
 ## Active License Decision
 
 > **Standalone status (2026-07-02, license updated 2026-07-03):** the
-> standalone `wp-meta-skills` repository has a root **GPL-3.0** `LICENSE`
+> standalone `wp-ai-skills` repository has a root **GPL-3.0** `LICENSE`
 > (relicensed from Apache-2.0 on 2026-07-03, before first public release).
 > The block on copied or closely adapted third-party prompt text remains the
 > operating policy here by choice; any future direct adaptation requires a

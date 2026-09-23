@@ -1,5 +1,5 @@
 {
-    "name": "zivtech/wp-meta-skills-php-tools",
+    "name": "zivtech/wp-ai-skills-php-tools",
     "description": "Pinned PHP static-analysis toolchain for the WordPress API-existence lint (evals/harness/wp_api_lint.py). Fetched at install time; vendor/ is never committed.",
     "license": "Apache-2.0",
     "require": {

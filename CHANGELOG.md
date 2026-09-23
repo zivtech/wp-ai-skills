@@ -1,6 +1,10 @@
 # Changelog
 
-All notable changes to `wp-meta-skills` will be documented in this file.
+All notable changes to `wp-ai-skills` will be documented in this file.
+
+## Unreleased
+
+- Renamed the repository from `zivtech/wp-meta-skills` to `zivtech/wp-ai-skills`. GitHub redirects the old URL. Stable schema identifiers (`wp-meta-skills/block-execution-artifact-gate`, `wp-meta-skills/api-lint`, the capability-manifest `$id`) and workspace-lease prefixes keep the old name so existing evidence still validates.
 
 ## 0.1.0 - 2026-07-06
 
