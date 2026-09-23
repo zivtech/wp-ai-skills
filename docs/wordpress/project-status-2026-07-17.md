@@ -1,5 +1,7 @@
 # Project Status — 2026-07-17
 
+> Superseded: see the [current project status](project-status-current.md).
+
 This is the current evidence-bounded snapshot for `wp-meta-skills` after the
 Gutenberg cross-repo hardening work. It extends, rather than rewrites, the
 [2026-07-15 status snapshot](project-status-2026-07-15.md).
