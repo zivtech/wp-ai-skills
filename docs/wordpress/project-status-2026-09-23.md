@@ -43,8 +43,8 @@ This is the current evidence-bounded snapshot for `wp-ai-skills` (renamed from
 - **Local agent-tools value eval.** Design, suite, and dry run; see
   [localwp-agent-tools-eval-design-2026-09-02.md](localwp-agent-tools-eval-design-2026-09-02.md).
 - **Disproved premises.** Recorded in
-  [negative-results.md](negative-results.md), including the second non-blocking
-  PHPCS profile (A6; [measurement](wpcs-second-profile-measurement-2026-08-29.md)).
+  [negative-results.md](negative-results.md), including the proposed second,
+  stricter PHPCS profile (A6; [measurement](wpcs-second-profile-measurement-2026-08-29.md)).
 
 ## Current Product Boundary
 
