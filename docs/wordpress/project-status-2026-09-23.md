@@ -6,20 +6,19 @@ This is the current evidence-bounded snapshot for `wp-ai-skills` (renamed from
 
 ## Repository State
 
-- Default branch head: `2f63294304d3ca5f60d891dcfeaaa08b34df7fcd` (rename merge).
-- Last green hosted `validate.yml` run on `main`:
-  [35211862510](https://github.com/zivtech/wp-ai-skills/actions/runs/35211862510)
-  at `6259ed2` (2026-09-17).
-- `main` run
+- Last hosted-proven commit on `main`: `10345d6d814cd27b7b4b2c118dccad466734359b` (merge
+  of [PR #35](https://github.com/zivtech/wp-ai-skills/pull/35), which added this snapshot).
+- Hosted `validate.yml` run
+  [35892848825](https://github.com/zivtech/wp-ai-skills/actions/runs/35892848825)
+  passed every job at that commit, including the three no-secrets Docker jobs.
+- Earlier the same day, `main` run
   [35885458787](https://github.com/zivtech/wp-ai-skills/actions/runs/35885458787)
-  at `2f63294` failed in the three no-secrets Docker jobs on reviewed image
-  provenance drift (node, python, wordpress_cli), not on a code change.
-- The pin refresh in
-  [PR #34](https://github.com/zivtech/wp-ai-skills/pull/34) passed every hosted
-  job in run
-  [35889942596](https://github.com/zivtech/wp-ai-skills/actions/runs/35889942596)
-  at `ec605c41650d1778f887a0fde8c6a037b6fd4b51`. That proof binds to that commit;
-  it is not a proof for `main` until the refresh is merged and the gates rerun.
+  at `2f63294` failed those three jobs on reviewed image provenance drift
+  (node, python, wordpress_cli), not on a code change. The pin refresh in
+  [PR #34](https://github.com/zivtech/wp-ai-skills/pull/34) fixed it.
+
+This hosted proof binds to `10345d6`. Later commits must not be described as
+runtime-proven unless the hosted gates are rerun at that later commit.
 
 ## What Changed Since 2026-07-17
 
@@ -55,8 +54,8 @@ This status does not claim:
 - a quality edge from the runtime-tool branching or any sidecar-scored run;
 - Playground or Studio launch behavior beyond the recorded verification;
 - broad model superiority or benchmark-grade repair-loop convergence;
-- hosted proof for `main` or later documentation-only commits unless the
-  hosted gates are rerun there.
+- hosted proof for commits after `10345d6` unless the hosted gates are rerun
+  there.
 
 The general evidence boundaries in [EVIDENCE.md](../../EVIDENCE.md) and the
 runtime proof semantics in
