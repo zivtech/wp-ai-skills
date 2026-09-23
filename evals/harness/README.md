@@ -27,6 +27,12 @@ validator.
   executor, and critic output contracts, including optional security-gate
   consumption.
 
+- `evals/harness/recertify_wordpress_executor_packet.py` — re-runs a saved
+  executor packet from `evals/handoff/` through the exact repair-loop gate
+  composition; the converged-artifact Linux handoff lane.
+- `evals/harness/wpcs_autofix.py` — deterministic phpcbf stage that fixes
+  mechanical WPCS findings before a model repair slot is spent.
+
 ### Static and runtime gates
 
 - `evals/harness/wp_api_lint.py` — PHPStan-backed WordPress API-existence and
@@ -36,6 +42,11 @@ validator.
 - `evals/harness/run_wordpress_runtime_smoke.py` — isolated provisioned WordPress
   runtime for WPCS, Plugin Check, activation, PHPUnit, and scoped browser/API
   assertions.
+- `evals/harness/probe_wordpress_environment.py` — emits the
+  `capability-manifest.json` for `/wordpress-environment-probe`: WP-CLI prefix,
+  local hosts, and agent-facing runtime tools. It reports and never remediates.
+- `evals/harness/block_metadata_validator.py` — shared static contract checks
+  for generated `block.json` metadata.
 - `evals/harness/audit_wordpress_blueprint_launch_readiness.py` — checks a
   certified Blueprint and its payload references for launch blockers.
 - `evals/harness/run_wordpress_blueprint_playground_smoke.js` — operator-run
@@ -61,6 +72,20 @@ validator.
   saved outputs.
 - `evals/harness/compute_kappa.py` — agreement calculation for compatible
   recorded judgments.
+
+### Critic corpus and tool-value evaluation
+
+- `evals/harness/build_cve_fixtures.py` — CVE-diff sourcing aid that drafts
+  critic-corpus tranche-J fixtures for human verification.
+- `evals/harness/verify_critic_tool_invisibility.py` — asserts no WPCS
+  security/performance sniff fires on a tranche-J fixture.
+- `evals/harness/measure_baseline_api_leakage.py` — measures how much of the
+  API-coverage answer key each baseline prompt already contains.
+- `evals/harness/run_localwp_tool_value_eval.py` — runs one fixture/arm/rep cell
+  of the `localwp-agent-tools-value` suite. Its helpers are
+  `evals/harness/tool_value_oracle_lib.py` (oracle logic),
+  `evals/harness/tool_value_live_backend.py` (live-site backend), and
+  `evals/harness/tool_value_parity.py` (tool-output parity).
 
 ### Optional owner-operated lanes
 

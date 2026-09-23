@@ -1,12 +1,15 @@
-# WP Meta Skills
+# WP AI Skills
 
 [![skills.sh: zivtech/wp-ai-skills](https://img.shields.io/badge/skills.sh-zivtech%2Fwp--ai--skills-111111)](https://www.skills.sh/zivtech/wp-ai-skills)
 
-WP Meta Skills is a verification-first WordPress skill and harness collection.
+WP AI Skills is a verification-first WordPress skill and harness collection.
 It combines planner, executor, and critic instructions with deterministic checks
 for generated WordPress artifacts. As observed on 2026-07-15, the
 [GitHub repository](https://github.com/zivtech/wp-ai-skills) was public and
 [skills.sh](https://www.skills.sh/zivtech/wp-ai-skills) listed 14 skills.
+The repository was renamed from `zivtech/wp-meta-skills` on 2026-09-23 (GitHub
+redirects the old URL) and now ships 16 skills, grouped in
+[`skills.sh.json`](skills.sh.json).
 
 That external state is dated; the current project snapshot is maintained through the
 [stable status pointer](docs/wordpress/project-status-current.md). Evidence
@@ -18,6 +21,10 @@ scope and proof boundaries are documented in [EVIDENCE.md](EVIDENCE.md).
   themes, and migrations.
 - Executors for plugins, blocks, themes, and WordPress Playground Blueprints.
 - General, theme, security, and performance critics.
+- An environment prober that measures what the agent can actually run (WP-CLI
+  prefix, local hosts such as Local and Studio, and agent-facing runtime tools)
+  and emits a `capability-manifest.json` that planners, executors, critics, and
+  the output validator consume. Only `AVAILABLE` satisfies a requirement.
 - A site auditor that reads a running WordPress site's public surfaces and reports what they prove, with an explicit ledger of what was never checked.
 - A repair-loop workflow that can send deterministic gate failures back to a
   selected model and stop when the artifact passes or the repair budget ends.
@@ -168,6 +175,9 @@ including GPLv2-or-later for WordPress.org distribution.
 - [Planner → executor → critic flow](docs/wordpress/lifecycle.md)
 - [Runtime oracle runbook](docs/wordpress/runtime-oracle-runbook.md)
 - [Gutenberg cross-repo hardening plan and execution record](docs/wordpress/gutenberg-cross-repo-hardening-2026-07-16.md)
+- [Local agent-tools value eval design](docs/wordpress/localwp-agent-tools-eval-design-2026-09-02.md)
+- [Automattic Studio verification record](docs/wordpress/studio-verification-2026-09-15/README.md)
+- [Negative results and disproved premises](docs/wordpress/negative-results.md)
 - [Verification toolchain visual explainer](docs/wordpress/wp-verification-toolchain-explainer.html)
 - [Current project status](docs/wordpress/project-status-current.md)
 - [Evidence map](EVIDENCE.md)

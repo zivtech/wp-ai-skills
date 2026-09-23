@@ -122,6 +122,13 @@ their previously reviewed identities. Execution remains child-digest-only; the
 tags are checked solely as a fail-closed signal that a new provenance review is
 required.
 
+Later tag moves were re-pinned on 2026-08-10, 2026-08-25, 2026-09-16, and
+2026-09-23. The current review procedure: every reviewed tag is re-inspected,
+only drifted entries are re-pinned, the drifted child image configurations and bundled tool versions are
+compared, and any secondary digest copies (the Node acquisition profiles) move
+with the inventory. The inventory's `verified_at` and the Git history of
+`evals/harness/container-images.json` are the record of each review.
+
 The final generated-code runtime additionally derives three local images from
 the immutable WordPress 7.0.1, MariaDB 11.8.5, and Playwright 1.58.0 platform
 digests. Its WordPress build consumes the separately hashed WordPress core,
