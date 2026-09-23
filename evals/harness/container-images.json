@@ -1,12 +1,12 @@
 {
  "schema_version": 1,
- "verified_at": "2026-09-16",
+ "verified_at": "2026-09-23",
  "images": {
   "node": {
    "tag": "node:22-bookworm-slim",
-   "index": "sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5",
-   "amd64": "sha256:4d676821dff059fd00d277ee4261ef34ea712317fed0737c03941481b5760c96",
-   "arm64": "sha256:8d342e46d3b2883df69f797cb60fc71d8a0b65de65ddfbf4bf63fdc02049615f",
+   "index": "sha256:48e4b67d85f87bd551df43704e24d252f56cc5f8e9718841aace50f19948f0f9",
+   "amd64": "sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2",
+   "arm64": "sha256:f71fb9ca71b1b47d4d1a009af78147ed6cdc74f9c7cfc36cbde78ff985169051",
    "license": "MIT",
    "purpose": "generated npm commands"
   },
@@ -20,9 +20,9 @@
   },
   "python": {
    "tag": "python:3.13-slim-bookworm",
-   "index": "sha256:ed86c82274b3c69b52fb5820f358f0bd7df0b603332063cb5c6e32bd220c3e6e",
-   "amd64": "sha256:2f2e5a876c71a6757f55ec57f2add0225ddaf01c802a33fcc29073943f94d907",
-   "arm64": "sha256:ae8c3b6bb3d02ffffa2bee0bed8c7c99b9478bd042ff4d79a5bbd6eb10398864",
+   "index": "sha256:2325bb286ec344af3e5898cc224b5844e2707ac6e26b1632516fd3edc84a5e26",
+   "amd64": "sha256:3e2de9c40ca4e3d73240059f9d48baff27908f10293e985a2f382a0378e6df4a",
+   "arm64": "sha256:ad4c34ff79289506e235b40dce75d629e25f226b597a2455804220f037e07531",
    "license": "PSF-2.0",
    "purpose": "trusted proxy"
   },
@@ -44,9 +44,9 @@
   },
   "wordpress_cli": {
    "tag": "wordpress:cli-2.12.0-php8.3",
-   "index": "sha256:4ba861e5417383ce67f5095921c21d55e32e507677853c1d045f73bb0d3f52dc",
-   "amd64": "sha256:aa31002b5ae67cfff25817c8f4379b0e84aa4f8cc9637c83e16757d435adaf49",
-   "arm64": "sha256:1aa7331c40ad7735ce214c4e338667a95666d097e65a0f078b37a6725cfa809f",
+   "index": "sha256:46b3add1dbd834018a9c22bb05a2fa9303f6139d8ac7337dc97cf9424072cd77",
+   "amd64": "sha256:9e1e5309e3e3b27bef70e62874978d5fecac970e4b1d46ca95f596a711ef3dc1",
+   "arm64": "sha256:50d47668a0c2b8155afb186805767d72db0b379294208ce4115875025385617c",
    "license": "GPL-2.0-or-later",
    "purpose": "WP-CLI source"
   },
