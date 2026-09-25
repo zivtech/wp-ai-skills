@@ -51,6 +51,19 @@ This installs `git-hooks/pre-push`, which runs the default gate
 ~2 minutes in this repository (2026-09-24), which is under the ~3 minute
 budget for a pre-push hook, so the hook runs the full default gate rather
 than a subset. Bypass it for one push with `git push --no-verify`.
+
+The hook clears the repository-selecting variables git exports to hooks
+(`git rev-parse --local-env-vars`: `GIT_DIR`, `GIT_PREFIX`, `GIT_INDEX_FILE`,
+...) before running the gate, and `evals/harness/tests/conftest.py` drops the
+same variables for every pytest session. Without both, a test that runs
+`git init` in a temporary directory re-initialises the enclosing repository
+and sets `core.bare = true` in the shared `.git/config`, which breaks the main
+checkout and every linked worktree (observed 2026-09-25).
+`evals/harness/tests/test_git_env_isolation.py` guards both layers. If you
+installed the hook before this fix, re-run `git-hooks/install.sh`; the
+installed copy is not updated automatically. To repair a repository that was
+already hit, run `git config --file "$(git rev-parse --git-common-dir)/config"
+core.bare false`.
 `--docker` and `--wp-env` are not part of the pre-push gate; run them by hand
 before opening a PR that touches Docker-boundary or wp-env-probe code paths.
 

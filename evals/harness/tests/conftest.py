@@ -1,3 +1,5 @@
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -5,6 +7,43 @@ import pytest
 
 # Make the harness modules importable when collected by pytest.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+# `git rev-parse --local-env-vars` as of git 2.50, used only if git cannot be
+# asked directly.
+FALLBACK_GIT_LOCAL_ENV_VARS = (
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_CONFIG", "GIT_CONFIG_PARAMETERS",
+    "GIT_CONFIG_COUNT", "GIT_OBJECT_DIRECTORY", "GIT_DIR", "GIT_WORK_TREE",
+    "GIT_IMPLICIT_WORK_TREE", "GIT_GRAFT_FILE", "GIT_INDEX_FILE",
+    "GIT_NO_REPLACE_OBJECTS", "GIT_REPLACE_REF_BASE", "GIT_PREFIX",
+    "GIT_SHALLOW_FILE", "GIT_COMMON_DIR",
+)
+
+
+def git_local_env_vars() -> tuple[str, ...]:
+    """Names of the environment variables that select a git repository."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--local-env-vars"],
+            capture_output=True, text=True, check=True, timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return FALLBACK_GIT_LOCAL_ENV_VARS
+    return tuple(result.stdout.split()) or FALLBACK_GIT_LOCAL_ENV_VARS
+
+
+def pytest_configure(config):
+    """Never let an inherited GIT_DIR point test git calls at a real repo.
+
+    A run launched from a git hook inherits GIT_DIR (and possibly
+    GIT_WORK_TREE, GIT_INDEX_FILE, ...). Every test that shells out to git in
+    a temp directory would then act on the enclosing repository instead:
+    `git init` re-initialises it (setting core.bare = true in its shared
+    config) and `git add -A` writes temp files into its index. Tests that
+    read the real checkout find it from their working directory, so dropping
+    these variables for the whole session is always correct.
+    """
+    for name in git_local_env_vars():
+        os.environ.pop(name, None)
 
 DOCKER_SHARDS = {
     "test_sandbox_proxy_supervisor_contract.py": "docker_sandbox",

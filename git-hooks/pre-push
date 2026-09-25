@@ -21,4 +21,14 @@ if [ -z "$REPO_ROOT" ]; then
   exit 0
 fi
 
+# Git exports repository-selecting variables to hooks (GIT_DIR, GIT_PREFIX,
+# and from some commands GIT_WORK_TREE / GIT_INDEX_FILE ...). Left set, they
+# redirect every `git` call the test suite makes in a temporary directory to
+# this repository: `git init` there re-initialises it and sets
+# `core.bare = true` in the shared .git/config, breaking every checkout.
+# Clear the full list git itself reports as repository-local.
+# shellcheck disable=SC2046
+unset $(git rev-parse --local-env-vars)
+
+cd "$REPO_ROOT" || exit 1
 exec "$REPO_ROOT/scripts/ci-local.sh"
