@@ -384,10 +384,15 @@ def test_workflow_uses_locked_directory_wide_corpus_commands():
     # live-wp-env-probe, validate
     assert source.count("uv lock --check") == 5
     assert source.count("uv sync --locked --extra test") == 5
-    paths = workflow["on"]["pull_request"]["paths"]
-    for required in (".python-version", "pyproject.toml", "uv.lock", "requirements-validation.txt"):
-        assert required in paths
-    assert "pytest.ini" not in paths
+    # The `pull_request.paths:` filter this used to check (that infra files
+    # like uv.lock trigger CI, and pytest.ini -- which does not exist in this
+    # repo -- does not) was removed with the `push`/`pull_request` triggers
+    # themselves under the local-first CI change; see CONTRIBUTING.md's
+    # "Local CI" section and scripts/ci-local.sh. `on` no longer has a
+    # `pull_request` key to read a `paths` list from.
+    assert "pull_request" not in workflow["on"]
+    assert "push" not in workflow["on"]
+    assert set(workflow["on"]) == {"workflow_dispatch"}
 
 
 def test_every_actions_python_command_uses_locked_uv_runner():

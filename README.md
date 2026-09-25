@@ -56,6 +56,24 @@ The installer owns only links whose targets resolve inside the checkout that
 created them. See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete validation
 contract.
 
+## Local CI
+
+Tests run locally via `scripts/ci-local.sh`, not automatically on GitHub
+Actions — `.github/workflows/validate.yml` now only triggers on
+`workflow_dispatch`. Run the default gate, install the pre-push hook that
+runs it automatically, and see which jobs need Docker or `wp-env` and the
+arm64/macOS caveats found while verifying this locally, all in
+[CONTRIBUTING.md](CONTRIBUTING.md#local-ci):
+
+```bash
+scripts/ci-local.sh            # default gate
+scripts/ci-local.sh --all      # + Docker-boundary jobs + live wp-env probe
+git-hooks/install.sh           # install the pre-push hook (default gate, ~2m)
+```
+
+PR descriptions should paste the resulting `var/ci-local/<timestamp>/summary.txt`
+as the validation record.
+
 ## Repair-loop workflow
 
 The repair loop accepts an exact provider/model selection, invokes an executor,
