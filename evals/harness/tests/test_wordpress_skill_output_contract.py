@@ -1436,3 +1436,425 @@ def test_delivery_unit_gate_does_not_apply_to_other_skills():
 
     assert not {"plugin_delivery_unit_contract", "plugin_delivery_unit_justification"} & ids
     assert result["pass"] is True
+
+
+GOOD_CONTENT_MODEL_PLANNER = """\
+## Content Model Summary
+Plan a 3-type event-and-story content model for a cultural-institution site
+migrating from a legacy CMS. Migration mode: required
+
+## Current-State Evidence
+The source system exports 3 content types, 2 vocabularies, and 1 non-node
+placed block via a config snapshot; `register_post_type()` and
+`register_taxonomy()` do not exist yet on the target.
+
+## Content Behavior Analysis
+Events recur across multiple date sets; stories are single-author narratives.
+This does not claim any editorial workflow beyond what the brief describes.
+
+## Post Type Taxonomy And Field Matrix
+Storage decision rule applied: yes
+Binding source (event_dates): core/post-meta
+Editing surface (event_dates): event-dates block (register_block_bindings_source, setValues)
+Binding source (footer_contact): core/post-meta
+Editing surface (footer_contact): site footer template part bound via setValues
+Use `register_post_meta()` with `show_in_rest` schema for event start/end dates.
+
+## Editorial Workflow
+Editorial guardrails phase: completed
+Content type: event
+Content type: story
+Content type: exhibit
+Lock level (event): contentOnly
+Lock level (story): false
+Lock level rationale (story): donor features need freeform layout.
+Lock level (exhibit): contentOnly
+
+## API Search And Template Implications
+Expose events and stories via `show_in_rest` and template_lock contentOnly
+patterns; assumption: WPGraphQL is out of scope for this phase.
+
+## Migration And Validation Plan
+Disposition row (event): custom-post-type - matches the event content type 1:1.
+Disposition row (story): custom-post-type - matches the story content type 1:1.
+Disposition row (exhibit): custom-post-type - matches the exhibit content type 1:1.
+Disposition row (event_type): taxonomy - bounded, facetable, co-attached to event with audience.
+Disposition row (audience): taxonomy - bounded, facetable, co-attached to event with event_type.
+Disposition row (gallery_component): synced-pattern-with-overrides - reused identically across pages.
+Disposition row (site_footer_block): site-option - facts (address, hours, social links) bind into the footer template part rather than being hardcoded.
+Run `wp import` dry run then `wp search-replace --dry-run` before cutover.
+
+## Assumption Register
+Assumption: source recurrence data is exhaustive; unknown: timezone handling.
+
+## Alternatives Considered
+A single "content" CPT with taxonomy-only differentiation was rejected because
+it collapses per-type editorial workflow.
+
+## Acceptance Criteria
+Every disposition row above is reconciled against the source manifest count.
+
+## Executor Handoff
+Generate the plugin registering these post types and meta via wordpress-plugin-executor.
+
+## Critic Handoff
+Send to wordpress-critic and wordpress-theme-critic.
+"""
+
+
+def test_good_content_model_planner_passes_new_contract_gates():
+    result = oracle.validate_output("wordpress-content-model-planner", GOOD_CONTENT_MODEL_PLANNER)
+    checks = {check["id"]: check for check in result["checks"]}
+
+    assert checks["content_model_editorial_guardrails_contract"]["passed"] is True, checks
+    assert checks["content_model_storage_decision_contract"]["passed"] is True, checks
+
+
+def test_content_model_planner_alias_resolves_to_same_contract():
+    result = oracle.validate_output("wordpress-planner.content-model", GOOD_CONTENT_MODEL_PLANNER)
+
+    assert result["skill"] == "wordpress-content-model-planner"
+
+
+def test_content_model_plan_without_editorial_guardrails_phase_fails():
+    candidate = GOOD_CONTENT_MODEL_PLANNER.replace(
+        "Editorial guardrails phase: completed\n", ""
+    )
+    result = oracle.validate_output("wordpress-content-model-planner", candidate)
+    failed = {check["id"] for check in result["checks"] if not check["passed"]}
+
+    assert "content_model_editorial_guardrails_contract" in failed
+
+
+def test_content_model_plan_with_false_lock_level_and_no_rationale_fails():
+    candidate = GOOD_CONTENT_MODEL_PLANNER.replace(
+        "Lock level rationale (story): donor features need freeform layout.\n", ""
+    )
+    result = oracle.validate_output("wordpress-content-model-planner", candidate)
+    failed = {check["id"] for check in result["checks"] if not check["passed"]}
+
+    assert "content_model_editorial_guardrails_contract" in failed
+
+
+def test_content_model_plan_defaulting_every_type_to_false_still_needs_rationale():
+    """Regression for the field finding: `template_lock => false` everywhere,
+    with no rationale, must not pass silently."""
+    candidate = (
+        GOOD_CONTENT_MODEL_PLANNER
+        .replace("Lock level (event): contentOnly\n", "Lock level (event): false\n")
+        .replace("Lock level (exhibit): contentOnly\n", "Lock level (exhibit): false\n")
+    )
+    result = oracle.validate_output("wordpress-content-model-planner", candidate)
+    failed = {check["id"] for check in result["checks"] if not check["passed"]}
+
+    assert "content_model_editorial_guardrails_contract" in failed
+
+
+def test_content_model_plan_with_five_types_and_one_lock_level_fails():
+    """Regression for the review finding: counting `Lock level:` records
+    instead of pairing them let 5 declared types pass on 1 record."""
+    candidate = GOOD_CONTENT_MODEL_PLANNER.replace(
+        "Content type: event\nContent type: story\nContent type: exhibit\n"
+        "Lock level (event): contentOnly\n"
+        "Lock level (story): false\n"
+        "Lock level rationale (story): donor features need freeform layout.\n"
+        "Lock level (exhibit): contentOnly\n",
+        "Content type: event\nContent type: story\nContent type: exhibit\n"
+        "Content type: program\nContent type: person\n"
+        "Lock level (event): contentOnly\n",
+    )
+    result = oracle.validate_output("wordpress-content-model-planner", candidate)
+    checks = {check["id"]: check for check in result["checks"]}
+
+    assert checks["content_model_editorial_guardrails_contract"]["passed"] is False
+    detail = checks["content_model_editorial_guardrails_contract"]["detail"]
+    assert "story" in detail and "exhibit" in detail and "program" in detail and "person" in detail
+
+
+def test_content_model_plan_without_storage_decision_rule_fails():
+    candidate = GOOD_CONTENT_MODEL_PLANNER.replace(
+        "Storage decision rule applied: yes\n", ""
+    )
+    result = oracle.validate_output("wordpress-content-model-planner", candidate)
+    failed = {check["id"] for check in result["checks"] if not check["passed"]}
+
+    assert "content_model_storage_decision_contract" in failed
+
+
+def test_content_model_plan_binding_without_editing_surface_fails():
+    """Regression for the field finding: a bound meta key with no named
+    editing surface (template-level-only or render-only) must fail."""
+    candidate = GOOD_CONTENT_MODEL_PLANNER.replace(
+        "Editing surface (event_dates): event-dates block (register_block_bindings_source, setValues)\n",
+        "",
+    )
+    result = oracle.validate_output("wordpress-content-model-planner", candidate)
+    checks = {check["id"]: check for check in result["checks"]}
+
+    assert checks["content_model_storage_decision_contract"]["passed"] is False
+    assert "event_dates" in checks["content_model_storage_decision_contract"]["detail"]
+
+
+def test_content_model_plan_binding_key_mismatch_does_not_satisfy_pairing():
+    """A differently-keyed editing surface must not satisfy a binding source
+    for a different key -- pairing is exact, not "some surface exists"."""
+    candidate = GOOD_CONTENT_MODEL_PLANNER.replace(
+        "Binding source (footer_contact): core/post-meta\n",
+        "Binding source (hero_headline): core/post-meta\n",
+    )
+    result = oracle.validate_output("wordpress-content-model-planner", candidate)
+    checks = {check["id"]: check for check in result["checks"]}
+
+    assert checks["content_model_storage_decision_contract"]["passed"] is False
+    assert "hero_headline" in checks["content_model_storage_decision_contract"]["detail"]
+
+
+SOURCE_MANIFEST = {
+    "schema": "wordpress-source-manifest",
+    "items": [
+        {"id": "event", "kind": "content_type"},
+        {"id": "story", "kind": "content_type"},
+        {"id": "exhibit", "kind": "content_type"},
+        {"id": "event_type", "kind": "vocabulary"},
+        {"id": "audience", "kind": "vocabulary"},
+        {"id": "gallery_component", "kind": "component"},
+        {"id": "site_footer_block", "kind": "non_node_region_block"},
+    ],
+}
+
+
+def test_migration_disposition_coverage_passes_when_every_item_has_a_row():
+    result = oracle.validate_output(
+        "wordpress-content-model-planner",
+        GOOD_CONTENT_MODEL_PLANNER,
+        source_manifest=SOURCE_MANIFEST,
+    )
+    checks = {check["id"]: check for check in result["checks"]}
+
+    assert checks["content_model_migration_disposition_coverage"]["passed"] is True, checks
+
+
+def test_migration_disposition_coverage_fails_when_manifest_item_is_undispositioned():
+    manifest = {
+        "schema": "wordpress-source-manifest",
+        "items": SOURCE_MANIFEST["items"] + [{"id": "press_release", "kind": "content_type"}],
+    }
+    result = oracle.validate_output(
+        "wordpress-content-model-planner",
+        GOOD_CONTENT_MODEL_PLANNER,
+        source_manifest=manifest,
+    )
+    checks = {check["id"]: check for check in result["checks"]}
+
+    assert checks["content_model_migration_disposition_coverage"]["passed"] is False
+    assert "press_release" in checks["content_model_migration_disposition_coverage"]["detail"]
+
+
+def test_migration_disposition_coverage_is_absent_without_a_manifest():
+    result = oracle.validate_output("wordpress-content-model-planner", GOOD_CONTENT_MODEL_PLANNER)
+    ids = {check["id"] for check in result["checks"]}
+
+    assert "content_model_migration_disposition_coverage" not in ids
+
+
+def test_load_source_manifest_rejects_empty_items(tmp_path):
+    manifest_path = tmp_path / "source-manifest.json"
+    manifest_path.write_text(json.dumps({"items": []}), encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        oracle.load_source_manifest(manifest_path)
+
+
+def test_migration_disposition_catch_all_row_cannot_satisfy_multiple_ids():
+    """Regression for the review finding: substring containment let one row
+    naming several ids in its free text satisfy every one of them."""
+    candidate = """\
+## Content Model Summary
+Plan a content model. Migration mode: required
+
+## Current-State Evidence
+Evidence.
+
+## Content Behavior Analysis
+Behavior.
+
+## Post Type Taxonomy And Field Matrix
+Storage decision rule applied: yes
+
+## Editorial Workflow
+Editorial guardrails phase: completed
+Content type: event
+Lock level (event): contentOnly
+
+## API Search And Template Implications
+Implications.
+
+## Migration And Validation Plan
+Disposition row: misc -> event, story, exhibit, event_type, audience, gallery_component, site_footer_block - all still being figured out, nothing decided yet.
+
+## Assumption Register
+Assumption: none.
+
+## Alternatives Considered
+None.
+
+## Acceptance Criteria
+Criteria.
+
+## Executor Handoff
+Handoff.
+
+## Critic Handoff
+Handoff.
+"""
+    result = oracle.validate_output(
+        "wordpress-content-model-planner", candidate, source_manifest=SOURCE_MANIFEST
+    )
+    checks = {check["id"]: check for check in result["checks"]}
+
+    assert checks["content_model_migration_disposition_coverage"]["passed"] is False
+    detail = checks["content_model_migration_disposition_coverage"]["detail"]
+    for item_id in ("event", "story", "exhibit", "event_type", "audience", "gallery_component", "site_footer_block"):
+        assert item_id in detail
+
+
+def test_migration_disposition_hedged_value_does_not_count(): 
+    candidate = GOOD_CONTENT_MODEL_PLANNER.replace(
+        "Disposition row (event): custom-post-type - matches the event content type 1:1.\n",
+        "Disposition row (event): custom-post-type - do not have a final decision yet.\n",
+    )
+    result = oracle.validate_output(
+        "wordpress-content-model-planner", candidate, source_manifest=SOURCE_MANIFEST
+    )
+    checks = {check["id"]: check for check in result["checks"]}
+
+    assert checks["content_model_migration_disposition_coverage"]["passed"] is False
+    assert "event" in checks["content_model_migration_disposition_coverage"]["detail"]
+
+
+def test_migration_disposition_unrecognized_token_fails():
+    candidate = GOOD_CONTENT_MODEL_PLANNER.replace(
+        "Disposition row (event): custom-post-type - matches the event content type 1:1.\n",
+        "Disposition row (event): maybe-a-block - unsure yet.\n",
+    )
+    result = oracle.validate_output(
+        "wordpress-content-model-planner", candidate, source_manifest=SOURCE_MANIFEST
+    )
+    checks = {check["id"]: check for check in result["checks"]}
+
+    assert checks["content_model_migration_disposition_coverage"]["passed"] is False
+    assert "unrecognized disposition" in checks["content_model_migration_disposition_coverage"]["detail"]
+
+
+def test_migration_disposition_duplicate_row_for_same_id_fails():
+    candidate = GOOD_CONTENT_MODEL_PLANNER.replace(
+        "Disposition row (event): custom-post-type - matches the event content type 1:1.\n",
+        "Disposition row (event): custom-post-type - matches the event content type 1:1.\n"
+        "Disposition row (event): taxonomy - actually reconsidered.\n",
+    )
+    result = oracle.validate_output(
+        "wordpress-content-model-planner", candidate, source_manifest=SOURCE_MANIFEST
+    )
+    checks = {check["id"]: check for check in result["checks"]}
+
+    assert checks["content_model_migration_disposition_coverage"]["passed"] is False
+    assert "duplicate disposition rows" in checks["content_model_migration_disposition_coverage"]["detail"]
+
+
+def test_migration_disposition_row_for_id_outside_manifest_fails():
+    candidate = GOOD_CONTENT_MODEL_PLANNER.replace(
+        "Run `wp import` dry run then `wp search-replace --dry-run` before cutover.\n",
+        "Disposition row (unknown_item): drop - not in scope.\n"
+        "Run `wp import` dry run then `wp search-replace --dry-run` before cutover.\n",
+    )
+    result = oracle.validate_output(
+        "wordpress-content-model-planner", candidate, source_manifest=SOURCE_MANIFEST
+    )
+    checks = {check["id"]: check for check in result["checks"]}
+
+    assert checks["content_model_migration_disposition_coverage"]["passed"] is False
+    assert "outside the manifest" in checks["content_model_migration_disposition_coverage"]["detail"]
+
+
+def test_migration_disposition_placeholder_after_valid_token_fails():
+    """Regression for the review finding: a hedge sitting after an
+    otherwise-valid token (not covered by NEGATED_DECISION_RE) must still
+    fail, not just an outright negation."""
+    candidate = GOOD_CONTENT_MODEL_PLANNER.replace(
+        "Disposition row (event): custom-post-type - matches the event content type 1:1.\n",
+        "Disposition row (event): custom-post-type - not decided yet.\n",
+    )
+    result = oracle.validate_output(
+        "wordpress-content-model-planner", candidate, source_manifest=SOURCE_MANIFEST
+    )
+    checks = {check["id"]: check for check in result["checks"]}
+
+    assert checks["content_model_migration_disposition_coverage"]["passed"] is False
+    assert "event" in checks["content_model_migration_disposition_coverage"]["detail"]
+
+
+@pytest.mark.parametrize(
+    "placeholder",
+    ["undecided", "tbd", "to be determined", "todo", "pending", "still being figured out", "unknown", "n/a", "???"],
+)
+def test_migration_disposition_placeholder_vocabulary_is_rejected(placeholder):
+    candidate = GOOD_CONTENT_MODEL_PLANNER.replace(
+        "Disposition row (event): custom-post-type - matches the event content type 1:1.\n",
+        f"Disposition row (event): custom-post-type - {placeholder}\n",
+    )
+    result = oracle.validate_output(
+        "wordpress-content-model-planner", candidate, source_manifest=SOURCE_MANIFEST
+    )
+    checks = {check["id"]: check for check in result["checks"]}
+
+    assert checks["content_model_migration_disposition_coverage"]["passed"] is False
+
+
+def test_migration_disposition_empty_manifest_items_fails_not_vacuously():
+    """Regression for the review finding: a manifest with zero items must
+    not pass just because there is nothing left to check."""
+    result = oracle.validate_output(
+        "wordpress-content-model-planner",
+        GOOD_CONTENT_MODEL_PLANNER,
+        source_manifest={"schema": "wordpress-source-manifest", "items": []},
+    )
+    checks = {check["id"]: check for check in result["checks"]}
+
+    assert checks["content_model_migration_disposition_coverage"]["passed"] is False
+    assert "no items" in checks["content_model_migration_disposition_coverage"]["detail"]
+
+
+def test_migration_disposition_missing_manifest_items_key_fails_not_vacuously():
+    result = oracle.validate_output(
+        "wordpress-content-model-planner",
+        GOOD_CONTENT_MODEL_PLANNER,
+        source_manifest={"schema": "wordpress-source-manifest"},
+    )
+    checks = {check["id"]: check for check in result["checks"]}
+
+    assert checks["content_model_migration_disposition_coverage"]["passed"] is False
+
+
+def test_content_model_editing_surface_placeholder_fails():
+    """Regression for the review finding: `Editing surface (d): TBD` must
+    not satisfy the pairing gate."""
+    candidate = GOOD_CONTENT_MODEL_PLANNER.replace(
+        "Editing surface (event_dates): event-dates block (register_block_bindings_source, setValues)\n",
+        "Editing surface (event_dates): TBD\n",
+    )
+    result = oracle.validate_output("wordpress-content-model-planner", candidate)
+    checks = {check["id"]: check for check in result["checks"]}
+
+    assert checks["content_model_storage_decision_contract"]["passed"] is False
+    assert "event_dates" in checks["content_model_storage_decision_contract"]["detail"]
+
+
+def test_content_model_lock_rationale_placeholder_fails():
+    candidate = GOOD_CONTENT_MODEL_PLANNER.replace(
+        "Lock level rationale (story): donor features need freeform layout.\n",
+        "Lock level rationale (story): pending\n",
+    )
+    result = oracle.validate_output("wordpress-content-model-planner", candidate)
+    checks = {check["id"]: check for check in result["checks"]}
+
+    assert checks["content_model_editorial_guardrails_contract"]["passed"] is False

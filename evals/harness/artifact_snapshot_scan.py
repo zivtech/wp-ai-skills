@@ -149,6 +149,66 @@ def _theme(view: ArtifactSnapshotView) -> SnapshotCheck:
     return _check("theme_metadata", passed, "style.css theme header or valid theme.json present" if passed else "missing style.css Theme Name header and theme.json")
 
 
+# Deterministic, dependency-free approximation of what `parse_blocks()`/
+# `WP_Block_Parser` enforces on block-comment delimiters: matched, properly
+# nested open/close pairs (or self-closing), and valid-JSON attribute blobs.
+# Mirrors `validate_wordpress_artifact._scan_block_markup`; kept duplicated
+# here rather than imported so this module stays a standalone byte-view
+# scanner with no dependency on the filesystem-based validator.
+_BLOCK_COMMENT_RE = re.compile(
+    r"<!--\s*(?P<closer>/)?wp:(?P<name>[a-z][a-z0-9_-]*(?:/[a-z][a-z0-9_-]*)?)"
+    r"(?:\s+(?P<attrs>\{.*?\}))?\s*(?P<void>/)?-->",
+    re.DOTALL,
+)
+
+
+def _scan_block_markup(text: str) -> list[str]:
+    issues: list[str] = []
+    stack: list[str] = []
+    for match in _BLOCK_COMMENT_RE.finditer(text):
+        name = match.group("name")
+        closer = match.group("closer")
+        void = match.group("void")
+        attrs = match.group("attrs")
+        if attrs:
+            try: json.loads(attrs)
+            except json.JSONDecodeError as exc: issues.append(f"invalid block attributes JSON for wp:{name}: {exc}")
+        if closer and void:
+            issues.append(f"wp:{name} delimiter cannot be both a closer and self-closing")
+            continue
+        if void:
+            continue
+        if closer:
+            if not stack:
+                issues.append(f"unmatched closing delimiter <!-- /wp:{name} -->")
+            elif stack[-1] != name:
+                issues.append(f"mismatched closing delimiter <!-- /wp:{name} -->, expected <!-- /wp:{stack[-1]} -->")
+                stack.pop()
+            else:
+                stack.pop()
+        else:
+            stack.append(name)
+    if stack: issues.append(f"unclosed block delimiter(s): {', '.join(stack)}")
+    return issues
+
+
+def _theme_block_markup(view: ArtifactSnapshotView) -> SnapshotCheck:
+    candidates = [
+        entry for entry in view.entries
+        if (entry.path.parts[:1] == ("templates",) and entry.path.suffix == ".html")
+        or (entry.path.parts[:1] == ("parts",) and entry.path.suffix == ".html")
+        or (entry.path.parts[:1] == ("patterns",) and entry.path.suffix == ".php")
+    ]
+    if not candidates:
+        return _check("theme_block_markup", True, "no templates/parts/patterns block markup to check")
+    issues: list[str] = []
+    for entry in candidates:
+        issues.extend(f"{entry.path}: {defect}" for defect in _scan_block_markup(entry.text()))
+    if issues:
+        return _check("theme_block_markup", False, "; ".join(issues[:10]))
+    return _check("theme_block_markup", True, f"{len(candidates)} template/part/pattern file(s) have structurally balanced block markup")
+
+
 def _blueprint(view: ArtifactSnapshotView) -> SnapshotCheck:
     files = sorted(view.files({".json"}), key=lambda entry: (entry.path.name not in {"blueprint.json", "playground-blueprint.json"}, entry.path.as_posix()))
     if not files: return _check("blueprint_json", False, "no Blueprint JSON file found")
@@ -162,6 +222,6 @@ def structural_checks(artifact_type: str, view: ArtifactSnapshotView) -> list[Sn
     checks = _general(view)
     if artifact_type == "plugin": checks += _plugin_shape(view) + [_plugin_security(view), _plugin_ai(view)]
     elif artifact_type == "block": checks += _block(view)
-    elif artifact_type == "theme": checks.append(_theme(view))
+    elif artifact_type == "theme": checks.append(_theme(view)); checks.append(_theme_block_markup(view))
     elif artifact_type == "blueprint": checks.append(_blueprint(view))
     return checks

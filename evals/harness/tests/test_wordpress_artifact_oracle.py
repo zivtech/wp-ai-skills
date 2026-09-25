@@ -1543,3 +1543,129 @@ def test_command_check_detail_limit_widens_captured_output(tmp_path):
 
 def test_phpcs_detail_limit_constant_is_wider_than_default():
     assert oracle.PHPCS_DETAIL_LIMIT > 500
+
+
+def write_theme_with_style(root, name="acme-theme"):
+    theme_dir = root / name
+    theme_dir.mkdir()
+    (theme_dir / "style.css").write_text(
+        "/*\nTheme Name: Acme Theme\n*/\n", encoding="utf-8"
+    )
+    return theme_dir
+
+
+def test_theme_block_markup_check_passes_with_no_template_files(tmp_path):
+    theme_dir = write_theme_with_style(tmp_path)
+
+    check = oracle.check_theme_block_markup(theme_dir)
+
+    assert check.status == "pass"
+
+
+def test_theme_block_markup_check_passes_valid_template(tmp_path):
+    theme_dir = write_theme_with_style(tmp_path)
+    templates_dir = theme_dir / "templates"
+    templates_dir.mkdir()
+    (templates_dir / "single.html").write_text(
+        '<!-- wp:group {"tagName":"main"} -->\n'
+        "<main>\n"
+        '<!-- wp:post-title /-->\n'
+        "</main>\n"
+        "<!-- /wp:group -->\n",
+        encoding="utf-8",
+    )
+
+    check = oracle.check_theme_block_markup(theme_dir)
+
+    assert check.status == "pass", check.detail
+
+
+def test_theme_block_markup_check_fails_unclosed_delimiter(tmp_path):
+    """Regression fixture for the field finding: this file passed the old
+    static gate (which only looked at style.css/theme.json) even though the
+    Site Editor rejects it, because `<!-- wp:group -->` is never closed."""
+    theme_dir = write_theme_with_style(tmp_path)
+    templates_dir = theme_dir / "templates"
+    templates_dir.mkdir()
+    (templates_dir / "single.html").write_text(
+        '<!-- wp:group {"tagName":"main"} -->\n'
+        "<main>\n"
+        '<!-- wp:post-title /-->\n'
+        "</main>\n",
+        encoding="utf-8",
+    )
+
+    old_gate = oracle.check_theme_metadata(theme_dir)
+    new_gate = oracle.check_theme_block_markup(theme_dir)
+
+    assert old_gate.status == "pass"
+    assert new_gate.status == "fail"
+    assert "unclosed" in new_gate.detail
+
+
+def test_theme_block_markup_check_fails_mismatched_closer(tmp_path):
+    theme_dir = write_theme_with_style(tmp_path)
+    parts_dir = theme_dir / "parts"
+    parts_dir.mkdir()
+    (parts_dir / "header.html").write_text(
+        "<!-- wp:group -->\n<!-- /wp:columns -->\n", encoding="utf-8"
+    )
+
+    check = oracle.check_theme_block_markup(theme_dir)
+
+    assert check.status == "fail"
+    assert "mismatched" in check.detail
+
+
+def test_theme_block_markup_check_fails_invalid_attribute_json(tmp_path):
+    theme_dir = write_theme_with_style(tmp_path)
+    templates_dir = theme_dir / "templates"
+    templates_dir.mkdir()
+    (templates_dir / "index.html").write_text(
+        "<!-- wp:group {tagName:main} -->\n<!-- /wp:group -->\n", encoding="utf-8"
+    )
+
+    check = oracle.check_theme_block_markup(theme_dir)
+
+    assert check.status == "fail"
+    assert "invalid block attributes JSON" in check.detail
+
+
+def test_structural_checks_include_theme_block_markup_for_theme_artifacts(tmp_path):
+    theme_dir = write_theme_with_style(tmp_path)
+
+    checks = oracle.structural_checks("theme", theme_dir)
+    ids = {check.id for check in checks}
+
+    assert "theme_block_markup" in ids
+
+
+def test_snapshot_scan_theme_block_markup_mirrors_filesystem_check():
+    import artifact_snapshot_scan
+    from pathlib import PurePosixPath
+
+    good_view = artifact_snapshot_scan.ArtifactSnapshotView(
+        (
+            artifact_snapshot_scan.SnapshotEntry(PurePosixPath("style.css"), b"Theme Name: Acme\n"),
+            artifact_snapshot_scan.SnapshotEntry(
+                PurePosixPath("templates/single.html"),
+                b'<!-- wp:group --><!-- /wp:group -->',
+            ),
+        )
+    )
+    bad_view = artifact_snapshot_scan.ArtifactSnapshotView(
+        (
+            artifact_snapshot_scan.SnapshotEntry(PurePosixPath("style.css"), b"Theme Name: Acme\n"),
+            artifact_snapshot_scan.SnapshotEntry(
+                PurePosixPath("templates/single.html"),
+                b"<!-- wp:group -->",
+            ),
+        )
+    )
+
+    good_checks = {c.id: c for c in artifact_snapshot_scan.structural_checks("theme", good_view)}
+    bad_checks = {c.id: c for c in artifact_snapshot_scan.structural_checks("theme", bad_view)}
+
+    assert good_checks["theme_block_markup"].status == "pass"
+    assert bad_checks["theme_metadata"].status == "pass"
+    assert bad_checks["theme_block_markup"].status == "fail"

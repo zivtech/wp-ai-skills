@@ -699,6 +699,43 @@ def _decision_values(section: str, label: str) -> list[str]:
     ]
 
 
+def _keyed_decision_records(section: str, label: str) -> list[tuple[str, str]]:
+    """Every ``Label (<key>): value`` record in the section, in order.
+
+    Unlike ``_decision_value``, the record must name the exact item it
+    disposes inside parentheses. This closes a substring-containment gap: a
+    single catch-all record such as ``Disposition row: event, story, ...``
+    must not be able to satisfy several manifest items just because each
+    item's id happens to appear somewhere in its free text. A key can repeat
+    (the caller decides whether that is a duplicate-record failure).
+    """
+    section = _strip_non_authoritative_markdown(section)
+    return [
+        (match.group("key").strip(), match.group("value").strip())
+        for match in re.finditer(
+            rf"(?im)^(?:\*\*)?{re.escape(label)}\s*\(\s*(?P<key>[^()]+?)\s*\)\s*:"
+            rf"(?:\*\*)?\s*(?P<value>\S.*?)\s*$",
+            section,
+        )
+    ]
+
+
+def _keyed_decision_map(section: str, label: str) -> tuple[dict[str, str], list[str]]:
+    """Return (key -> value) for uniquely keyed records, plus duplicated keys.
+
+    A key that appears more than once is dropped from the map (its value is
+    ambiguous) and reported in the duplicates list so the caller fails loudly
+    instead of silently picking the first or last occurrence.
+    """
+    records = _keyed_decision_records(section, label)
+    counts: dict[str, int] = {}
+    for key, _ in records:
+        counts[key] = counts.get(key, 0) + 1
+    duplicates = sorted(key for key, count in counts.items() if count > 1)
+    mapping = {key: value for key, value in records if counts[key] == 1}
+    return mapping, duplicates
+
+
 def _usable_decision(value: str | None, *, allow_none: bool = False) -> bool:
     if not value or NEGATED_DECISION_RE.search(value):
         return False
@@ -1031,6 +1068,259 @@ def check_gutenberg_migration_contract(text: str) -> list[Check]:
             if validation_ok else "Validation/Test Strategy needs block, semantic, editor, frontend, and fixture oracles",
         ),
     ]
+
+
+CONTENT_MODEL_LOCK_LEVELS = frozenset({"contentonly", "insert", "all", "false"})
+
+# NEGATED_DECISION_RE catches an explicit negation ("do not", "not required",
+# "out of scope") but not an undecided placeholder value that is otherwise
+# grammatically affirmative: "not decided", "tbd", "pending", "???". Keyed
+# content-model/migration records are anchored per item, so that placeholder
+# gap is the remaining way to look complete while saying nothing. This is a
+# separate pattern, not an edit to NEGATED_DECISION_RE, so the gates built on
+# NEGATED_DECISION_RE elsewhere (Gutenberg migration, plugin delivery unit,
+# security gate) are unaffected.
+HEDGE_PLACEHOLDER_RE = re.compile(
+    r"\b(?:not\s+decided|undecided|tbd|to\s+be\s+determined|todo|pending|"
+    r"still\s+being\s+figured\s+out|unknown|n/?a)\b|\?\?\?",
+    re.IGNORECASE,
+)
+
+
+def _usable_content_model_decision(value: str | None) -> bool:
+    """`_usable_decision` plus rejection of a hedge/placeholder value.
+
+    Used only for content-model and migration-disposition records so the
+    stricter bar does not regress other gates that call `_usable_decision`
+    directly.
+    """
+    if not _usable_decision(value):
+        return False
+    return not HEDGE_PLACEHOLDER_RE.search(value or "")
+
+
+def check_content_model_plan_contract(text: str) -> list[Check]:
+    """Require the editorial-guardrails phase and the storage decision rule as
+    keyed, paired records, not counted prose.
+
+    A field migration run shipped a plan that defaulted every content type
+    to `template_lock => false` and bound meta into blocks with no editing
+    surface named. Both defects were legal under a heading-only contract, and
+    a first counting-only version of this gate (count of `Lock level:`
+    records >= 1) was itself gameable: five content types and one
+    `Lock level: contentOnly` record passed. Records are now keyed to the
+    exact content type or meta key they dispose, so every declared item needs
+    its own record, not just any record of that shape.
+    """
+    sections = markdown_sections(text)
+    editorial = sections.get("Editorial Workflow", "")
+    matrix = sections.get("Post Type Taxonomy And Field Matrix", "")
+
+    content_types = _decision_values(editorial, "Content type")
+    duplicate_types = sorted({t for t in content_types if content_types.count(t) > 1})
+    unique_types = list(dict.fromkeys(content_types))
+    lock_records, lock_duplicate_keys = _keyed_decision_map(editorial, "Lock level")
+    rationale_records, rationale_duplicate_keys = _keyed_decision_map(editorial, "Lock level rationale")
+    guardrails_ok = _decision_exact(editorial, "Editorial guardrails phase", {"completed"})
+
+    guardrail_problems: list[str] = []
+    if not content_types:
+        guardrail_problems.append("no `Content type:` records declared")
+    if duplicate_types:
+        guardrail_problems.append(f"duplicate `Content type:` records: {', '.join(duplicate_types)}")
+    for content_type in unique_types:
+        value = lock_records.get(content_type)
+        if (
+            value is None
+            or not _usable_content_model_decision(value)
+            or value.strip().lower() not in CONTENT_MODEL_LOCK_LEVELS
+        ):
+            guardrail_problems.append(f"missing/invalid `Lock level ({content_type}):` record")
+            continue
+        if value.strip().lower() == "false":
+            rationale = rationale_records.get(content_type)
+            if rationale is None or not _usable_content_model_decision(rationale):
+                guardrail_problems.append(f"missing `Lock level rationale ({content_type}):` record")
+    if lock_duplicate_keys:
+        guardrail_problems.append(f"duplicate `Lock level:` records for: {', '.join(lock_duplicate_keys)}")
+    if rationale_duplicate_keys:
+        guardrail_problems.append(f"duplicate `Lock level rationale:` records for: {', '.join(rationale_duplicate_keys)}")
+    unknown_lock_keys = sorted(set(lock_records) - set(unique_types))
+    if unknown_lock_keys:
+        guardrail_problems.append(f"`Lock level:` records for undeclared content types: {', '.join(unknown_lock_keys)}")
+
+    guardrails_pass = guardrails_ok and not guardrail_problems
+    checks = [Check(
+        "content_model_editorial_guardrails_contract",
+        guardrails_pass,
+        3,
+        "editorial guardrails phase is recorded with a keyed `Lock level (<type>):` "
+        "(and rationale where `false`) for every declared `Content type:`"
+        if guardrails_pass else
+        "Editorial Workflow needs `Editorial guardrails phase: completed`, one "
+        "`Content type: <post_type>` record per content type, a matching "
+        "`Lock level (<post_type>): contentOnly|insert|all|false` record for each, and a "
+        "`Lock level rationale (<post_type>): ...` record for every `Lock level (<post_type>): false`"
+        + ("; " + "; ".join(guardrail_problems) if guardrail_problems else ""),
+    )]
+
+    storage_ok = _decision_exact(matrix, "Storage decision rule applied", {"yes"})
+    binding_records, binding_duplicate_keys = _keyed_decision_map(matrix, "Binding source")
+    surface_records, surface_duplicate_keys = _keyed_decision_map(matrix, "Editing surface")
+    storage_problems: list[str] = []
+    for meta_key, value in binding_records.items():
+        if not _usable_content_model_decision(value):
+            storage_problems.append(f"hedged/negated/placeholder `Binding source ({meta_key}):`")
+            continue
+        surface = surface_records.get(meta_key)
+        if surface is None or not _usable_content_model_decision(surface):
+            storage_problems.append(f"missing or placeholder `Editing surface ({meta_key}):` record")
+    if binding_duplicate_keys:
+        storage_problems.append(f"duplicate `Binding source:` records for: {', '.join(binding_duplicate_keys)}")
+    if surface_duplicate_keys:
+        storage_problems.append(f"duplicate `Editing surface:` records for: {', '.join(surface_duplicate_keys)}")
+
+    storage_pass = storage_ok and not storage_problems
+    checks.append(Check(
+        "content_model_storage_decision_contract",
+        storage_pass,
+        3,
+        "storage decision rule is applied and every bound field has a matching, keyed editing surface"
+        if storage_pass else
+        "Post Type Taxonomy And Field Matrix needs `Storage decision rule applied: yes` and a "
+        "`Editing surface (<meta_key>): ...` record matching every `Binding source (<meta_key>): ...` record"
+        + ("; " + "; ".join(storage_problems) if storage_problems else ""),
+    ))
+    return checks
+
+
+def load_source_manifest(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"source manifest JSON is invalid: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("source manifest JSON must contain an object")
+    if not isinstance(payload.get("items"), list) or not payload["items"]:
+        raise ValueError("source manifest JSON must contain a non-empty 'items' array")
+    return payload
+
+
+MIGRATION_DISPOSITION_VALUES = frozenset({
+    # Content types and classification.
+    "custom-post-type", "taxonomy", "meta",
+    # Page-building components.
+    "custom-block", "block-variation", "pattern", "synced-pattern-with-overrides",
+    "core-blocks", "style",
+    # Non-node surfaces: reusable/placed region content (for example Drupal
+    # block_content bundles and block placements, or an equivalent CMS
+    # concept), menus, and site-wide settings/options.
+    "template-part", "navigation", "site-option",
+    # No-ops, stated with the same rigor as an affirmative disposition.
+    "drop", "defer",
+})
+
+
+def _disposition_token(value: str) -> str:
+    head = re.split(r"\s+[-–—]\s+", value, maxsplit=1)[0]
+    return head.strip().lower()
+
+
+def check_migration_disposition_contract(text: str, manifest: dict[str, Any]) -> Check:
+    """Fail migration-mode plans that leave any supplied source item undispositioned.
+
+    Mirrors a field migration run's finding that a migration plan can pass a
+    heading check while silently dropping source types, vocabularies, or
+    components, including non-node surfaces such as placed/reusable block
+    content, menus, and site-wide settings that live outside any node. The
+    oracle is the manifest itself, not the plan's own claim of completeness.
+
+    An earlier version of this gate matched by substring containment, so one
+    catch-all record naming several ids in free text (for example
+    "Disposition row: misc -> event, story, event_type ... - still being
+    figured out") satisfied every id it happened to mention. Each manifest
+    item now needs its own anchored `Disposition row (<id>): <token> ...`
+    record: the key must equal the id exactly (not merely contain it), the
+    token must be one of MIGRATION_DISPOSITION_VALUES, and a hedged,
+    negated, or placeholder value (see NEGATED_DECISION_RE and
+    HEDGE_PLACEHOLDER_RE) does not count as a disposition -- including a
+    hedge sitting after an otherwise-valid token, such as
+    "custom-post-type - not decided yet". Duplicate keys, disposition rows
+    for ids outside the manifest, and an empty or missing manifest also fail;
+    an empty manifest must not pass vacuously just because there is nothing
+    left to check.
+    """
+    sections = markdown_sections(text)
+    migration = sections.get("Migration And Validation Plan", "")
+    records, duplicate_keys = _keyed_decision_map(migration, "Disposition row")
+
+    raw_items = manifest.get("items")
+    if not isinstance(raw_items, list) or not raw_items:
+        return Check(
+            "content_model_migration_disposition_coverage",
+            False,
+            4,
+            "source manifest has no items; migration mode cannot be verified against an empty manifest",
+        )
+
+    item_ids: list[str] = []
+    seen_manifest_ids: set[str] = set()
+    duplicate_manifest_ids: list[str] = []
+    for item in raw_items:
+        if not isinstance(item, dict):
+            continue
+        item_id = str(item.get("id", "")).strip()
+        if not item_id:
+            continue
+        if item_id in seen_manifest_ids:
+            duplicate_manifest_ids.append(item_id)
+            continue
+        seen_manifest_ids.add(item_id)
+        item_ids.append(item_id)
+
+    if not item_ids:
+        return Check(
+            "content_model_migration_disposition_coverage",
+            False,
+            4,
+            "source manifest items had no usable `id` field; migration mode cannot be verified",
+        )
+
+    missing: list[str] = []
+    invalid: list[str] = []
+    for item_id in item_ids:
+        value = records.get(item_id)
+        if value is None:
+            missing.append(item_id)
+            continue
+        if not _usable_content_model_decision(value):
+            invalid.append(f"{item_id} (hedged/negated/placeholder)")
+            continue
+        token = _disposition_token(value)
+        if token not in MIGRATION_DISPOSITION_VALUES:
+            invalid.append(f"{item_id} (unrecognized disposition `{token}`)")
+
+    unknown_ids = sorted(set(records) - set(item_ids))
+
+    problems: list[str] = []
+    if missing:
+        problems.append(f"missing disposition row for: {', '.join(sorted(missing))}")
+    if invalid:
+        problems.append(f"invalid disposition for: {', '.join(invalid)}")
+    if duplicate_keys:
+        problems.append(f"duplicate disposition rows for: {', '.join(duplicate_keys)}")
+    if duplicate_manifest_ids:
+        problems.append(f"duplicate manifest item ids: {', '.join(sorted(set(duplicate_manifest_ids)))}")
+    if unknown_ids:
+        problems.append(f"disposition rows for ids outside the manifest: {', '.join(unknown_ids)}")
+
+    passed = not problems
+    detail = (
+        f"every one of {len(item_ids)} manifest items has a valid, uniquely keyed disposition row"
+        if passed
+        else "; ".join(problems)
+    )
+    return Check("content_model_migration_disposition_coverage", passed, 4, detail)
 
 
 def check_headings(text: str, contract: dict[str, Any]) -> Check:
@@ -1852,6 +2142,7 @@ def validate_output(
     text: str,
     security_gate: dict[str, Any] | None = None,
     capability_manifest: dict[str, Any] | None = None,
+    source_manifest: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     requested_skill = skill
     skill = ALIASES.get(skill, skill)
@@ -1874,6 +2165,10 @@ def validate_output(
         checks.extend(check_plugin_plan_contract(authoritative))
     if skill == "wordpress-migration-planner":
         checks.extend(check_gutenberg_migration_contract(authoritative))
+    if skill == "wordpress-content-model-planner":
+        checks.extend(check_content_model_plan_contract(authoritative))
+        if source_manifest is not None:
+            checks.append(check_migration_disposition_contract(authoritative, source_manifest))
     if skill == "wordpress-security-critic" and security_gate is not None:
         checks.append(check_security_gate_consumption(authoritative, security_gate))
     if capability_manifest is not None:
@@ -1907,6 +2202,14 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Optional capability-manifest.json sidecar from probe_wordpress_environment.py. "
             "When supplied, any instruction to run a command the manifest marks UNAVAILABLE fails."
+        ),
+    )
+    parser.add_argument(
+        "--source-manifest",
+        help=(
+            "Optional source-manifest.json sidecar ({'items': [{'id': ...}, ...]}) for "
+            "wordpress-content-model-planner migration mode. When supplied, every item id "
+            "must appear in a `Disposition row:` record or the run fails."
         ),
     )
     return parser
@@ -1946,11 +2249,29 @@ def main(argv: list[str] | None = None) -> int:
         except ValueError as exc:
             print(json.dumps({"pass": False, "error": str(exc)}, indent=2), file=sys.stderr)
             return 1
+    source_manifest = None
+    if args.source_manifest:
+        source_manifest_path = Path(args.source_manifest)
+        if not source_manifest_path.exists():
+            print(
+                json.dumps(
+                    {"pass": False, "error": f"source manifest file not found: {source_manifest_path}"},
+                    indent=2,
+                ),
+                file=sys.stderr,
+            )
+            return 1
+        try:
+            source_manifest = load_source_manifest(source_manifest_path)
+        except ValueError as exc:
+            print(json.dumps({"pass": False, "error": str(exc)}, indent=2), file=sys.stderr)
+            return 1
     result = validate_output(
         args.skill,
         output_path.read_text(encoding="utf-8"),
         security_gate=security_gate,
         capability_manifest=capability_manifest,
+        source_manifest=source_manifest,
     )
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result["pass"] else 1
