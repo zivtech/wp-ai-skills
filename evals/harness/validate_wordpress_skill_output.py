@@ -1072,19 +1072,45 @@ def check_gutenberg_migration_contract(text: str) -> list[Check]:
 
 CONTENT_MODEL_LOCK_LEVELS = frozenset({"contentonly", "insert", "all", "false"})
 
+# NEGATED_DECISION_RE catches an explicit negation ("do not", "not required",
+# "out of scope") but not an undecided placeholder value that is otherwise
+# grammatically affirmative: "not decided", "tbd", "pending", "???". Keyed
+# content-model/migration records are anchored per item, so that placeholder
+# gap is the remaining way to look complete while saying nothing. This is a
+# separate pattern, not an edit to NEGATED_DECISION_RE, so the gates built on
+# NEGATED_DECISION_RE elsewhere (Gutenberg migration, plugin delivery unit,
+# security gate) are unaffected.
+HEDGE_PLACEHOLDER_RE = re.compile(
+    r"\b(?:not\s+decided|undecided|tbd|to\s+be\s+determined|todo|pending|"
+    r"still\s+being\s+figured\s+out|unknown|n/?a)\b|\?\?\?",
+    re.IGNORECASE,
+)
+
+
+def _usable_content_model_decision(value: str | None) -> bool:
+    """`_usable_decision` plus rejection of a hedge/placeholder value.
+
+    Used only for content-model and migration-disposition records so the
+    stricter bar does not regress other gates that call `_usable_decision`
+    directly.
+    """
+    if not _usable_decision(value):
+        return False
+    return not HEDGE_PLACEHOLDER_RE.search(value or "")
+
 
 def check_content_model_plan_contract(text: str) -> list[Check]:
     """Require the editorial-guardrails phase and the storage decision rule as
     keyed, paired records, not counted prose.
 
-    A field brief (museum migration LEARNINGS.md) shipped a plan that
-    defaulted every content type to `template_lock => false` and bound meta
-    into blocks with no editing surface named. Both defects were legal under
-    a heading-only contract, and a first counting-only version of this gate
-    (count of `Lock level:` records >= 1) was itself gameable: five content
-    types and one `Lock level: contentOnly` record passed. Records are now
-    keyed to the exact content type or meta key they dispose, so every
-    declared item needs its own record, not just any record of that shape.
+    A field migration run shipped a plan that defaulted every content type
+    to `template_lock => false` and bound meta into blocks with no editing
+    surface named. Both defects were legal under a heading-only contract, and
+    a first counting-only version of this gate (count of `Lock level:`
+    records >= 1) was itself gameable: five content types and one
+    `Lock level: contentOnly` record passed. Records are now keyed to the
+    exact content type or meta key they dispose, so every declared item needs
+    its own record, not just any record of that shape.
     """
     sections = markdown_sections(text)
     editorial = sections.get("Editorial Workflow", "")
@@ -1104,12 +1130,16 @@ def check_content_model_plan_contract(text: str) -> list[Check]:
         guardrail_problems.append(f"duplicate `Content type:` records: {', '.join(duplicate_types)}")
     for content_type in unique_types:
         value = lock_records.get(content_type)
-        if value is None or not _usable_decision(value) or value.strip().lower() not in CONTENT_MODEL_LOCK_LEVELS:
+        if (
+            value is None
+            or not _usable_content_model_decision(value)
+            or value.strip().lower() not in CONTENT_MODEL_LOCK_LEVELS
+        ):
             guardrail_problems.append(f"missing/invalid `Lock level ({content_type}):` record")
             continue
         if value.strip().lower() == "false":
             rationale = rationale_records.get(content_type)
-            if rationale is None or not _usable_decision(rationale):
+            if rationale is None or not _usable_content_model_decision(rationale):
                 guardrail_problems.append(f"missing `Lock level rationale ({content_type}):` record")
     if lock_duplicate_keys:
         guardrail_problems.append(f"duplicate `Lock level:` records for: {', '.join(lock_duplicate_keys)}")
@@ -1139,12 +1169,12 @@ def check_content_model_plan_contract(text: str) -> list[Check]:
     surface_records, surface_duplicate_keys = _keyed_decision_map(matrix, "Editing surface")
     storage_problems: list[str] = []
     for meta_key, value in binding_records.items():
-        if not _usable_decision(value):
-            storage_problems.append(f"hedged/negated `Binding source ({meta_key}):`")
+        if not _usable_content_model_decision(value):
+            storage_problems.append(f"hedged/negated/placeholder `Binding source ({meta_key}):`")
             continue
         surface = surface_records.get(meta_key)
-        if surface is None or not _usable_decision(surface):
-            storage_problems.append(f"missing `Editing surface ({meta_key}):` record")
+        if surface is None or not _usable_content_model_decision(surface):
+            storage_problems.append(f"missing or placeholder `Editing surface ({meta_key}):` record")
     if binding_duplicate_keys:
         storage_problems.append(f"duplicate `Binding source:` records for: {', '.join(binding_duplicate_keys)}")
     if surface_duplicate_keys:
@@ -1199,12 +1229,11 @@ def _disposition_token(value: str) -> str:
 def check_migration_disposition_contract(text: str, manifest: dict[str, Any]) -> Check:
     """Fail migration-mode plans that leave any supplied source item undispositioned.
 
-    Mirrors the field finding that a migration plan can pass a heading check
-    while silently dropping source types, vocabularies, or components (see
-    PLAN-content-model.md / INTERFACE-DECISIONS X2, X7), including non-node
-    surfaces such as placed/reusable block content, menus, and site-wide
-    settings that live outside any node. The oracle is the manifest itself,
-    not the plan's own claim of completeness.
+    Mirrors a field migration run's finding that a migration plan can pass a
+    heading check while silently dropping source types, vocabularies, or
+    components, including non-node surfaces such as placed/reusable block
+    content, menus, and site-wide settings that live outside any node. The
+    oracle is the manifest itself, not the plan's own claim of completeness.
 
     An earlier version of this gate matched by substring containment, so one
     catch-all record naming several ids in free text (for example
@@ -1212,19 +1241,32 @@ def check_migration_disposition_contract(text: str, manifest: dict[str, Any]) ->
     figured out") satisfied every id it happened to mention. Each manifest
     item now needs its own anchored `Disposition row (<id>): <token> ...`
     record: the key must equal the id exactly (not merely contain it), the
-    token must be one of MIGRATION_DISPOSITION_VALUES, and a hedged or
-    negated value (see NEGATED_DECISION_RE) does not count as a disposition.
-    Duplicate keys and disposition rows for ids outside the manifest also
-    fail, since both signal an untrustworthy mapping between rows and items.
+    token must be one of MIGRATION_DISPOSITION_VALUES, and a hedged,
+    negated, or placeholder value (see NEGATED_DECISION_RE and
+    HEDGE_PLACEHOLDER_RE) does not count as a disposition -- including a
+    hedge sitting after an otherwise-valid token, such as
+    "custom-post-type - not decided yet". Duplicate keys, disposition rows
+    for ids outside the manifest, and an empty or missing manifest also fail;
+    an empty manifest must not pass vacuously just because there is nothing
+    left to check.
     """
     sections = markdown_sections(text)
     migration = sections.get("Migration And Validation Plan", "")
     records, duplicate_keys = _keyed_decision_map(migration, "Disposition row")
 
+    raw_items = manifest.get("items")
+    if not isinstance(raw_items, list) or not raw_items:
+        return Check(
+            "content_model_migration_disposition_coverage",
+            False,
+            4,
+            "source manifest has no items; migration mode cannot be verified against an empty manifest",
+        )
+
     item_ids: list[str] = []
     seen_manifest_ids: set[str] = set()
     duplicate_manifest_ids: list[str] = []
-    for item in manifest.get("items", []):
+    for item in raw_items:
         if not isinstance(item, dict):
             continue
         item_id = str(item.get("id", "")).strip()
@@ -1236,6 +1278,14 @@ def check_migration_disposition_contract(text: str, manifest: dict[str, Any]) ->
         seen_manifest_ids.add(item_id)
         item_ids.append(item_id)
 
+    if not item_ids:
+        return Check(
+            "content_model_migration_disposition_coverage",
+            False,
+            4,
+            "source manifest items had no usable `id` field; migration mode cannot be verified",
+        )
+
     missing: list[str] = []
     invalid: list[str] = []
     for item_id in item_ids:
@@ -1243,8 +1293,8 @@ def check_migration_disposition_contract(text: str, manifest: dict[str, Any]) ->
         if value is None:
             missing.append(item_id)
             continue
-        if not _usable_decision(value):
-            invalid.append(f"{item_id} (hedged/negated)")
+        if not _usable_content_model_decision(value):
+            invalid.append(f"{item_id} (hedged/negated/placeholder)")
             continue
         token = _disposition_token(value)
         if token not in MIGRATION_DISPOSITION_VALUES:

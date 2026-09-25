@@ -1774,3 +1774,87 @@ def test_migration_disposition_row_for_id_outside_manifest_fails():
 
     assert checks["content_model_migration_disposition_coverage"]["passed"] is False
     assert "outside the manifest" in checks["content_model_migration_disposition_coverage"]["detail"]
+
+
+def test_migration_disposition_placeholder_after_valid_token_fails():
+    """Regression for the review finding: a hedge sitting after an
+    otherwise-valid token (not covered by NEGATED_DECISION_RE) must still
+    fail, not just an outright negation."""
+    candidate = GOOD_CONTENT_MODEL_PLANNER.replace(
+        "Disposition row (event): custom-post-type - matches the event content type 1:1.\n",
+        "Disposition row (event): custom-post-type - not decided yet.\n",
+    )
+    result = oracle.validate_output(
+        "wordpress-content-model-planner", candidate, source_manifest=SOURCE_MANIFEST
+    )
+    checks = {check["id"]: check for check in result["checks"]}
+
+    assert checks["content_model_migration_disposition_coverage"]["passed"] is False
+    assert "event" in checks["content_model_migration_disposition_coverage"]["detail"]
+
+
+@pytest.mark.parametrize(
+    "placeholder",
+    ["undecided", "tbd", "to be determined", "todo", "pending", "still being figured out", "unknown", "n/a", "???"],
+)
+def test_migration_disposition_placeholder_vocabulary_is_rejected(placeholder):
+    candidate = GOOD_CONTENT_MODEL_PLANNER.replace(
+        "Disposition row (event): custom-post-type - matches the event content type 1:1.\n",
+        f"Disposition row (event): custom-post-type - {placeholder}\n",
+    )
+    result = oracle.validate_output(
+        "wordpress-content-model-planner", candidate, source_manifest=SOURCE_MANIFEST
+    )
+    checks = {check["id"]: check for check in result["checks"]}
+
+    assert checks["content_model_migration_disposition_coverage"]["passed"] is False
+
+
+def test_migration_disposition_empty_manifest_items_fails_not_vacuously():
+    """Regression for the review finding: a manifest with zero items must
+    not pass just because there is nothing left to check."""
+    result = oracle.validate_output(
+        "wordpress-content-model-planner",
+        GOOD_CONTENT_MODEL_PLANNER,
+        source_manifest={"schema": "wordpress-source-manifest", "items": []},
+    )
+    checks = {check["id"]: check for check in result["checks"]}
+
+    assert checks["content_model_migration_disposition_coverage"]["passed"] is False
+    assert "no items" in checks["content_model_migration_disposition_coverage"]["detail"]
+
+
+def test_migration_disposition_missing_manifest_items_key_fails_not_vacuously():
+    result = oracle.validate_output(
+        "wordpress-content-model-planner",
+        GOOD_CONTENT_MODEL_PLANNER,
+        source_manifest={"schema": "wordpress-source-manifest"},
+    )
+    checks = {check["id"]: check for check in result["checks"]}
+
+    assert checks["content_model_migration_disposition_coverage"]["passed"] is False
+
+
+def test_content_model_editing_surface_placeholder_fails():
+    """Regression for the review finding: `Editing surface (d): TBD` must
+    not satisfy the pairing gate."""
+    candidate = GOOD_CONTENT_MODEL_PLANNER.replace(
+        "Editing surface (event_dates): event-dates block (register_block_bindings_source, setValues)\n",
+        "Editing surface (event_dates): TBD\n",
+    )
+    result = oracle.validate_output("wordpress-content-model-planner", candidate)
+    checks = {check["id"]: check for check in result["checks"]}
+
+    assert checks["content_model_storage_decision_contract"]["passed"] is False
+    assert "event_dates" in checks["content_model_storage_decision_contract"]["detail"]
+
+
+def test_content_model_lock_rationale_placeholder_fails():
+    candidate = GOOD_CONTENT_MODEL_PLANNER.replace(
+        "Lock level rationale (story): donor features need freeform layout.\n",
+        "Lock level rationale (story): pending\n",
+    )
+    result = oracle.validate_output("wordpress-content-model-planner", candidate)
+    checks = {check["id"]: check for check in result["checks"]}
+
+    assert checks["content_model_editorial_guardrails_contract"]["passed"] is False
