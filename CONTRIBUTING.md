@@ -18,6 +18,95 @@ what the repository proves.
   monorepo package build is historical provenance, described in
   [PROVENANCE.md](PROVENANCE.md).
 
+## Local CI
+
+Tests run locally, not automatically on GitHub Actions. `.github/workflows/validate.yml`
+now triggers only on `workflow_dispatch` (a maintainer can still run it by hand
+in an emergency); it no longer runs on `push` or `pull_request`. The single
+entry point is:
+
+```bash
+scripts/ci-local.sh            # default gate: mirrors the "validate" job, same steps, same order
+scripts/ci-local.sh --docker   # also run the Docker-boundary jobs (sandbox-feasibility,
+                                # generated-runtime-boundary, converged-artifact-handoff)
+scripts/ci-local.sh --wp-env   # also run the live wp-env capability probe (Scenario C)
+scripts/ci-local.sh --all      # --docker --wp-env
+```
+
+It stops at the first failure in the default gate, writes a run log and
+`summary.txt` to `var/ci-local/<timestamp>/` (gitignored), detects missing
+prerequisites (`uv`, `composer`, `php`, `docker`, `node`, `wp-env`) and skips
+cleanly rather than failing when one is absent, and never reports a SKIP as a
+PASS.
+
+**Install the pre-push gate** (installs into the shared git hooks directory,
+including from a linked worktree):
+
+```bash
+git-hooks/install.sh
+```
+
+This installs `git-hooks/pre-push`, which runs the default gate
+(`scripts/ci-local.sh` with no flags) before every `git push`. Measured at
+~2 minutes in this repository (2026-09-24), which is under the ~3 minute
+budget for a pre-push hook, so the hook runs the full default gate rather
+than a subset. Bypass it for one push with `git push --no-verify`.
+`--docker` and `--wp-env` are not part of the pre-push gate; run them by hand
+before opening a PR that touches Docker-boundary or wp-env-probe code paths.
+
+**Which jobs need Docker or wp-env**, matching validate.yml's job names:
+
+| validate.yml job | Local flag | Needs |
+|---|---|---|
+| `validate` | (default, no flag) | `uv`, `composer`/`php` |
+| `sandbox-feasibility` | `--docker` | Docker |
+| `generated-runtime-boundary` | `--docker` | Docker |
+| `converged-artifact-handoff` | `--docker` | Docker (only if `evals/handoff/*/provenance.json` is tracked) |
+| `live-wp-env-probe` | `--wp-env` | Docker, Node, `wp-env` (via `npx`) |
+
+**arm64 / macOS caveats**, verified on an Apple Silicon Mac with Docker Engine
+via OrbStack (linux/arm64 host):
+
+- `evals/harness/container-images.json` pins per-architecture image digests
+  (amd64 *and* arm64) for the node/composer/python provisioning images used
+  by `sandbox-feasibility` and `generated-runtime-boundary`, so those images
+  pull and run natively — arm64 alone is not a blocker for them, and
+  `scripts/ci-local.sh --docker` does not need `--platform linux/amd64`
+  emulation for that part.
+- However, `evals/harness/tests/test_sandbox_proxy_supervisor_contract.py`
+  gates every `docker_sandbox`/`docker_generated_runtime` test on
+  `platform.system() == "Linux"`. On macOS that is `"Darwin"`, so **every**
+  test in both shards is skipped regardless of Docker or architecture —
+  confirmed locally: 35 skipped (`docker_sandbox`), 5 skipped
+  (`docker_generated_runtime`), 0 executed. This is an OS gate, not an
+  image-availability gate; emulation cannot satisfy it, because
+  `platform.system()` reports the host kernel, not the container's platform.
+  Their pytest content genuinely does not run on macOS at all — only on
+  hosted Linux (or a Linux VM whose *guest* `platform.system()` reports
+  `"Linux"`, which OrbStack's containers do not expose to the macOS host
+  process running pytest).
+- A "runtime"-profile handoff re-certification (`converged-artifact-handoff`)
+  is expected to fail on macOS by design:
+  `evals/harness/recertify_wordpress_executor_packet.py`'s own docstring
+  says a nonzero exit there on a non-Linux host is "the expected macOS
+  reading, not a defect. Green belongs to Linux." `scripts/ci-local.sh`
+  reports this as SKIP with that reason instead of FAIL.
+- The hosted `sandbox-feasibility` job's `apt-get install tcpdump` /
+  bounded host DNS observation step, its exact 20 GiB disk-admission floor,
+  and its 12 GiB post-cleanup delta budget are tied to the ubuntu-latest
+  runner's disposable Linux VM and are not reproduced locally at all.
+- `scripts/ci-local.sh --wp-env` probes for a free TCP port and passes it via
+  `WP_ENV_PORT` (a documented `wp-env start` override) instead of trusting
+  wp-env's default port 8888, which was already bound by an unrelated
+  process during testing on a machine running other concurrent Docker
+  projects; `wp-env start --auto-port` did not avoid that specific
+  collision in testing here.
+
+**PR authors: paste the `scripts/ci-local.sh` summary into the PR
+description** (the `RESULT:` line plus the per-step table from
+`var/ci-local/<timestamp>/summary.txt`) as the validation record — GitHub
+Actions no longer produces one automatically.
+
 ## Validation
 
 Use Python 3.13.9 and uv 0.9.27. The locked Python environment is canonical;

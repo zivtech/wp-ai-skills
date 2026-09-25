@@ -32,6 +32,7 @@
 
 ## Repository Maintenance
 
+- Tests run locally via `scripts/ci-local.sh`, not automatically on GitHub Actions; `.github/workflows/validate.yml` triggers only on `workflow_dispatch` for a maintainer's manual emergency run. "CI" below means a local `scripts/ci-local.sh` run (see its `var/ci-local/<timestamp>/summary.txt`) unless a workflow_dispatch run is explicitly meant.
 - When CI fails outside the apparent diff scope, read the first real error in the failed-job log, compare the diff with the failing code path, inspect the protected assertion, check recent run history, and rerun only the failed job. Do not weaken a security or correctness invariant to clear an unrelated pull request; record confirmed flake evidence separately.
 - Before acting on a recorded analyzer or fixture limitation, count affected cases, enumerate suppressed findings by identifier and message, and test the suspected cause with a counterfactual. Narrow suppressions by exact message shape, rerun the full corpus, extend classifier tests, and correct documentation that measurement disproves.
 
