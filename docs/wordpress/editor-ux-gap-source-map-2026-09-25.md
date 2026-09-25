@@ -142,7 +142,7 @@ Evaluation Boundary).
 
 | # | Finding | Acting role | Gap | Origin | Severity | Static-catchable by an existing skill? |
 |---|---|---|---|---|---|---|
-| 1 | A classic meta box (`context:"side"`) for a registered post meta field is permanently `display:none` in the block editor, for every role tested including Administrator — the field holds correct data but has no visible, operable path in the UI. | Editor; confirmed also for Administrator | N1 | Origin unconfirmed: the scenario used a plain `add_meta_box()` call on a CPT that also carries `template_lock:"all"`; this must be reproduced on a default post type without a template lock before attributing it to WordPress core rather than to the scenario's own configuration. | CRITICAL | No |
+| 1 | A classic meta box (`context:"side"`) for a registered post meta field renders only inside the settings sidebar's post-type tab (Gutenberg mounts side boxes as `extraSidebarPanels`), not in the "Meta Boxes" area below the canvas that holds `normal`/`advanced` boxes. The sidebar is closed on first load, so the credit field has no visible entry point until the editor opens Settings on the post tab. | Editor; also checked as Administrator | N1, G2 | Resolved as a discoverability gap, not a defect. The first walk and a first reproduction both reported the box as permanently `display:none` and attributed it to core. A targeted check with the sidebar open on the Exhibit tab showed the field on screen with its stored value; `.edit-post-meta-boxes-area.is-side` exists only in that state. | MINOR (discoverability) | No |
 | 2 | On a fully template-locked CPT (`template_lock:"all"`), opening the Block Inserter shows a real, accessibly-exposed panel whose Blocks tab reads only "No results found." — no copy anywhere explains the template is locked. | Editor | G3 | CORE-WP (Gutenberg's inserter has no dedicated empty-state message for a fully locked template) | MAJOR | Partly — a reviewer could flag the risk abstractly; the literal "No results found." text needed a live run to surface. |
 | 3 | On a `templateLock:"contentOnly"`-locked pattern, the inner Heading/Paragraph blocks give no icon, label, tooltip, or menu item indicating the structure is locked; the documented "Modify" escape-hatch link did not appear for this pattern instance in this build. | Editor | G3 | CORE-WP (Gutenberg's Lock UI doesn't reflect `templateLock`; the "Modify" affordance was absent/version-gated here) | MAJOR | Partly — the abstract risk (two non-overlapping lock mechanisms) is flaggable in review; the concrete absence of any in-UI explanation needed a live run. |
 | 4 | A heading-level skip (H2→H4) is correctly detected and labeled in Document Overview, but only under the non-default "Outline" tab, with no inline warning and no publish-time gate; the skip and the post's empty `alt=""` on a non-decorative image both reached the published frontend unchanged. This mirrors the public front-end walk already cited under G1/N6. | Editor | G1 / N6 | CORE-WP (the Outline checker is correct; no publish-time gate exists) | MAJOR (discoverability of the in-editor warning); CRITICAL (the published empty `alt` reaching real visitors) | Partly — a content/a11y-aware static review of the seeded HTML could catch the heading skip and empty alt directly; it could not know whether the editor UI surfaces a warning without running the editor. |
@@ -154,9 +154,15 @@ Contributor; the Exhibits list rendered read-only (no edit link/row
 actions) for Contributor on posts it doesn't own.
 
 **What only a runtime walk found:** findings 1, 2, 3, and 5 all required
-live DOM/role evidence — a permanently hidden but "enabled" control, literal
+live DOM/role evidence: where a side meta box actually mounts, literal
 empty-state copy, an absent lock-status affordance, and capability-mismatched
-placeholder text. None of the five existing wp-ai-skills phase reviewers
+placeholder text.
+
+**Method caveat:** runtime walks can be confidently wrong about UI state. Finding 1
+was misclassified twice, as a hidden control and then as a core defect, because neither
+pass opened the settings sidebar. A walk must record the editor chrome state
+(sidebar open or closed, active tab, panel preferences) before it reports a control
+missing, and must re-check the claim in every chrome state. None of the five existing wp-ai-skills phase reviewers
 (`wordpress-critic`, `wordpress-theme-critic`, `wordpress-security-critic`,
 `wordpress-performance-critic`, `wordpress-site-audit`) execute the block
 editor or authenticate as a lower-privileged role; all five are source/spec/
