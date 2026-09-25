@@ -330,6 +330,90 @@ def check_theme_metadata(path: Path) -> Check:
     return fail_check("theme_metadata", "missing style.css Theme Name header and theme.json")
 
 
+_BLOCK_COMMENT_RE = re.compile(
+    r"<!--\s*(?P<closer>/)?wp:(?P<name>[a-z][a-z0-9_-]*(?:/[a-z][a-z0-9_-]*)?)"
+    r"(?:\s+(?P<attrs>\{.*?\}))?\s*(?P<void>/)?-->",
+    re.DOTALL,
+)
+
+
+def _scan_block_markup(text: str) -> list[str]:
+    """Return structural defects in WordPress block-comment delimiters.
+
+    A deterministic, dependency-free approximation of what `parse_blocks()`/
+    `WP_Block_Parser` enforces: every opening delimiter has a matching,
+    properly nested closer (or is self-closing), and every attributes blob is
+    valid JSON. It does not implement the full core grammar (a brace inside a
+    quoted string attribute value can confuse the non-greedy `attrs` match), so
+    a pass here is evidence a hand-written or malformed comment did not slip
+    through, not proof of `parse_blocks()` validity; verification notes should
+    say so rather than citing this as the runtime oracle.
+    """
+    issues: list[str] = []
+    stack: list[str] = []
+    for match in _BLOCK_COMMENT_RE.finditer(text):
+        name = match.group("name")
+        closer = match.group("closer")
+        void = match.group("void")
+        attrs = match.group("attrs")
+        if attrs:
+            try:
+                json.loads(attrs)
+            except json.JSONDecodeError as exc:
+                issues.append(f"invalid block attributes JSON for wp:{name}: {exc}")
+        if closer and void:
+            issues.append(f"wp:{name} delimiter cannot be both a closer and self-closing")
+            continue
+        if void:
+            continue
+        if closer:
+            if not stack:
+                issues.append(f"unmatched closing delimiter <!-- /wp:{name} -->")
+            elif stack[-1] != name:
+                issues.append(
+                    f"mismatched closing delimiter <!-- /wp:{name} -->, expected <!-- /wp:{stack[-1]} -->"
+                )
+                stack.pop()
+            else:
+                stack.pop()
+        else:
+            stack.append(name)
+    if stack:
+        issues.append(f"unclosed block delimiter(s): {', '.join(stack)}")
+    return issues
+
+
+def check_theme_block_markup(path: Path) -> Check:
+    """Structural block-comment validity for theme templates, parts, and patterns.
+
+    The prior structural gate for a `theme` artifact checked only for a
+    `style.css` `Theme Name:` header or a valid `theme.json` — it never parsed
+    the block markup inside `templates/*.html`, `parts/*.html`, or
+    `patterns/*.php`, so a template with mismatched or unclosed `<!-- wp:... -->`
+    delimiters passed structural review and was only caught by the Site Editor
+    at runtime. This check closes that gap deterministically, without a
+    WordPress runtime dependency.
+    """
+    candidates: list[Path] = []
+    if path.is_dir():
+        for sub, suffixes in (("templates", {".html"}), ("parts", {".html"}), ("patterns", {".php"})):
+            sub_path = path / sub
+            if sub_path.is_dir():
+                candidates += iter_files(sub_path, suffixes)
+    if not candidates:
+        return pass_check("theme_block_markup", "no templates/parts/patterns block markup to check")
+    issues: list[str] = []
+    for file_path in candidates:
+        defects = _scan_block_markup(read_text(file_path))
+        issues.extend(f"{repo_relative(file_path)}: {defect}" for defect in defects)
+    if issues:
+        return fail_check("theme_block_markup", "; ".join(issues[:10]))
+    return pass_check(
+        "theme_block_markup",
+        f"{len(candidates)} template/part/pattern file(s) have structurally balanced block markup",
+    )
+
+
 def blueprint_file(path: Path) -> Path | None:
     if path.is_file():
         return path
@@ -552,6 +636,7 @@ def structural_checks(
         checks += check_block_contract(path)
     elif artifact_type == "theme":
         checks.append(check_theme_metadata(path))
+        checks.append(check_theme_block_markup(path))
     elif artifact_type == "blueprint":
         checks.append(check_blueprint_json(path))
     if artifact_type in {"plugin", "block", "theme"} and path.exists():
