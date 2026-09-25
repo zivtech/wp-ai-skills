@@ -42,6 +42,56 @@ What the survey did produce:
   mandatory** — source, commit, license, local file, reuse class, and rationale,
   per the Operational Rules.
 
+## 2026-09-25 — Editor-UX discovery (plan 020): zero reuse
+
+Sources consulted: 61 external skill files across 36 net-new repos (plus delta
+files from two already-catalogued repos, WordPress/agent-skills and
+Automattic/build-with-wordpress), survived a two-signal WordPress +
+editor-UX filter out of 598 unique repos found via `gh` code/repo search;
+skills.sh run in parallel (known-positive control reproduced — 100 rows
+returned vs. the 74-row 2026-06-16 baseline; 5 of 10 queries returned exactly
+100 rows; whether 100 is a hard page cap is unverified, since the scroll-test
+output was found to duplicate another query's dump — see `RAW/skillssh-method.md`),
+not confirmed to have contributed any of the 36 survivors, all of which trace
+to `gh` code search; Gutenberg trunk docs @ `fb98ae09a105f342ae63ac01f44d82c17ba35370`
+(GPL-2.0-or-later), the theme.json living reference and Global Settings &
+Styles guide, and a 60-issue deduplicated Gutenberg-issue sample.
+
+**No text was reused.** Public WordPress/Gutenberg API names and documented
+behaviors cited in the planned skill extensions (local `plans/021`) are facts,
+not expression, per this ledger's existing precedent.
+
+Adapt-eligible candidates identified but not adapted (any future adaptation
+needs its own full ledger row — source, commit, license, local file, reuse
+class, rationale):
+
+| Source | Commit | License | Status |
+|---|---:|---|---|
+| 84emllc/claude-wordpress-7-blocks-patterns-best-practices-skill | `b9275a562da0d1f6b3affc8ce9ac9a242268557b` | MIT | ADAPT-ELIGIBLE |
+| BigOrangeLab/skills | `a718672047ef57cf7eeb3c486ccea3c1c3be5bb5` | MIT | ADAPT-ELIGIBLE |
+| ComeOnOliver/skillshub | `def8531e65114c0fca8fb8551c1871ee0eed705c` | MIT | ADAPT-ELIGIBLE |
+| Lonsdale201/wp-agent-skills | `8820ff3c301066297e696611e3bc4ebeb47d1851` | MIT | ADAPT-ELIGIBLE |
+| bobmatnyc/claude-mpm-skills | `718070a7d622921b01687799a1f9613f36c6f615` | MIT | ADAPT-ELIGIBLE (already catalogued; this survey only updates its commit/inventory) |
+| gambitph/Stackable | `3154353ee04fe8bef542bf5a19058511537dd26a` | GPL-3.0 | ADAPT-ELIGIBLE (content overlaps WordPress/agent-skills `wp-patterns` — treat as one source choice if ever adapted, not two) |
+| jasenwyatt/wordpress-gutenberg-designer | `c72b0170bbd32bcbd179f079ee9b4eb307c3a975` | MIT | ADAPT-ELIGIBLE |
+| mdemonahmed/markaroo | `282601c7adbc094993f55a892d31a39799ccb7d7` | GPL-3.0 (root `LICENSE`, verified 2026-09-25 via the GitHub license API) | ADAPT-ELIGIBLE |
+| WordPress/agent-skills (`wp-patterns`, `wp-block-themes`) | `f1bac1f1c3096c011faabc1a7b0450f105bf3e30` | GPL-2.0-or-later per this repo's existing catalog row; GitHub's automated license-API classifier reports NOASSERTION at this exact commit — a person re-reads before any adaptation | ADAPT-ELIGIBLE pending that re-read |
+| WordPress/gutenberg (`design-system-ui-review`) | `fb98ae09a105f342ae63ac01f44d82c17ba35370` | Dual GPL-2.0-or-later / MPL-2.0, custom preamble in root `LICENSE.md` (GitHub license API reports NOASSERTION, a classifier artifact) | **ADAPT-ELIGIBLE** — weak-evidence shape 3, read and classified by operator 2026-09-25 per `license-reuse-policy.md`'s Weak License Evidence row 3. `Automattic/gutenberg-sync-engines` carries a byte-identical mirror of the skill file and has its own root `LICENSE.md` (also NOASSERTION via the GitHub API); whether its text matches this grant was not verified this survey, so it is not listed as its own stub row and its license stays Unknown. |
+
+Checked and explicitly excluded from the adapt-eligible set (scored well on the
+G1–G5 rubric, but license evidence does not clear the bar):
+
+- **Weak-evidence shape 1** (manifest/header declares a license, no LICENSE file exists): teamchrisfromthelc/wp-preset (`block-theme-editor-ux` — manifest and theme header declare GPL-2.0-or-later; scored 2 on four of five gaps (G2–G5), the widest rubric coverage of any candidate in this batch, but reference-only on license evidence alone).
+- **Bare GPL-2.0, no or-later evidence** (one-way incompatible with this repo's GPL-3.0): woocommerce/sensei-certificates (`ui-verification`).
+- **No LICENSE file found via the GitHub license API** (404 — a person should re-check for a non-root LICENSE layout before treating any of these as permanently unlicensed): Automattic/build-with-wordpress, adityaarsharma/orbit, adamsilverstein/my-skills, kerray/wp_template, wpgaurav/WordPress-skills.
+- **NOASSERTION with a root LICENSE file present** (weak-evidence shape 3 — file exists, SPDX classifier could not match it, unread by a person): abdul977/muahib-skills (`wp-admin-panel-builder`).
+
+Not screened: webdevarif/claude-skills `neuro-wp-block-theme-design`
+(surfaced by the two-signal filter, never fetched or screened).
+
+Absence claims in this survey are bounded to the search legs that ran and
+returned real, non-truncated results.
+
 ## Tooling Dependencies (fetched at install time, never vendored)
 
 The API-existence lint (`evals/harness/wp_api_lint.py`) shells out to a
