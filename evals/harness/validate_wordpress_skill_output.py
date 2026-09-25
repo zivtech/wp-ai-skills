@@ -699,6 +699,43 @@ def _decision_values(section: str, label: str) -> list[str]:
     ]
 
 
+def _keyed_decision_records(section: str, label: str) -> list[tuple[str, str]]:
+    """Every ``Label (<key>): value`` record in the section, in order.
+
+    Unlike ``_decision_value``, the record must name the exact item it
+    disposes inside parentheses. This closes a substring-containment gap: a
+    single catch-all record such as ``Disposition row: event, story, ...``
+    must not be able to satisfy several manifest items just because each
+    item's id happens to appear somewhere in its free text. A key can repeat
+    (the caller decides whether that is a duplicate-record failure).
+    """
+    section = _strip_non_authoritative_markdown(section)
+    return [
+        (match.group("key").strip(), match.group("value").strip())
+        for match in re.finditer(
+            rf"(?im)^(?:\*\*)?{re.escape(label)}\s*\(\s*(?P<key>[^()]+?)\s*\)\s*:"
+            rf"(?:\*\*)?\s*(?P<value>\S.*?)\s*$",
+            section,
+        )
+    ]
+
+
+def _keyed_decision_map(section: str, label: str) -> tuple[dict[str, str], list[str]]:
+    """Return (key -> value) for uniquely keyed records, plus duplicated keys.
+
+    A key that appears more than once is dropped from the map (its value is
+    ambiguous) and reported in the duplicates list so the caller fails loudly
+    instead of silently picking the first or last occurrence.
+    """
+    records = _keyed_decision_records(section, label)
+    counts: dict[str, int] = {}
+    for key, _ in records:
+        counts[key] = counts.get(key, 0) + 1
+    duplicates = sorted(key for key, count in counts.items() if count > 1)
+    mapping = {key: value for key, value in records if counts[key] == 1}
+    return mapping, duplicates
+
+
 def _usable_decision(value: str | None, *, allow_none: bool = False) -> bool:
     if not value or NEGATED_DECISION_RE.search(value):
         return False
@@ -1037,53 +1074,92 @@ CONTENT_MODEL_LOCK_LEVELS = frozenset({"contentonly", "insert", "all", "false"})
 
 
 def check_content_model_plan_contract(text: str) -> list[Check]:
-    """Require the editorial-guardrails phase and the storage decision rule as records, not prose.
+    """Require the editorial-guardrails phase and the storage decision rule as
+    keyed, paired records, not counted prose.
 
-    A field brief in the field (museum migration LEARNINGS.md) shipped a plan
-    that defaulted every content type to `template_lock => false` and bound
-    meta into blocks with no editing surface named. Both defects were legal
-    under the old, heading-only contract. These gates make the two doctrine
-    items load-bearing: an editorial-guardrails decision per content type, and
-    an editing surface for every bound field.
+    A field brief (museum migration LEARNINGS.md) shipped a plan that
+    defaulted every content type to `template_lock => false` and bound meta
+    into blocks with no editing surface named. Both defects were legal under
+    a heading-only contract, and a first counting-only version of this gate
+    (count of `Lock level:` records >= 1) was itself gameable: five content
+    types and one `Lock level: contentOnly` record passed. Records are now
+    keyed to the exact content type or meta key they dispose, so every
+    declared item needs its own record, not just any record of that shape.
     """
     sections = markdown_sections(text)
     editorial = sections.get("Editorial Workflow", "")
     matrix = sections.get("Post Type Taxonomy And Field Matrix", "")
 
+    content_types = _decision_values(editorial, "Content type")
+    duplicate_types = sorted({t for t in content_types if content_types.count(t) > 1})
+    unique_types = list(dict.fromkeys(content_types))
+    lock_records, lock_duplicate_keys = _keyed_decision_map(editorial, "Lock level")
+    rationale_records, rationale_duplicate_keys = _keyed_decision_map(editorial, "Lock level rationale")
     guardrails_ok = _decision_exact(editorial, "Editorial guardrails phase", {"completed"})
-    lock_levels = _decision_values(editorial, "Lock level")
-    lock_levels_ok = bool(lock_levels) and all(
-        value.strip().lower() in CONTENT_MODEL_LOCK_LEVELS for value in lock_levels
-    )
-    false_count = sum(1 for value in lock_levels if value.strip().lower() == "false")
-    rationale_count = len(_decision_values(editorial, "Lock level rationale"))
-    rationale_ok = rationale_count >= false_count
-    guardrails_pass = guardrails_ok and lock_levels_ok and rationale_ok
+
+    guardrail_problems: list[str] = []
+    if not content_types:
+        guardrail_problems.append("no `Content type:` records declared")
+    if duplicate_types:
+        guardrail_problems.append(f"duplicate `Content type:` records: {', '.join(duplicate_types)}")
+    for content_type in unique_types:
+        value = lock_records.get(content_type)
+        if value is None or not _usable_decision(value) or value.strip().lower() not in CONTENT_MODEL_LOCK_LEVELS:
+            guardrail_problems.append(f"missing/invalid `Lock level ({content_type}):` record")
+            continue
+        if value.strip().lower() == "false":
+            rationale = rationale_records.get(content_type)
+            if rationale is None or not _usable_decision(rationale):
+                guardrail_problems.append(f"missing `Lock level rationale ({content_type}):` record")
+    if lock_duplicate_keys:
+        guardrail_problems.append(f"duplicate `Lock level:` records for: {', '.join(lock_duplicate_keys)}")
+    if rationale_duplicate_keys:
+        guardrail_problems.append(f"duplicate `Lock level rationale:` records for: {', '.join(rationale_duplicate_keys)}")
+    unknown_lock_keys = sorted(set(lock_records) - set(unique_types))
+    if unknown_lock_keys:
+        guardrail_problems.append(f"`Lock level:` records for undeclared content types: {', '.join(unknown_lock_keys)}")
+
+    guardrails_pass = guardrails_ok and not guardrail_problems
     checks = [Check(
         "content_model_editorial_guardrails_contract",
         guardrails_pass,
         3,
-        "editorial guardrails phase is recorded with a lock level per content type "
-        "and a rationale for every unlocked (`false`) type"
+        "editorial guardrails phase is recorded with a keyed `Lock level (<type>):` "
+        "(and rationale where `false`) for every declared `Content type:`"
         if guardrails_pass else
-        "Editorial Workflow needs `Editorial guardrails phase: completed`, a "
-        "`Lock level:` record (contentOnly/insert/all/false) per content type, and a "
-        "`Lock level rationale:` record for every `Lock level: false`",
+        "Editorial Workflow needs `Editorial guardrails phase: completed`, one "
+        "`Content type: <post_type>` record per content type, a matching "
+        "`Lock level (<post_type>): contentOnly|insert|all|false` record for each, and a "
+        "`Lock level rationale (<post_type>): ...` record for every `Lock level (<post_type>): false`"
+        + ("; " + "; ".join(guardrail_problems) if guardrail_problems else ""),
     )]
 
     storage_ok = _decision_exact(matrix, "Storage decision rule applied", {"yes"})
-    binding_sources = _decision_values(matrix, "Binding source")
-    editing_surfaces = _decision_values(matrix, "Editing surface")
-    surfaces_ok = len(editing_surfaces) >= len(binding_sources)
-    storage_pass = storage_ok and surfaces_ok
+    binding_records, binding_duplicate_keys = _keyed_decision_map(matrix, "Binding source")
+    surface_records, surface_duplicate_keys = _keyed_decision_map(matrix, "Editing surface")
+    storage_problems: list[str] = []
+    for meta_key, value in binding_records.items():
+        if not _usable_decision(value):
+            storage_problems.append(f"hedged/negated `Binding source ({meta_key}):`")
+            continue
+        surface = surface_records.get(meta_key)
+        if surface is None or not _usable_decision(surface):
+            storage_problems.append(f"missing `Editing surface ({meta_key}):` record")
+    if binding_duplicate_keys:
+        storage_problems.append(f"duplicate `Binding source:` records for: {', '.join(binding_duplicate_keys)}")
+    if surface_duplicate_keys:
+        storage_problems.append(f"duplicate `Editing surface:` records for: {', '.join(surface_duplicate_keys)}")
+
+    storage_pass = storage_ok and not storage_problems
     checks.append(Check(
         "content_model_storage_decision_contract",
         storage_pass,
         3,
-        "storage decision rule is applied and every bound field names an editing surface"
+        "storage decision rule is applied and every bound field has a matching, keyed editing surface"
         if storage_pass else
-        "Post Type Taxonomy And Field Matrix needs `Storage decision rule applied: yes` "
-        "and an `Editing surface:` record for every `Binding source:` record",
+        "Post Type Taxonomy And Field Matrix needs `Storage decision rule applied: yes` and a "
+        "`Editing surface (<meta_key>): ...` record matching every `Binding source (<meta_key>): ...` record"
+        + ("; " + "; ".join(storage_problems) if storage_problems else ""),
     ))
     return checks
 
@@ -1100,34 +1176,99 @@ def load_source_manifest(path: Path) -> dict[str, Any]:
     return payload
 
 
+MIGRATION_DISPOSITION_VALUES = frozenset({
+    # Content types and classification.
+    "custom-post-type", "taxonomy", "meta",
+    # Page-building components.
+    "custom-block", "block-variation", "pattern", "synced-pattern-with-overrides",
+    "core-blocks", "style",
+    # Non-node surfaces: reusable/placed region content (for example Drupal
+    # block_content bundles and block placements, or an equivalent CMS
+    # concept), menus, and site-wide settings/options.
+    "template-part", "navigation", "site-option",
+    # No-ops, stated with the same rigor as an affirmative disposition.
+    "drop", "defer",
+})
+
+
+def _disposition_token(value: str) -> str:
+    head = re.split(r"\s+[-–—]\s+", value, maxsplit=1)[0]
+    return head.strip().lower()
+
+
 def check_migration_disposition_contract(text: str, manifest: dict[str, Any]) -> Check:
     """Fail migration-mode plans that leave any supplied source item undispositioned.
 
     Mirrors the field finding that a migration plan can pass a heading check
     while silently dropping source types, vocabularies, or components (see
-    PLAN-content-model.md / INTERFACE-DECISIONS X2, X7). The oracle is the
-    manifest itself, not the plan's own claim of completeness: every
-    `id` in the supplied manifest must appear in a `Disposition row:` record.
+    PLAN-content-model.md / INTERFACE-DECISIONS X2, X7), including non-node
+    surfaces such as placed/reusable block content, menus, and site-wide
+    settings that live outside any node. The oracle is the manifest itself,
+    not the plan's own claim of completeness.
+
+    An earlier version of this gate matched by substring containment, so one
+    catch-all record naming several ids in free text (for example
+    "Disposition row: misc -> event, story, event_type ... - still being
+    figured out") satisfied every id it happened to mention. Each manifest
+    item now needs its own anchored `Disposition row (<id>): <token> ...`
+    record: the key must equal the id exactly (not merely contain it), the
+    token must be one of MIGRATION_DISPOSITION_VALUES, and a hedged or
+    negated value (see NEGATED_DECISION_RE) does not count as a disposition.
+    Duplicate keys and disposition rows for ids outside the manifest also
+    fail, since both signal an untrustworthy mapping between rows and items.
     """
     sections = markdown_sections(text)
     migration = sections.get("Migration And Validation Plan", "")
-    disposition_rows = _decision_values(migration, "Disposition row")
-    normalized_rows = [_norm(row) for row in disposition_rows]
-    missing: list[str] = []
+    records, duplicate_keys = _keyed_decision_map(migration, "Disposition row")
+
+    item_ids: list[str] = []
+    seen_manifest_ids: set[str] = set()
+    duplicate_manifest_ids: list[str] = []
     for item in manifest.get("items", []):
         if not isinstance(item, dict):
             continue
         item_id = str(item.get("id", "")).strip()
         if not item_id:
             continue
-        normalized_id = _norm(item_id)
-        if not any(normalized_id in row for row in normalized_rows):
+        if item_id in seen_manifest_ids:
+            duplicate_manifest_ids.append(item_id)
+            continue
+        seen_manifest_ids.add(item_id)
+        item_ids.append(item_id)
+
+    missing: list[str] = []
+    invalid: list[str] = []
+    for item_id in item_ids:
+        value = records.get(item_id)
+        if value is None:
             missing.append(item_id)
-    passed = not missing
+            continue
+        if not _usable_decision(value):
+            invalid.append(f"{item_id} (hedged/negated)")
+            continue
+        token = _disposition_token(value)
+        if token not in MIGRATION_DISPOSITION_VALUES:
+            invalid.append(f"{item_id} (unrecognized disposition `{token}`)")
+
+    unknown_ids = sorted(set(records) - set(item_ids))
+
+    problems: list[str] = []
+    if missing:
+        problems.append(f"missing disposition row for: {', '.join(sorted(missing))}")
+    if invalid:
+        problems.append(f"invalid disposition for: {', '.join(invalid)}")
+    if duplicate_keys:
+        problems.append(f"duplicate disposition rows for: {', '.join(duplicate_keys)}")
+    if duplicate_manifest_ids:
+        problems.append(f"duplicate manifest item ids: {', '.join(sorted(set(duplicate_manifest_ids)))}")
+    if unknown_ids:
+        problems.append(f"disposition rows for ids outside the manifest: {', '.join(unknown_ids)}")
+
+    passed = not problems
     detail = (
-        f"every one of {len(manifest.get('items', []))} manifest items has a disposition row"
+        f"every one of {len(item_ids)} manifest items has a valid, uniquely keyed disposition row"
         if passed
-        else f"missing disposition row for: {', '.join(sorted(missing))}"
+        else "; ".join(problems)
     )
     return Check("content_model_migration_disposition_coverage", passed, 4, detail)
 
