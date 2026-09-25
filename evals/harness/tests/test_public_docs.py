@@ -385,32 +385,13 @@ def test_policy_documents_are_required_to_exist() -> None:
         assert (ROOT / document).is_file(), f"{document} is scanned but missing"
 
 
-def test_workflow_paths_filter_and_scan_coverage_agree() -> None:
-    """Every policy document that triggers CI must also be inspected by it.
-
-    This is the structural fix for the hole that started this: a docs-only PR
-    matched nothing in the workflow's `paths:` filter, so the gate governing
-    those files never ran. Adding paths without adding coverage would have
-    replaced a gate that never fires with one that fires and looks at nothing.
-    Pinning the two lists to each other means neither half can drift alone.
-    """
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location("public_docs", VALIDATOR)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-
-    workflow = (ROOT / ".github/workflows/validate.yml").read_text(encoding="utf-8")
-    triggered = {
-        line.strip().removeprefix('- "').removesuffix('"')
-        for line in workflow.splitlines()
-        if line.strip().startswith('- "docs/wordpress/')
-    }
-    scanned = {d for d in module.ACTIVE_CONTROL_DOCS if d.startswith("docs/wordpress/")}
-
-    assert triggered, "expected the workflow to name policy documents"
-    assert triggered == scanned, (
-        "workflow paths filter and ACTIVE_CONTROL_DOCS disagree; "
-        f"triggered-only={sorted(triggered - scanned)} scanned-only={sorted(scanned - triggered)}"
-    )
+# test_workflow_paths_filter_and_scan_coverage_agree (removed 2026-09-24) used
+# to pin ACTIVE_CONTROL_DOCS' docs/wordpress/*.md entries against
+# validate.yml's `pull_request.paths:` filter, so a docs-only change could
+# not silently stop triggering CI. The local-first CI change (see
+# CONTRIBUTING.md's "Local CI" section) removed the `push`/`pull_request`
+# triggers -- and their `paths:` filter with them -- so there is no longer a
+# trigger-side list to pin against. test_policy_documents_are_required_to_exist
+# above still asserts the coverage half this test protected: every
+# docs/wordpress/*.md policy document is named in ACTIVE_CONTROL_DOCS and
+# exists on disk.
