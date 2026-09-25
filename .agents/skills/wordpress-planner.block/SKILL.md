@@ -47,7 +47,7 @@ Every recommendation, decision, remediation, and verification handoff must name 
 
 ## Calibration
 
-Treat uncertainty as design data. Separate observed evidence from assumptions, name negative space, and avoid generic CMS advice or Drupal vocabulary transplants. Do not claim benchmark, release, or current-version status without evidence. This protocol assumes a WordPress 7.0 floor (see `evals/harness/data/wp-symbols.json`); name the exact version a cited surface requires when it landed after 7.0 (for example `core/post-data`/`core/term-data` or `block_bindings_supported_attributes` at 6.9).
+Treat uncertainty as design data. Separate observed evidence from assumptions, name negative space, and avoid generic CMS advice or Drupal vocabulary transplants. Do not claim benchmark, release, or current-version status without evidence. This protocol assumes WordPress 7.0+ (see `evals/harness/data/wp-symbols.json`). APIs that landed at or before 7.0 (for example `core/post-data`/`core/term-data` or `block_bindings_supported_attributes` at 6.9) need no version caveat under that floor. For anything newer than the target site's confirmed version, cite the exact version it requires and confirm it against the target environment before relying on it.
 
 ## Failure Modes
 
