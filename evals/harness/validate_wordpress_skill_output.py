@@ -1033,6 +1033,105 @@ def check_gutenberg_migration_contract(text: str) -> list[Check]:
     ]
 
 
+CONTENT_MODEL_LOCK_LEVELS = frozenset({"contentonly", "insert", "all", "false"})
+
+
+def check_content_model_plan_contract(text: str) -> list[Check]:
+    """Require the editorial-guardrails phase and the storage decision rule as records, not prose.
+
+    A field brief in the field (museum migration LEARNINGS.md) shipped a plan
+    that defaulted every content type to `template_lock => false` and bound
+    meta into blocks with no editing surface named. Both defects were legal
+    under the old, heading-only contract. These gates make the two doctrine
+    items load-bearing: an editorial-guardrails decision per content type, and
+    an editing surface for every bound field.
+    """
+    sections = markdown_sections(text)
+    editorial = sections.get("Editorial Workflow", "")
+    matrix = sections.get("Post Type Taxonomy And Field Matrix", "")
+
+    guardrails_ok = _decision_exact(editorial, "Editorial guardrails phase", {"completed"})
+    lock_levels = _decision_values(editorial, "Lock level")
+    lock_levels_ok = bool(lock_levels) and all(
+        value.strip().lower() in CONTENT_MODEL_LOCK_LEVELS for value in lock_levels
+    )
+    false_count = sum(1 for value in lock_levels if value.strip().lower() == "false")
+    rationale_count = len(_decision_values(editorial, "Lock level rationale"))
+    rationale_ok = rationale_count >= false_count
+    guardrails_pass = guardrails_ok and lock_levels_ok and rationale_ok
+    checks = [Check(
+        "content_model_editorial_guardrails_contract",
+        guardrails_pass,
+        3,
+        "editorial guardrails phase is recorded with a lock level per content type "
+        "and a rationale for every unlocked (`false`) type"
+        if guardrails_pass else
+        "Editorial Workflow needs `Editorial guardrails phase: completed`, a "
+        "`Lock level:` record (contentOnly/insert/all/false) per content type, and a "
+        "`Lock level rationale:` record for every `Lock level: false`",
+    )]
+
+    storage_ok = _decision_exact(matrix, "Storage decision rule applied", {"yes"})
+    binding_sources = _decision_values(matrix, "Binding source")
+    editing_surfaces = _decision_values(matrix, "Editing surface")
+    surfaces_ok = len(editing_surfaces) >= len(binding_sources)
+    storage_pass = storage_ok and surfaces_ok
+    checks.append(Check(
+        "content_model_storage_decision_contract",
+        storage_pass,
+        3,
+        "storage decision rule is applied and every bound field names an editing surface"
+        if storage_pass else
+        "Post Type Taxonomy And Field Matrix needs `Storage decision rule applied: yes` "
+        "and an `Editing surface:` record for every `Binding source:` record",
+    ))
+    return checks
+
+
+def load_source_manifest(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"source manifest JSON is invalid: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("source manifest JSON must contain an object")
+    if not isinstance(payload.get("items"), list) or not payload["items"]:
+        raise ValueError("source manifest JSON must contain a non-empty 'items' array")
+    return payload
+
+
+def check_migration_disposition_contract(text: str, manifest: dict[str, Any]) -> Check:
+    """Fail migration-mode plans that leave any supplied source item undispositioned.
+
+    Mirrors the field finding that a migration plan can pass a heading check
+    while silently dropping source types, vocabularies, or components (see
+    PLAN-content-model.md / INTERFACE-DECISIONS X2, X7). The oracle is the
+    manifest itself, not the plan's own claim of completeness: every
+    `id` in the supplied manifest must appear in a `Disposition row:` record.
+    """
+    sections = markdown_sections(text)
+    migration = sections.get("Migration And Validation Plan", "")
+    disposition_rows = _decision_values(migration, "Disposition row")
+    normalized_rows = [_norm(row) for row in disposition_rows]
+    missing: list[str] = []
+    for item in manifest.get("items", []):
+        if not isinstance(item, dict):
+            continue
+        item_id = str(item.get("id", "")).strip()
+        if not item_id:
+            continue
+        normalized_id = _norm(item_id)
+        if not any(normalized_id in row for row in normalized_rows):
+            missing.append(item_id)
+    passed = not missing
+    detail = (
+        f"every one of {len(manifest.get('items', []))} manifest items has a disposition row"
+        if passed
+        else f"missing disposition row for: {', '.join(sorted(missing))}"
+    )
+    return Check("content_model_migration_disposition_coverage", passed, 4, detail)
+
+
 def check_headings(text: str, contract: dict[str, Any]) -> Check:
     names = _heading_names(text)
     found = set(names)
@@ -1852,6 +1951,7 @@ def validate_output(
     text: str,
     security_gate: dict[str, Any] | None = None,
     capability_manifest: dict[str, Any] | None = None,
+    source_manifest: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     requested_skill = skill
     skill = ALIASES.get(skill, skill)
@@ -1874,6 +1974,10 @@ def validate_output(
         checks.extend(check_plugin_plan_contract(authoritative))
     if skill == "wordpress-migration-planner":
         checks.extend(check_gutenberg_migration_contract(authoritative))
+    if skill == "wordpress-content-model-planner":
+        checks.extend(check_content_model_plan_contract(authoritative))
+        if source_manifest is not None:
+            checks.append(check_migration_disposition_contract(authoritative, source_manifest))
     if skill == "wordpress-security-critic" and security_gate is not None:
         checks.append(check_security_gate_consumption(authoritative, security_gate))
     if capability_manifest is not None:
@@ -1907,6 +2011,14 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Optional capability-manifest.json sidecar from probe_wordpress_environment.py. "
             "When supplied, any instruction to run a command the manifest marks UNAVAILABLE fails."
+        ),
+    )
+    parser.add_argument(
+        "--source-manifest",
+        help=(
+            "Optional source-manifest.json sidecar ({'items': [{'id': ...}, ...]}) for "
+            "wordpress-content-model-planner migration mode. When supplied, every item id "
+            "must appear in a `Disposition row:` record or the run fails."
         ),
     )
     return parser
@@ -1946,11 +2058,29 @@ def main(argv: list[str] | None = None) -> int:
         except ValueError as exc:
             print(json.dumps({"pass": False, "error": str(exc)}, indent=2), file=sys.stderr)
             return 1
+    source_manifest = None
+    if args.source_manifest:
+        source_manifest_path = Path(args.source_manifest)
+        if not source_manifest_path.exists():
+            print(
+                json.dumps(
+                    {"pass": False, "error": f"source manifest file not found: {source_manifest_path}"},
+                    indent=2,
+                ),
+                file=sys.stderr,
+            )
+            return 1
+        try:
+            source_manifest = load_source_manifest(source_manifest_path)
+        except ValueError as exc:
+            print(json.dumps({"pass": False, "error": str(exc)}, indent=2), file=sys.stderr)
+            return 1
     result = validate_output(
         args.skill,
         output_path.read_text(encoding="utf-8"),
         security_gate=security_gate,
         capability_manifest=capability_manifest,
+        source_manifest=source_manifest,
     )
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result["pass"] else 1

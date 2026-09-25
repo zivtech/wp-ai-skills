@@ -1436,3 +1436,184 @@ def test_delivery_unit_gate_does_not_apply_to_other_skills():
 
     assert not {"plugin_delivery_unit_contract", "plugin_delivery_unit_justification"} & ids
     assert result["pass"] is True
+
+
+GOOD_CONTENT_MODEL_PLANNER = """\
+## Content Model Summary
+Plan a 3-type event-and-story content model for a cultural-institution site
+migrating from a legacy CMS. Migration mode: required
+
+## Current-State Evidence
+The source system exports 3 content types and 2 vocabularies via a config
+snapshot; `register_post_type()` and `register_taxonomy()` do not exist yet
+on the target.
+
+## Content Behavior Analysis
+Events recur across multiple date sets; stories are single-author narratives.
+This does not claim any editorial workflow beyond what the brief describes.
+
+## Post Type Taxonomy And Field Matrix
+Storage decision rule applied: yes
+Binding source: core/post-meta
+Editing surface: event-dates block (register_block_bindings_source, setValues)
+Use `register_post_meta()` with `show_in_rest` schema for event start/end dates.
+
+## Editorial Workflow
+Editorial guardrails phase: completed
+Lock level: contentOnly
+Lock level: false
+Lock level rationale: the story type needs freeform layout for donor features.
+
+## API Search And Template Implications
+Expose events and stories via `show_in_rest` and template_lock contentOnly
+patterns; assumption: WPGraphQL is out of scope for this phase.
+
+## Migration And Validation Plan
+Disposition row: event -> custom block (recurring date sets, cardinality -1)
+Disposition row: story -> flatten to core blocks
+Disposition row: event_type -> taxonomy (bounded, facetable)
+Disposition row: gallery_component -> synced pattern with overrides
+Run `wp import` dry run then `wp search-replace --dry-run` before cutover.
+
+## Assumption Register
+Assumption: source recurrence data is exhaustive; unknown: timezone handling.
+
+## Alternatives Considered
+A single "content" CPT with taxonomy-only differentiation was rejected because
+it collapses per-type editorial workflow.
+
+## Acceptance Criteria
+Every disposition row above is reconciled against the source manifest count.
+
+## Executor Handoff
+Generate the plugin registering these post types and meta via wordpress-plugin-executor.
+
+## Critic Handoff
+Send to wordpress-critic and wordpress-theme-critic.
+"""
+
+
+def test_good_content_model_planner_passes_new_contract_gates():
+    result = oracle.validate_output("wordpress-content-model-planner", GOOD_CONTENT_MODEL_PLANNER)
+    checks = {check["id"]: check for check in result["checks"]}
+
+    assert checks["content_model_editorial_guardrails_contract"]["passed"] is True, checks
+    assert checks["content_model_storage_decision_contract"]["passed"] is True, checks
+
+
+def test_content_model_planner_alias_resolves_to_same_contract():
+    result = oracle.validate_output("wordpress-planner.content-model", GOOD_CONTENT_MODEL_PLANNER)
+
+    assert result["skill"] == "wordpress-content-model-planner"
+
+
+def test_content_model_plan_without_editorial_guardrails_phase_fails():
+    candidate = GOOD_CONTENT_MODEL_PLANNER.replace(
+        "Editorial guardrails phase: completed\n", ""
+    )
+    result = oracle.validate_output("wordpress-content-model-planner", candidate)
+    failed = {check["id"] for check in result["checks"] if not check["passed"]}
+
+    assert "content_model_editorial_guardrails_contract" in failed
+
+
+def test_content_model_plan_with_false_lock_level_and_no_rationale_fails():
+    candidate = GOOD_CONTENT_MODEL_PLANNER.replace(
+        "Lock level rationale: the story type needs freeform layout for donor features.\n",
+        "",
+    )
+    result = oracle.validate_output("wordpress-content-model-planner", candidate)
+    failed = {check["id"] for check in result["checks"] if not check["passed"]}
+
+    assert "content_model_editorial_guardrails_contract" in failed
+
+
+def test_content_model_plan_defaulting_every_type_to_false_still_needs_rationale():
+    """Regression for the field finding: `template_lock => false` everywhere,
+    with no rationale, must not pass silently."""
+    candidate = GOOD_CONTENT_MODEL_PLANNER.replace(
+        "Lock level: contentOnly\n", "Lock level: false\n"
+    ).replace(
+        "Lock level rationale: the story type needs freeform layout for donor features.\n",
+        "",
+    )
+    result = oracle.validate_output("wordpress-content-model-planner", candidate)
+    failed = {check["id"] for check in result["checks"] if not check["passed"]}
+
+    assert "content_model_editorial_guardrails_contract" in failed
+
+
+def test_content_model_plan_without_storage_decision_rule_fails():
+    candidate = GOOD_CONTENT_MODEL_PLANNER.replace(
+        "Storage decision rule applied: yes\n", ""
+    )
+    result = oracle.validate_output("wordpress-content-model-planner", candidate)
+    failed = {check["id"] for check in result["checks"] if not check["passed"]}
+
+    assert "content_model_storage_decision_contract" in failed
+
+
+def test_content_model_plan_binding_without_editing_surface_fails():
+    """Regression for the field finding: a bound meta key with no named
+    editing surface (template-level-only or render-only) must fail."""
+    candidate = GOOD_CONTENT_MODEL_PLANNER.replace(
+        "Editing surface: event-dates block (register_block_bindings_source, setValues)\n",
+        "",
+    )
+    result = oracle.validate_output("wordpress-content-model-planner", candidate)
+    failed = {check["id"] for check in result["checks"] if not check["passed"]}
+
+    assert "content_model_storage_decision_contract" in failed
+
+
+SOURCE_MANIFEST = {
+    "schema": "wordpress-source-manifest",
+    "items": [
+        {"id": "event", "kind": "content_type"},
+        {"id": "story", "kind": "content_type"},
+        {"id": "event_type", "kind": "vocabulary"},
+        {"id": "gallery_component", "kind": "component"},
+    ],
+}
+
+
+def test_migration_disposition_coverage_passes_when_every_item_has_a_row():
+    result = oracle.validate_output(
+        "wordpress-content-model-planner",
+        GOOD_CONTENT_MODEL_PLANNER,
+        source_manifest=SOURCE_MANIFEST,
+    )
+    checks = {check["id"]: check for check in result["checks"]}
+
+    assert checks["content_model_migration_disposition_coverage"]["passed"] is True, checks
+
+
+def test_migration_disposition_coverage_fails_when_manifest_item_is_undispositioned():
+    manifest = {
+        "schema": "wordpress-source-manifest",
+        "items": SOURCE_MANIFEST["items"] + [{"id": "press_release", "kind": "content_type"}],
+    }
+    result = oracle.validate_output(
+        "wordpress-content-model-planner",
+        GOOD_CONTENT_MODEL_PLANNER,
+        source_manifest=manifest,
+    )
+    checks = {check["id"]: check for check in result["checks"]}
+
+    assert checks["content_model_migration_disposition_coverage"]["passed"] is False
+    assert "press_release" in checks["content_model_migration_disposition_coverage"]["detail"]
+
+
+def test_migration_disposition_coverage_is_absent_without_a_manifest():
+    result = oracle.validate_output("wordpress-content-model-planner", GOOD_CONTENT_MODEL_PLANNER)
+    ids = {check["id"] for check in result["checks"]}
+
+    assert "content_model_migration_disposition_coverage" not in ids
+
+
+def test_load_source_manifest_rejects_empty_items(tmp_path):
+    manifest_path = tmp_path / "source-manifest.json"
+    manifest_path.write_text(json.dumps({"items": []}), encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        oracle.load_source_manifest(manifest_path)

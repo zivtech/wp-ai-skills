@@ -1,0 +1,14 @@
+name: migration-mode-component-heavy
+suite: wordpress-planner.content-model
+skill_under_test: wordpress-planner.content-model
+skill_type: planner
+difficulty_tier: smoke
+provenance: synthetic
+expected_behavior:
+  - Runs migration mode and inventories every source content type, vocabulary, and component
+  - Gives every inventoried item exactly one disposition row with a stated criterion
+  - Cites source field cardinality and does not collapse a multi-value field to one value
+  - Does not merge vocabularies co-attached to the same source content type
+  - Completes the editorial-guardrails phase with a lock-level decision per content type
+  - Applies the storage decision rule and names an editing surface for bound fields
+  - Uses the required output contract and separates evidence from assumptions
