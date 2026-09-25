@@ -5,10 +5,12 @@ skill_type: planner
 difficulty_tier: smoke
 provenance: synthetic
 expected_behavior:
-  - Runs migration mode and inventories every source content type, vocabulary, and component
-  - Gives every inventoried item exactly one disposition row with a stated criterion
+  - Runs migration mode and inventories every source content type, vocabulary, component, and non-node surface (the placed site_footer_block)
+  - Gives every inventoried item exactly one keyed `Disposition row (<item-id>):` record naming its own manifest id
+  - Uses a disposition token from the content-model disposition vocabulary for each item, not a hedged or undecided value
+  - Disposes site_footer_block's embedded facts as a bound site setting/option, not literal text in a template part
   - Cites source field cardinality and does not collapse a multi-value field to one value
   - Does not merge vocabularies co-attached to the same source content type
-  - Completes the editorial-guardrails phase with a lock-level decision per content type
-  - Applies the storage decision rule and names an editing surface for bound fields
+  - Declares each content type and completes the editorial-guardrails phase with a keyed lock-level decision per declared content type
+  - Applies the storage decision rule and names a keyed editing surface matching every keyed binding source
   - Uses the required output contract and separates evidence from assumptions

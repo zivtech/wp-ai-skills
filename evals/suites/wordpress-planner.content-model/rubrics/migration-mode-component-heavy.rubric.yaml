@@ -1,19 +1,22 @@
 fixture: migration-mode-component-heavy
 skill_under_test: wordpress-planner.content-model
-max_score: 10
+max_score: 11
 criteria:
   - id: disposition_completeness
     weight: 3
-    description: Every source content type, vocabulary, and component in the fixture gets exactly one disposition row.
+    description: Every source content type, vocabulary, component, and the non-node site_footer_block gets exactly one keyed disposition row addressed by its own manifest id, not a shared or catch-all row.
   - id: component_disposition_rubric
     weight: 2
-    description: Each component's disposition (custom block, core block plus pattern, synced pattern with overrides, flatten, or drop) states its criterion.
+    description: Each component's disposition token (custom-block, pattern, synced-pattern-with-overrides, core-blocks, or drop) is from the allowed vocabulary and states a rationale.
+  - id: non_node_mapping_rule
+    weight: 1
+    description: site_footer_block's embedded facts (address, hours, social links) are bound as a site setting/option rather than hardcoded as literal text in a template part.
   - id: cardinality_and_vocabulary_gates
     weight: 2
     description: Cites source field cardinality and does not merge vocabularies co-attached to the same content type.
   - id: editorial_guardrails_and_storage_rule
     weight: 2
-    description: Records a lock-level decision per content type and an editing surface for every bound field.
+    description: Declares each content type and records a keyed lock-level decision per declared type, plus a keyed editing surface matching every keyed binding source.
   - id: calibration_and_handoff
     weight: 1
     description: Calibrates uncertainty and names the downstream planner/executor/critic handoff.
