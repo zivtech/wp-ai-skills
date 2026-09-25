@@ -1,0 +1,24 @@
+#!/bin/bash
+# git-hooks/pre-push — runs the default local CI gate before a push.
+#
+# Installed by git-hooks/install.sh into the repository's hooks directory
+# (.git/hooks/pre-push, or the shared hooks dir when run from a linked
+# worktree). Do not edit the installed copy directly; edit this file and
+# reinstall.
+#
+# The default gate (scripts/ci-local.sh with no flags) measured ~2m in this
+# repository as of 2026-09-24 — under the ~3 minute budget for a pre-push
+# hook — so this hook runs the full default gate, not a subset. If it grows
+# past that budget, switch this hook to a faster subset (validators +
+# non-Docker pytest) and keep documenting the full command in
+# CONTRIBUTING.md and README.md.
+#
+# Bypass: `git push --no-verify` skips this hook entirely.
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
+if [ -z "$REPO_ROOT" ]; then
+  echo "pre-push: could not determine repository root; skipping local CI gate" >&2
+  exit 0
+fi
+
+exec "$REPO_ROOT/scripts/ci-local.sh"
