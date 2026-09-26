@@ -535,6 +535,20 @@ def test_scenario_c_golden_manifest_is_schema_valid_and_stable() -> None:
     assert golden["environment"]["wp_env_runtime"] == "docker"
 
 
+def test_golden_plugin_check_evidence_is_wp_cli_answering_not_wp_env() -> None:
+    """The golden once grounded plugin_check on wp-env's own `run` usage text,
+    which is how a clean wp-env came to report Plugin Check as runnable."""
+    golden = json.loads(GOLDEN_WP_ENV.read_text(encoding="utf-8"))
+
+    for entry in golden["evidence"]:
+        assert "wp-env run <container>" not in entry["stdout_excerpt"], entry["claim"]
+    row = next(
+        entry for entry in golden["evidence"] if entry["claim"] == "verification_tools.plugin_check"
+    )
+    assert row["argv"] == [*golden["environment"]["invocation_prefix"], "help", "plugin", "check"]
+    assert "wp plugin check" in row["stdout_excerpt"]
+
+
 REQUIRE_TOOL_ENV = "WP_META_SKILLS_REQUIRE_TOOL"
 WP_ENV_PATH_ENV = "WP_META_SKILLS_WP_ENV_PATH"
 
@@ -654,6 +668,11 @@ MUST_REFUSE = [
     ["composer", "install"],
     ["npx", "--yes", "@wordpress/env", "start"],
     ["phpcs", "--standard=WordPress", "."],
+    # `plugin check` is off the allowlist, so neither a Plugin Check run nor
+    # the old `plugin check --help` probe (which wp-env answered itself) can
+    # be issued; the probe asks `help plugin check` instead.
+    ["wp", "plugin", "check", "--format=json"],
+    ["wp-env", "run", "cli", "wp", "plugin", "check", "--help"],
 ]
 
 PROBE_ISSUED_INVOCATIONS = [
@@ -685,7 +704,8 @@ PROBE_ISSUED_INVOCATIONS = [
     ["wp", "plugin", "list", "--format=json", "--fields=name,status,version,update"],
     ["wp", "theme", "list", "--format=json", "--fields=name,status,version"],
     ["wp", "ability", "list", "--format=json"],
-    ["wp", "plugin", "check", "--help"],
+    ["wp", "help", "plugin", "check"],
+    ["wp-env", "run", "cli", "wp", "help", "plugin", "check"],
 ]
 
 
@@ -1186,6 +1206,90 @@ def test_wp_env_tool_carries_the_playground_reason_when_not_winning(tmp_path: Pa
     assert wp_env_tool["status"] == "AVAILABLE"
     assert wp_env_tool["runtime"] == "playground"
     assert "wp_env_playground_runtime_has_no_cli" in wp_env_tool["notes"]
+
+
+# wp-env 11.12.0 parses `wp-env run` with yargs 17.7.3, which owns `--help`
+# anywhere in the argv and treats a trailing `help` positional as the same
+# request (its implicit help command). Either way wp-env prints its own `run`
+# usage and exits 0 without reaching WP-CLI; verified against a live wp-env on
+# 2026-09-26. Everything else is forwarded to the fake `wp` beside this shim,
+# the way `wp-env run cli wp ...` reaches the container's WP-CLI.
+FAKE_WP_ENV_TEMPLATE = """#!{interpreter}
+import os
+import sys
+
+args = sys.argv[1:]
+positionals = [token for token in args if not token.startswith("-")]
+if "--help" in args or positionals[-1:] == ["help"]:
+    sys.stdout.write({usage!r})
+    raise SystemExit(0)
+if args[:3] == ["run", "cli", "wp"]:
+    fake_wp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wp")
+    os.execv(fake_wp, ["wp", *args[3:]])
+raise SystemExit(1)
+"""
+
+WP_ENV_RUN_USAGE = (
+    "wp-env run <container> [command...]\n\n"
+    "Runs an arbitrary command in one of the underlying Docker containers.\n"
+)
+
+
+def _wp_env_project(tmp_path: Path, *, plugin_check_registered: bool) -> tuple[Path, Path]:
+    """A docker-runtime wp-env project whose `wp-env` forwards to the fake `wp`."""
+    root = tmp_path / "site"
+    root.mkdir()
+    (root / ".wp-env.json").write_text(json.dumps({"testsEnvironment": False}), encoding="utf-8")
+    failing = ("help ability", "help block", "help doctor", "help profile")
+    if not plugin_check_registered:
+        failing += ("help plugin check",)
+    bin_dir = _install_fake_wp(tmp_path, failing=failing)
+    shim = bin_dir / "wp-env"
+    shim.write_text(
+        FAKE_WP_ENV_TEMPLATE.format(interpreter=sys.executable, usage=WP_ENV_RUN_USAGE),
+        encoding="utf-8",
+    )
+    shim.chmod(shim.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    return root, bin_dir
+
+
+@pytest.mark.parametrize("registered", [False, True], ids=["absent", "registered"])
+def test_plugin_check_is_answered_by_wp_cli_not_by_the_wrapper(
+    tmp_path: Path, registered: bool
+) -> None:
+    """`<prefix> plugin check --help` let wp-env answer for WP-CLI, so a clean
+    wp-env reported plugin_check AVAILABLE on wp-env's own usage text."""
+    root, bin_dir = _wp_env_project(tmp_path, plugin_check_registered=registered)
+
+    manifest = _run_probe(root, [str(bin_dir)])
+
+    assert manifest["environment"]["invocation_prefix"] == ["wp-env", "run", "cli", "wp"]
+    plugin_check = manifest["verification_tools"]["plugin_check"]
+    assert manifest["capabilities"]["can_run_plugin_check"] is registered
+    if registered:
+        assert plugin_check["status"] == "AVAILABLE"
+        assert plugin_check["invocation"] == ["wp-env", "run", "cli", "wp", "plugin", "check"]
+    else:
+        assert plugin_check["status"] == "UNAVAILABLE"
+        assert plugin_check["reason"] == "plugin_check_command_absent"
+    row = next(
+        entry for entry in manifest["evidence"] if entry["claim"] == "verification_tools.plugin_check"
+    )
+    assert "wp-env run <container>" not in row["stdout_excerpt"]
+
+
+def test_no_routed_invocation_hands_the_wrapper_a_help_request(tmp_path: Path) -> None:
+    """A help request the wrapper can see is answered by the wrapper, so every
+    probe routed through the prefix must spell help as a WP-CLI subcommand."""
+    root, bin_dir = _wp_env_project(tmp_path, plugin_check_registered=True)
+
+    manifest = _run_probe(root, [str(bin_dir)])
+
+    prefix = manifest["environment"]["invocation_prefix"]
+    routed = [entry["argv"] for entry in manifest["evidence"] if entry["argv"][: len(prefix)] == prefix]
+    assert routed, "the prefix answered --info, so the WP-CLI probes must run through it"
+    for argv in routed:
+        assert "--help" not in argv and argv[-1] != "help", argv
 
 
 def test_studio_marker_is_labeled_with_the_file_that_matched(tmp_path: Path) -> None:

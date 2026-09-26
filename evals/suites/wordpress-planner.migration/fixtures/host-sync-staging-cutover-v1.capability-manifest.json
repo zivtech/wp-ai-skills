@@ -543,9 +543,9 @@
       "argv": [
         "ddev",
         "wp",
+        "help",
         "plugin",
-        "check",
-        "--help"
+        "check"
       ],
       "claim": "verification_tools.plugin_check",
       "duration_ms": 0,
