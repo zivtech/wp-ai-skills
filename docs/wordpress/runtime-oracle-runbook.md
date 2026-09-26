@@ -98,7 +98,7 @@ Diff the recording against the committed golden and classify every difference as
 
 If only the intended change differs, commit the recording and confirm equality with the `wp-env-golden` opt-in. Otherwise, splice only the intended fragments from the normalized recording with a script, check that the new golden minus those fragments is byte-identical to the old one, and say so in the commit message. Never type an evidence row by hand. In the default suite, `test_golden_records_every_help_root_the_probe_runs` fails when a `help` root is added to the probe without the golden.
 
-As of 2026-09-26 the committed golden also predates three `runtime_tools` filesystem evidence rows that the probe now records. The live comparison therefore fails on any machine until someone does a full re-record.
+The committed golden was last fully re-recorded on 2026-09-26 and includes the three `runtime_tools` filesystem evidence rows the probe records for `.ddev/providers/pressable.y[a]ml`, `.mcp.json`, and `node_modules/studio-mcp`. It bakes in container PHP 8.3.35, a Plugin Check update notice (a release newer than the pinned 2.0.0 exists), and `@wp-playground/cli@3.1.55` in the `playground_cli` npx error; expect those to drift first.
 
 ## Packet Gate
 
