@@ -4,7 +4,7 @@ All notable changes to `wp-ai-skills` will be documented in this file.
 
 ## Unreleased
 
-- Added the `wordpress-environment-probe` prober skill and `capability-manifest.json` contract (with its own output oracle). The manifest now records Local and Studio hosts, the WP-CLI prefix, and agent-facing runtime tool surfaces; per-fixture manifest sidecars are scored by the saved-output runner.
+- Added the `wordpress-environment-probe` prober skill and `capability-manifest.json` contract (with its own output oracle). The manifest now records Local and Studio hosts, the WP-CLI prefix, agent-facing runtime tool surfaces, and whether the `wp login` one-time-login package and its companion plugin are present; per-fixture manifest sidecars are scored by the saved-output runner.
 - Added the `wordpress-site-audit` auditor skill, which reports unchecked surfaces as `NOT CHECKED` rather than as passes.
 - Branched the migration planner and Blueprint executor on `runtime_tools`: host sync tools are treated as imports with side effects and require target confirmation, and the Blueprint executor names the Studio launch step.
 - Hardened the executor repair loop: deterministic phpcbf auto-fix stage, persisted phpcs diagnostics and how-to-satisfy WPCS hints in repair prompts, `--seed-packet` continuation, the `readme.txt` format contract, and a converged-artifact Linux handoff lane (`recertify_wordpress_executor_packet.py`).

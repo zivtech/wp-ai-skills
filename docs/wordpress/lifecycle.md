@@ -261,6 +261,8 @@ Record what is already there:
 <prefix> option get wp_cli_login
 ```
 
+The probe records the first two as `wp_cli.commands.login` and the `wordpress.notes` entry `wp_cli_login_server_present`; the [Capability Oracle](runtime-oracle-runbook.md#capability-oracle) section says what each does and does not prove.
+
 Write this pre-state to a walk-state file outside the repository, and later add each walk user's ID to it. Cleanup undoes only what that file lists, including after a crash or a lost session.
 
 Decide for each component separately. A component that was already there belongs to whoever installed it: use it, and never remove it.

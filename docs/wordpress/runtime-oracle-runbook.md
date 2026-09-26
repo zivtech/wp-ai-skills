@@ -25,6 +25,13 @@ Output is `capability-manifest.json`, validated against `evals/harness/schemas/c
 
 Ground truth is `<prefix> --info`, not a marker file. A marker file picks the invocation prefix; if the prefix does not answer, `environment.kind` is `UNKNOWN` regardless of which marker matched. The wp-env Playground runtime is called out specifically: it provides no `wp-env run`, therefore no WP-CLI, and the manifest reports `wp_env_playground_runtime_has_no_cli` rather than inferring a working CLI from the presence of `.wp-env.json`.
 
+The manifest also records the state that the role-scoped browser checks in [lifecycle.md](lifecycle.md#browser-checks-as-a-specific-role-local-sites-only) depend on:
+
+- `wp_cli.commands.login` is `AVAILABLE` when `<prefix> help login` exits `0`. That proves some `login` command root is installed, not that it is `aaemnnosttv/wp-cli-login-command`. A clean site reports `UNAVAILABLE` with `package_not_installed`.
+- The `wordpress.notes` entry `wp_cli_login_server_present` appears when the `plugin list` probe exited `0` and printed a list with a row named exactly `wp-cli-login-server`, in any state: active, inactive, or must-use. The note does not say the plugin is active; read its row in `wordpress.active_plugins`. An absent note means the plugin is absent only when the `wordpress.active_plugins` evidence row shows `exit_code` `0` and `active_plugins` is non-empty. It never rules out a copy that the list does not show under that exact name, such as a Composer-installed must-use copy in a subdirectory or a renamed directory.
+
+Minting a link needs both the package and an active companion plugin. The probe does not enumerate users or roles, and it installs nothing. Because `login` needs its own package, an output that instructs `wp login`, including `wp login install`, fails `check_capability_grounding` against a manifest where `login` is `UNAVAILABLE`. Before setup, only `wp package install` grounds, and the rest of the sequence needs a re-probe.
+
 Consume the manifest as a sidecar, exactly like `security-gate.json`:
 
 ```bash
@@ -65,7 +72,17 @@ Two fail-closed opt-ins drive the live wp-env tests in `evals/harness/tests/test
 - `WP_META_SKILLS_REQUIRE_TOOL=wp-env` runs the environment-independent invariants against a live wp-env; CI's `live-wp-env-probe` job provisions a scratch project (`{"core": null, "plugins": ["https://downloads.wordpress.org/plugin/plugin-check.zip"], "testsEnvironment": false}`) with pinned `@wordpress/env@11.12.0` and runs exactly this.
 - `WP_META_SKILLS_REQUIRE_TOOL=wp-env-golden` additionally checks byte-equality with `evals/harness/tests/fixtures/capability_manifest/golden-wp-env-docker.json`. The golden bakes in the recording machine's host toolchain (host `php`/`node`/`composer` versions and the project's vendored `phpcs`/`phpstan`), so this check belongs on the recording machine, not in CI.
 
-Both take `WP_META_SKILLS_WP_ENV_PATH=<wp-env-project-root>`. To re-record the golden after an intentional manifest change: start the recording project's wp-env, run `probe(root, allow_eval=False, argv=["probe_wordpress_environment.py", "--path", "."])`, pass the result through `normalize_manifest`, and write it with `json.dumps(..., indent=2, sort_keys=True)` plus a trailing newline; then run the `wp-env-golden` opt-in to confirm equality before committing.
+Both take `WP_META_SKILLS_WP_ENV_PATH=<wp-env-project-root>`. To re-record the golden after an intentional manifest change, start the recording project's wp-env, run `probe(root, allow_eval=False, argv=["probe_wordpress_environment.py", "--path", "."])`, pass the result through `normalize_manifest`, and write it with `json.dumps(..., indent=2, sort_keys=True)` plus a trailing newline. The recording project is a wp-env project on port 8901 with `{"core": "WordPress/WordPress#7.0.3", "plugins": ["https://downloads.wordpress.org/plugin/plugin-check.2.0.0.zip"], "testsEnvironment": false}`. Its Composer dev dependencies are `squizlabs/php_codesniffer` 3.13.6, `wp-coding-standards/wpcs` 3, `phpstan/phpstan` 2.2.8, and `php-stubs/wordpress-stubs` 6.9.4, and it runs with node 24.13.0 first on `PATH`, so that `npx --no-install @wordpress/env` resolves 11.12.0.
+
+Diff the recording against the committed golden and classify every difference as one of three kinds:
+
+- the intended change;
+- drift in the host toolchain, the container images, or a registry, for example a newer PHP patch release in the container, a plugin update notice, or a newer npm package version;
+- anything else, which stops the re-record.
+
+If only the intended change differs, commit the recording and confirm equality with the `wp-env-golden` opt-in. Otherwise, splice only the intended fragments from the normalized recording with a script, check that the new golden minus those fragments is byte-identical to the old one, and say so in the commit message. Never type an evidence row by hand. In the default suite, `test_golden_records_every_help_root_the_probe_runs` fails when a `help` root is added to the probe without the golden.
+
+As of 2026-09-26 the committed golden also predates three `runtime_tools` filesystem evidence rows that the probe now records. The live comparison therefore fails on any machine until someone does a full re-record.
 
 ## Packet Gate
 
