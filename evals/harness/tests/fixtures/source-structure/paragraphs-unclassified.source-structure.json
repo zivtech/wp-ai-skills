@@ -1,0 +1,415 @@
+{
+  "contract_version": "1.2.0",
+  "project": "example-water-utility",
+  "generated_at": "2026-09-26T00:00:00Z",
+  "generator": {
+    "name": "drupal-source-inventory",
+    "version": "1.2.0"
+  },
+  "samples_enabled": false,
+  "data_quality": {
+    "unresolved_tables": []
+  },
+  "counts": {
+    "node_bundle": 2,
+    "paragraph_type": 8,
+    "paragraphs_library_item": 1,
+    "block_content": 1,
+    "placement": 1,
+    "menu": 1,
+    "total": 14
+  },
+  "components": [
+    {
+      "id": "service_page",
+      "kind": "node_bundle",
+      "label": "Service Page",
+      "fields": [
+        {
+          "name": "body",
+          "field_type": "text_with_summary",
+          "role": "PROSE",
+          "role_source": "heuristic"
+        },
+        {
+          "name": "field_sections",
+          "field_type": "entity_reference_revisions",
+          "role": "REF",
+          "role_source": "reviewed",
+          "target_entity_type": "paragraph",
+          "cardinality": -1
+        }
+      ],
+      "key": "node_bundle:service_page"
+    },
+    {
+      "id": "outage_notice",
+      "kind": "node_bundle",
+      "label": "Outage Notice",
+      "fields": [
+        {
+          "name": "field_outage_start",
+          "field_type": "datetime",
+          "role": "FACT",
+          "role_source": "reviewed"
+        },
+        {
+          "name": "field_affected_streets",
+          "field_type": "string",
+          "role": "FACT",
+          "role_source": "reviewed",
+          "cardinality": -1
+        },
+        {
+          "name": "field_sections",
+          "field_type": "entity_reference_revisions",
+          "role": "REF",
+          "role_source": "reviewed",
+          "target_entity_type": "paragraph",
+          "cardinality": -1
+        }
+      ],
+      "key": "node_bundle:outage_notice"
+    },
+    {
+      "id": "hero_banner",
+      "kind": "paragraph_type",
+      "label": "Hero Banner",
+      "fields": [
+        {
+          "name": "field_heading",
+          "field_type": "string",
+          "role": "PROSE",
+          "role_source": "heuristic"
+        },
+        {
+          "name": "field_image",
+          "field_type": "entity_reference",
+          "role": "MEDIA",
+          "role_source": "heuristic",
+          "target_entity_type": "media"
+        },
+        {
+          "name": "field_dark_theme",
+          "field_type": "boolean",
+          "role": "PRESENTATION",
+          "role_source": "heuristic"
+        }
+      ],
+      "usage": {
+        "total_instances": 140,
+        "published_hosts": 131,
+        "unpublished_hosts": 9,
+        "library_owned_instances": 0,
+        "block_hosted_instances": 0,
+        "unresolved_instances": 0,
+        "shared_by_multiple_hosts": 0,
+        "distinct_host_count": 140
+      },
+      "render_behavior": {
+        "own_fields_only": true,
+        "queries_other_content": false,
+        "global_settings_or_state": false,
+        "hardcoded_content": false
+      },
+      "render_source": "authored",
+      "key": "paragraph_type:hero_banner"
+    },
+    {
+      "id": "rate_table",
+      "kind": "paragraph_type",
+      "label": "Rate Table",
+      "fields": [
+        {
+          "name": "field_tier_name",
+          "field_type": "string",
+          "role": "PROSE",
+          "role_source": "heuristic"
+        },
+        {
+          "name": "field_rate_per_kgal",
+          "field_type": "decimal",
+          "role": "FACT",
+          "role_source": "reviewed",
+          "fill_rate_pct": 97.0
+        },
+        {
+          "name": "field_effective_date",
+          "field_type": "datetime",
+          "role": "FACT",
+          "role_source": "reviewed",
+          "fill_rate_pct": 100.0
+        }
+      ],
+      "usage": {
+        "total_instances": 36,
+        "published_hosts": 30,
+        "unpublished_hosts": 6,
+        "library_owned_instances": 0,
+        "block_hosted_instances": 0,
+        "unresolved_instances": 0,
+        "shared_by_multiple_hosts": 0,
+        "distinct_host_count": 12
+      },
+      "render_behavior": {
+        "own_fields_only": true,
+        "queries_other_content": false,
+        "global_settings_or_state": false,
+        "hardcoded_content": false
+      },
+      "render_source": "authored",
+      "key": "paragraph_type:rate_table"
+    },
+    {
+      "id": "faq_item",
+      "kind": "paragraph_type",
+      "label": "FAQ Item",
+      "fields": [
+        {
+          "name": "field_question",
+          "field_type": "string",
+          "role": "PROSE",
+          "role_source": "heuristic"
+        },
+        {
+          "name": "field_answer",
+          "field_type": "text_long",
+          "role": "PROSE",
+          "role_source": "heuristic"
+        }
+      ],
+      "usage": {
+        "total_instances": 410,
+        "published_hosts": 388,
+        "unpublished_hosts": 22,
+        "library_owned_instances": 0,
+        "block_hosted_instances": 0,
+        "unresolved_instances": 0,
+        "shared_by_multiple_hosts": 0,
+        "distinct_host_count": 61
+      },
+      "render_behavior": {
+        "own_fields_only": true,
+        "queries_other_content": false,
+        "global_settings_or_state": false,
+        "hardcoded_content": false
+      },
+      "render_source": "authored",
+      "key": "paragraph_type:faq_item"
+    },
+    {
+      "id": "text_with_image",
+      "kind": "paragraph_type",
+      "label": "Text With Image",
+      "fields": [
+        {
+          "name": "field_text",
+          "field_type": "text_long",
+          "role": "PROSE",
+          "role_source": "heuristic"
+        },
+        {
+          "name": "field_image",
+          "field_type": "entity_reference",
+          "role": "MEDIA",
+          "role_source": "heuristic",
+          "target_entity_type": "media"
+        },
+        {
+          "name": "field_image_left",
+          "field_type": "boolean",
+          "role": "PRESENTATION",
+          "role_source": "heuristic"
+        }
+      ],
+      "usage": {
+        "total_instances": 520,
+        "published_hosts": 497,
+        "unpublished_hosts": 23,
+        "library_owned_instances": 4,
+        "block_hosted_instances": 0,
+        "unresolved_instances": 0,
+        "shared_by_multiple_hosts": 0,
+        "distinct_host_count": 203
+      },
+      "render_behavior": {
+        "own_fields_only": true,
+        "queries_other_content": false,
+        "global_settings_or_state": false,
+        "hardcoded_content": false
+      },
+      "render_source": "authored",
+      "key": "paragraph_type:text_with_image"
+    },
+    {
+      "id": "service_area_list",
+      "kind": "paragraph_type",
+      "label": "Service Area List",
+      "fields": [
+        {
+          "name": "field_listing",
+          "field_type": "entity_reference",
+          "role": "CONFIG",
+          "role_source": "heuristic",
+          "target_entity_type": "view"
+        }
+      ],
+      "usage": {
+        "total_instances": 18,
+        "published_hosts": 18,
+        "unpublished_hosts": 0,
+        "library_owned_instances": 0,
+        "block_hosted_instances": 0,
+        "unresolved_instances": 0,
+        "shared_by_multiple_hosts": 0,
+        "distinct_host_count": 18
+      },
+      "render_behavior": {
+        "own_fields_only": false,
+        "queries_other_content": true,
+        "global_settings_or_state": false,
+        "hardcoded_content": false
+      },
+      "render_source": "authored",
+      "key": "paragraph_type:service_area_list"
+    },
+    {
+      "id": "callout_band",
+      "kind": "paragraph_type",
+      "label": "Callout Band",
+      "fields": [
+        {
+          "name": "field_style",
+          "field_type": "list_string",
+          "role": "PRESENTATION",
+          "role_source": "heuristic"
+        },
+        {
+          "name": "field_text",
+          "field_type": "string",
+          "role": "PROSE",
+          "role_source": "heuristic"
+        }
+      ],
+      "usage": {
+        "total_instances": 95,
+        "published_hosts": 90,
+        "unpublished_hosts": 5,
+        "library_owned_instances": 0,
+        "block_hosted_instances": 0,
+        "unresolved_instances": 0,
+        "shared_by_multiple_hosts": 0,
+        "distinct_host_count": 77
+      },
+      "render_behavior": {
+        "own_fields_only": true,
+        "queries_other_content": false,
+        "global_settings_or_state": false,
+        "hardcoded_content": false
+      },
+      "render_source": "authored",
+      "key": "paragraph_type:callout_band"
+    },
+    {
+      "id": "legacy_iframe",
+      "kind": "paragraph_type",
+      "label": "Legacy Iframe",
+      "fields": [
+        {
+          "name": "field_src",
+          "field_type": "link",
+          "role": "CONFIG",
+          "role_source": "heuristic"
+        }
+      ],
+      "usage": {
+        "total_instances": 0,
+        "published_hosts": 0,
+        "unpublished_hosts": 0,
+        "library_owned_instances": 0,
+        "block_hosted_instances": 0,
+        "unresolved_instances": 0,
+        "shared_by_multiple_hosts": 0,
+        "distinct_host_count": 0
+      },
+      "flags": {
+        "dead_zero_instances": true,
+        "only_in_unpublished_content": false,
+        "only_orphaned_detached_instances": false
+      },
+      "render_source": "none",
+      "key": "paragraph_type:legacy_iframe"
+    },
+    {
+      "id": "1",
+      "kind": "paragraphs_library_item",
+      "label": "Storm Preparation Checklist",
+      "usage": {
+        "total_instances": 1,
+        "published_hosts": 0,
+        "unpublished_hosts": 0,
+        "library_owned_instances": 1,
+        "block_hosted_instances": 0,
+        "unresolved_instances": 0,
+        "shared_by_multiple_hosts": 0,
+        "distinct_host_count": 9
+      },
+      "key": "paragraphs_library_item:1"
+    },
+    {
+      "id": "1",
+      "kind": "block_content",
+      "label": "Footer Contact (main)",
+      "key": "block_content:1"
+    },
+    {
+      "id": "footer_contact_main",
+      "kind": "placement",
+      "label": "Footer Contact placement",
+      "key": "placement:footer_contact_main"
+    },
+    {
+      "id": "main",
+      "kind": "menu",
+      "label": "Main navigation",
+      "key": "menu:main"
+    },
+    {
+      "id": "pull_quote",
+      "kind": "paragraph_type",
+      "label": "Pull Quote",
+      "fields": [
+        {
+          "name": "field_quote",
+          "field_type": "text_long",
+          "role": "PROSE",
+          "role_source": "heuristic"
+        },
+        {
+          "name": "field_attribution",
+          "field_type": "string",
+          "role": "PROSE",
+          "role_source": "heuristic"
+        }
+      ],
+      "usage": {
+        "total_instances": 57,
+        "published_hosts": 54,
+        "unpublished_hosts": 3,
+        "library_owned_instances": 0,
+        "block_hosted_instances": 0,
+        "unresolved_instances": 0,
+        "shared_by_multiple_hosts": 0,
+        "distinct_host_count": 40
+      },
+      "render_behavior": {
+        "own_fields_only": true,
+        "queries_other_content": false,
+        "global_settings_or_state": false,
+        "hardcoded_content": false
+      },
+      "render_source": "authored",
+      "key": "paragraph_type:pull_quote"
+    }
+  ]
+}
