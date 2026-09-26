@@ -109,6 +109,8 @@ python3 evals/harness/run_wordpress_runtime_smoke.py --artifact-path <generated-
 
 This proves packet validation, materialization, static artifact certification, plugin activation in `wp-env`, artifact-local Composer install when `composer.json` exists, PHPUnit, WPCS/PHPCS, and Plugin Check. It does not prove browser/editor behavior, block behavior, MCP Adapter exposure, AI Client provider calls, broad WordPress integration-test coverage, or release readiness.
 
+For a manual check of wp-admin or editor screens as a specific role on a local site, see [Browser Checks As A Specific Role](#browser-checks-as-a-specific-role-local-sites-only).
+
 To prove a generated MCP-public Abilities API plugin through the WordPress MCP
 Adapter, certify/materialize the packet, then run the generated plugin through
 the disposable runtime harness:
@@ -205,6 +207,152 @@ serialized markup, and rendered on the frontend. The first local proof is
 It does not prove Interactivity API behavior, MCP Adapter exposure, AI Client
 provider-call behavior, cross-browser behavior, every historical deprecation
 variant, or release readiness.
+
+## Browser Checks As A Specific Role (Local Sites Only)
+
+The gates above prove nothing about how wp-admin or the block editor behaves for a logged-in person. A manual browser check fills part of that gap, but without a pattern it goes wrong in two ways. The browser needs a logged-in session, and nobody should type, see, or store a password to get one. And a check run as Administrator holds every capability, so a screen can look right to an admin and be broken for the role that uses it.
+
+This section is a manual procedure for local development sites the operator controls. It opens one-time login links minted by the third-party WP-CLI package `aaemnnosttv/wp-cli-login-command`. It is not an oracle and not a gate. `<prefix>` below is the capability manifest's `environment.invocation_prefix`: every WP-CLI command runs through it. On wp-env the prefix is `wp-env run cli wp`, so `<prefix> plugin list` runs as `wp-env run cli wp plugin list`. That `wp-env` is the `@wordpress/env` binary the probe just ran. Never run `npx wp-env`: that unscoped npm name belongs to an unrelated package. If `wp-env` is not installed, use the pinned `npx -y @wordpress/env@11.12.0` in its place.
+
+### Preconditions
+
+Probe first, then read the environment type:
+
+```bash
+python3 evals/harness/probe_wordpress_environment.py --path <project-root> --print
+<prefix> eval 'echo wp_get_environment_type();'
+```
+
+Continue only when all of these hold:
+
+- `environment.kind` is `wp-env`, `ddev`, `lando`, `localwp`, or `studio`. `generic-local` needs the operator's explicit confirmation that the site is a local copy. Stop on `remote-alias` or `UNKNOWN`.
+- The environment type is `local` or `development`. Stop on anything else until the operator confirms. That includes `production`, which is what WordPress reports when nothing sets the type.
+- No share or tunnel exposes the site while a login link or a walk session is live, for example Local's Live Link or `ddev share`.
+- Nothing pushes or syncs from the site until cleanup is verified.
+
+Only wp-env (Docker) has been run end to end with this procedure. DDEV, Lando, Local, Studio, and generic-local are untested, and Studio's support for WP-CLI packages is unknown.
+
+### Approval
+
+Get the operator's approval before installing anything or creating users, and name what gets installed and where:
+
+- The WP-CLI package `aaemnnosttv/wp-cli-login-command` (MIT, v1.5.0, released 2023-06-25). On wp-env it installs into the CLI container's per-project home volume, which `wp-env destroy` removes; the host's `~/.wp-cli` is untouched. On DDEV and Lando it should likewise stay inside the container. On Local and generic-local it installs into the host user's `~/.wp-cli/packages`, which affects every site that user runs WP-CLI against.
+- Its companion plugin `wp-cli-login-server`, copied into `wp-content/plugins/`. That directory may be a git working tree.
+- One synthetic user per role the walk needs.
+
+The companion plugin alone is inert: it only answers links that WP-CLI minted. The risks are a minted link, which logs in whoever opens it until it is used, invalidated, or expires; the session that link creates; and whose identity the walk uses.
+
+### Pre-state and setup
+
+Record what is already there:
+
+```bash
+<prefix> package list
+<prefix> plugin list
+```
+
+Decide for each component separately. A component that was already there belongs to whoever installed it: use it, and never remove it.
+
+- The package: if `aaemnnosttv/wp-cli-login-command` is listed, use it. Otherwise install it, then record the version that `<prefix> package list` reports:
+
+  ```bash
+  <prefix> package install aaemnnosttv/wp-cli-login-command:^1.5
+  ```
+
+- The companion plugin: if a `wp-cli-login-server` row is `active` or `must-use`, use it. If it is `inactive`, stop: activating someone else's login path is not the walk's decision. If there is no row, install and activate it:
+
+  ```bash
+  <prefix> login install --activate
+  ```
+
+Never pass `--yes` or `--mu` to `login install`. A fresh install never prompts. A prompt, or the text `Update aborted by user.`, means a copy exists that the pre-state missed: stop. Read the output, not the exit code, because an aborted install still exits `0`. If `package install` fails while cloning over SSH (upstream issue #84), stop. Never install the package from a fork, a zip, or any other source.
+
+### Identity
+
+- Never log in as a real person on a site you did not create for this walk.
+- Create one synthetic user per role, with approval. `--porcelain` makes `user create` print only the new user's ID; without it, WP-CLI prints the generated password.
+
+  ```bash
+  <prefix> user create walk-editor walk-editor@example.test --role=editor --porcelain
+  ```
+
+- Never pass `--user_pass` on a command line.
+- Look a walk user up by login, never by listing a role: `<prefix> user get walk-editor --field=ID`. On a kept site, a role listing returns real people's IDs.
+
+### Mint and open
+
+Where the browser is driven by a CLI, mint and open in one step, so the link never reaches output the agent reads. `--url-only` prints only the link on stdout, and `wp-env run` writes its own status lines to stderr, so the capture holds only the link. The `case` line rejects anything else, such as an update prompt from an older companion plugin, and a link that did not open is invalidated at once. Quote the screen URL, give each walk user its own isolated browser session, and never run this under `set -x`:
+
+```bash
+url="$(<prefix> login as <walk-user-id> --url-only --expires=120 --redirect-url='<screen-url>')"
+case "$url" in '' | *[[:space:]]*) url= ;; http://* | https://*) ;; *) url= ;; esac
+if [ -n "$url" ] && <browser-cli> open "$url" >/dev/null 2>&1; then echo opened; else echo "not opened"; <prefix> login invalidate; fi
+unset url
+```
+
+Then confirm where the browser landed and as whom, for example by reading the page URL and the admin bar's account name. While the browser CLI runs, the link is in its argv, where `ps` and endpoint command-line logging can see it. That exposure is accepted because the link is single-use and expires in two minutes.
+
+MCP browser tools take the URL as a tool argument, so it lands in the transcript. That is tolerable only for the same reason. Either way, once the browser lands on the screen, run `<prefix> login invalidate`. It takes no arguments and rotates the endpoint for every outstanding link, including links minted by the owner of a pre-existing package. It does not end a session that a link already opened.
+
+A link must be used or invalidated before the walk ends. Never copy one into a repository file, a commit, PR or issue text, or an evidence record.
+
+### Browser and role
+
+- Use an isolated automation profile: a fresh session with no saved logins. Never use the operator's everyday browser profile or attach to their running browser.
+- Do not dump cookies, HAR files, or traces during a walk. A session cookie outlives the link that created it.
+- Check each screen as the role that uses it. Use Administrator only for admin-only screens, or to test whether a finding is role-specific. An admin pass never stands in for a role pass.
+
+### Records
+
+For each check, record:
+
+- the walk user's ID and role
+- the screen URL (the redirect target, never the login link)
+- the WordPress version and the package version
+- the date
+- the editor chrome state: settings sidebar open or closed, the active sidebar tab, and panel preferences
+
+Before reporting a control as missing, re-check it with the settings sidebar open on each relevant tab. Records stay with the project they describe; only walks of synthetic sites belong in this repository.
+
+### Read-only by default
+
+No saves, publishes, settings changes, or profile changes without the operator's approval. Some writes happen anyway:
+
+- Opening the new-post screen creates an auto-draft.
+- WordPress saves per-user editor preferences, such as sidebar state.
+- Login creates a session and fires `wp_login`, which audit, security, and mail plugins act on. That is another reason to walk as synthetic `example.test` users.
+
+### Cleanup
+
+Undo only what this walk added, in this order:
+
+1. `<prefix> login invalidate`
+2. `<prefix> user session destroy <walk-user-id> --all` for each walk user.
+3. If this walk installed the companion plugin: `<prefix> plugin deactivate wp-cli-login-server`, then `<prefix> plugin delete wp-cli-login-server`, then `<prefix> option delete wp_cli_login`.
+4. If this walk installed the package: `<prefix> package uninstall aaemnnosttv/wp-cli-login-command`.
+5. `<prefix> user delete <walk-user-id> --yes` for each walk user. Without `--reassign`, WordPress deletes the user's content, but it moves posts and pages, including the walk's auto-drafts, to the Trash. List them with `<prefix> post list --post_status=trash --author=<walk-user-id> --post_type=post,page --format=ids`, and delete each ID listed with `<prefix> post delete <ids> --force`.
+6. `git status` in any `wp-content` that is a git working tree.
+7. Verify. `<prefix> plugin list` and `<prefix> package list` no longer list what this walk installed. `<prefix> user get <walk-user-login>` fails for each walk user. If this walk installed the plugin, `<prefix> option get wp_cli_login` fails. A re-probe matches the pre-walk manifest. An absent row counts only when its command exited `0` and printed the list.
+8. Only after that, destroy a throwaway wp-env from its project root with `printf 'y\n' | wp-env destroy`. It prompts, and with no input it prints `Cancelled.` and removes nothing. Then confirm that no container, volume, or network for the project remains and that nothing listens on its port.
+
+If the package breaks mid-walk, `<prefix> option delete wp_cli_login` alone stops every outstanding link.
+
+### Stop conditions
+
+A stop ends the walk, not the cleanup. After any stop that follows setup or user creation, run cleanup steps 1–7 for whatever this walk added, then report. Stop when:
+
+- A two-factor or security plugin interferes with the login (upstream issue #72). The session may already exist, so run cleanup step 2 first. Never disable a security plugin to make a walk work.
+- `login install` prompts, or prints `Update aborted by user.`
+- A pre-existing `wp-cli-login-server` is inactive.
+- `package install` fails while cloning over SSH (upstream issue #84).
+- An unconsumed link appears anywhere, or any link reaches a repository file, a commit, PR or issue text, or an evidence record. Run `<prefix> login invalidate`.
+- A `wordpress_logged_in_*` or `wordpress_sec_*` cookie value reaches output the agent reads. Run `<prefix> user session destroy <walk-user-id> --all`.
+- A generated password appears anywhere. Delete the walk user, or run `<prefix> user reset-password <walk-user-id> --skip-email`.
+- Any command runs `npx` on an unscoped or unpinned package, such as `npx wp-env`.
+
+### What a walk does not prove
+
+A walk is one walker on one site in one run. It is not a gate, not accessibility conformance, and not a cross-browser check, and it can be confidently wrong about UI state. No distributed skill instructs this procedure yet; see the G4 row in [coverage-matrix.md](coverage-matrix.md).
 
 ## Review Checkpoints
 
