@@ -591,15 +591,15 @@
         "run",
         "cli",
         "wp",
+        "help",
         "plugin",
-        "check",
-        "--help"
+        "check"
       ],
       "claim": "verification_tools.plugin_check",
       "duration_ms": 0,
       "exit_code": 0,
-      "stderr_excerpt": "",
-      "stdout_excerpt": "wp-env run <container> [command...]\n\nRuns an arbitrary command in one of the underlying Docker containers. Use a double dash to pass\narguments to it. You can use bash to open a shell session. composer and phpunit are available in all\nWordPress and CLI containers. wp is also available in the CLI containers.\n\nPositionals:\n  container  The underlying Docker service to run the command on.\n        [string] [required] [choices: \"mysql\", \"tests-mysql\", \"wordpress\", \"tests-wordpress\", \"cli\","
+      "stderr_excerpt": "\u2139 Starting 'wp help plugin check' on the cli container. \n\n\u2714 Ran `wp help plugin check` in 'cli'. (in <normalized>)",
+      "stdout_excerpt": "NAME\n\n  wp plugin check\n\nDESCRIPTION\n\n  Runs plugin check.\n\nSYNOPSIS\n\n  wp plugin check <plugin> [--checks=<checks>] [--exclude-checks=<checks>]\n  [--ignore-codes=<codes>] [--format=<format>] [--categories]\n  [--fields=<fields>] [--ignore-warnings] [--ignore-errors]\n  [--include-experimental] [--exclude-directories=<directories>]\n  [--exclude-files=<files>] [--severity=<severity>]\n  [--error-severity=<error-severity>] [--warning-severity=<warning-severity>]\n  [--include-low-severity-errors] [--include-low-severity-warnings]\n  [--slug=<slug>] [--mode=<mode>] [--ai] [--ai-model=<model>]\n\nOPTIONS\n\n  <plugin>\n    The plugin to check. Plugin name.\n\n  [--checks=<checks>]\n    Only runs checks provided as an argument in comma-separated values, e.g.\n    i18n_usage, late_escaping. Otherwise runs all checks.\n\n  [--exclude-checks=<checks>]\n    Exclude checks provided as an argument in comma-separated values, e.g.\n    i18n_usage, late_escaping.\n    Applies after evaluating `--checks`.\n\n  [--ignore-codes=<codes>]\n    Ignore error codes provided as an argument in comma-separated values.\n\n  [--format=<format>]\n    Format to display the results. Options are table, csv, json, ctrf,\n    strict-table, strict-csv, strict-json, and strict-ctrf. The default will be\n    a table.\n    ---\n    default: table\n    options:\n      - table\n      - csv\n      - json\n      - ctrf\n      - strict-table\n      - strict-csv\n      - strict-json\n      - strict-ctrf\n    ---\n\n  [--categories]\n    Limit displayed results to include only specific categories Checks.\n\n  [--fields=<fields>]\n    Limit displayed results to a subset of fields provided.\n\n  [--ignore-warnings]\n    Limit displayed results to exclude warnings.\n\n  [--ignore-errors]\n    Limit displayed results to exclude errors.\n\n  [--include-experimental]\n    Include experimental checks.\n\n  [--exclude-directories=<directories>]\n    Additional directories to exclude from checks.\n    By default, `.git`, `vendor`, `vendor_prefixed`, `vendor-prefixed` and\n   "
     },
     {
       "argv": [

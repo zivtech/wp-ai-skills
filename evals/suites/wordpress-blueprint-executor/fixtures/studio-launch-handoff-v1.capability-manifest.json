@@ -543,15 +543,15 @@
       "argv": [
         "studio",
         "wp",
+        "help",
         "plugin",
-        "check",
-        "--help"
+        "check"
       ],
       "claim": "verification_tools.plugin_check",
       "duration_ms": 0,
       "exit_code": 0,
       "stderr_excerpt": "",
-      "stdout_excerpt": "Usage: studio <command>\n\nCommands:\n  mcp      Start the MCP server\n  wp       Run WP-CLI"
+      "stdout_excerpt": "WP-CLI version:\t2.12.0"
     },
     {
       "argv": [

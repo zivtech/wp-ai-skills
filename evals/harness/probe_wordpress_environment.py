@@ -43,7 +43,7 @@ PLUGIN_CHECK_TIMEOUT_SEC = 60
 # Worst case per environment: 30 probes at the 20s default (3 host versions,
 # `--info`, `cli version`, 10 `help` roots, 7 WordPress reads, `ability list`,
 # 5 verification-tool versions, Studio's `--help` and `--version`) plus the 60s
-# `plugin check --help` is 660s, eleven minutes. The budget bounds the whole run
+# `help plugin check` is 660s, eleven minutes. The budget bounds the whole run
 # so a wall of hanging commands cannot stall the caller indefinitely.
 DEFAULT_BUDGET_SEC = 300
 EXCERPT_LIMIT = 2000
@@ -180,7 +180,6 @@ READ_ONLY_WP_SUBCOMMANDS = frozenset(
         "plugin list",
         "theme list",
         "ability list",
-        "plugin check",
     }
 )
 
@@ -1447,9 +1446,14 @@ def _probe_verification_tools(
         tools["phpstan"] = _tool("UNAVAILABLE", reason=phpstan["error"] or "phpstan_version_failed")
 
     if prefix is not None and manifest["wp_cli"]["status"] == "AVAILABLE":
+        # Help as a WP-CLI subcommand, never as `--help`: a wrapper prefix
+        # parses its own flags, and wp-env answers `wp-env run cli wp plugin
+        # check --help` with its own usage and exit 0 without reaching WP-CLI.
+        # WP-CLI exits non-zero when no `plugin check` command is registered,
+        # which includes an installed but inactive Plugin Check.
         plugin_check = runner.run(
             "verification_tools.plugin_check",
-            [*prefix, "plugin", "check", "--help"],
+            [*prefix, "help", "plugin", "check"],
             timeout=PLUGIN_CHECK_TIMEOUT_SEC,
         )
         if plugin_check["ok"]:
