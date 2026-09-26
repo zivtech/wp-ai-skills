@@ -34,6 +34,8 @@ import sys
 CLI_VERSION = {cli_version!r}
 BANNER = {banner!r}
 FAILING = set({failing!r})
+PLUGINS = {plugins!r}
+PLUGIN_LIST_MODE = {plugin_list_mode!r}
 
 args = [token for token in sys.argv[1:] if not token.startswith("-")]
 flags = [token for token in sys.argv[1:] if token.startswith("-")]
@@ -58,9 +60,12 @@ elif path == "config get MULTISITE":
 elif path.startswith("option get"):
     sys.stdout.write("http://localhost:8888\\n")
 elif path.startswith("plugin list"):
-    sys.stdout.write(json.dumps([
-        {{"name": "plugin-check", "status": "active", "version": "2.0.0"}},
-    ]) + "\\n")
+    if PLUGIN_LIST_MODE == "not-json":
+        sys.stdout.write("WP-CLI version:\\t2.12.0\\n")
+    else:
+        sys.stdout.write(json.dumps(PLUGINS) + "\\n")
+    if PLUGIN_LIST_MODE == "json-exit-1":
+        raise SystemExit(1)
 elif path.startswith("theme list"):
     sys.stdout.write("[]\\n")
 elif path.startswith("eval"):
@@ -69,6 +74,9 @@ raise SystemExit(0)
 """
 
 DEFAULT_BANNER = "OS:\tDarwin\nPHP version:\t8.3.7\nWP-CLI version:\t2.12.0\n"
+DEFAULT_PLUGINS: tuple[dict[str, str], ...] = (
+    {"name": "plugin-check", "status": "active", "version": "2.0.0"},
+)
 
 
 def _install_fake_wp(
@@ -76,7 +84,11 @@ def _install_fake_wp(
     *,
     cli_version: str = "2.12.0",
     banner: str = DEFAULT_BANNER,
-    failing: tuple[str, ...] = ("help ability", "help block", "help doctor", "help profile"),
+    failing: tuple[str, ...] = (
+        "help ability", "help block", "help doctor", "help profile", "help login",
+    ),
+    plugins: tuple[dict[str, str], ...] = DEFAULT_PLUGINS,
+    plugin_list_mode: str = "json",
 ) -> Path:
     """Write a fake `wp` onto a private PATH directory and return that dir."""
     bin_dir = tmp_path / "bin"
@@ -88,6 +100,8 @@ def _install_fake_wp(
             cli_version=cli_version,
             banner=banner,
             failing=list(failing),
+            plugins=list(plugins),
+            plugin_list_mode=plugin_list_mode,
         ),
         encoding="utf-8",
     )
@@ -227,6 +241,154 @@ def test_scenario_b_grounded_output_passes(tmp_path: Path) -> None:
     assert check.passed is True
 
 
+# --- wp login: the one-time-login package and its companion plugin (#39) ------
+#
+# lifecycle.md's role-scoped browser checks install aaemnnosttv/wp-cli-login-command
+# and its companion plugin wp-cli-login-server only with approval, and must not
+# install or remove a copy that was already there. These tests pin what the
+# probe reports about both, so pre-state and cleanup are manifest facts.
+
+FAILING_WITHOUT_LOGIN = ("help ability", "help block", "help doctor", "help profile")
+LOGIN_SERVER = "wp-cli-login-server"
+LOGIN_NOTE = "wp_cli_login_server_present"
+
+
+def test_wp_login_is_available_when_help_login_succeeds(tmp_path: Path) -> None:
+    root = _project(tmp_path)
+    bin_dir = _install_fake_wp(tmp_path, failing=FAILING_WITHOUT_LOGIN)
+
+    manifest = _run_probe(root, [str(bin_dir)])
+
+    assert manifest["wp_cli"]["commands"]["login"] == {"status": "AVAILABLE", "reason": None}
+    rows = [row for row in manifest["evidence"] if row["claim"] == "wp_cli.commands.login"]
+    assert len(rows) == 1
+    assert rows[0]["argv"][-2:] == ["help", "login"]
+    assert rows[0]["exit_code"] == 0
+    assert _schema_errors(manifest) == []
+    assert probe.evidence_gaps(manifest) == []
+
+
+def test_wp_login_is_unavailable_on_a_clean_site(tmp_path: Path) -> None:
+    root = _project(tmp_path)
+    bin_dir = _install_fake_wp(tmp_path)
+
+    manifest = _run_probe(root, [str(bin_dir)])
+
+    assert manifest["wp_cli"]["commands"]["login"] == {
+        "status": "UNAVAILABLE",
+        "reason": "package_not_installed",
+    }
+    rows = [row for row in manifest["evidence"] if row["claim"] == "wp_cli.commands.login"]
+    assert [row["exit_code"] for row in rows] == [1]
+    assert LOGIN_NOTE not in manifest["wordpress"]["notes"]
+
+
+@pytest.mark.parametrize(
+    "rows",
+    [
+        [{"name": LOGIN_SERVER, "status": "active", "version": "1.5"}],
+        [{"name": LOGIN_SERVER, "status": "inactive", "version": "1.5"}],
+        [{"name": LOGIN_SERVER, "status": "must-use", "version": ""}],
+        [
+            {"name": LOGIN_SERVER, "status": "inactive", "version": "1.5"},
+            {"name": LOGIN_SERVER, "status": "must-use", "version": ""},
+        ],
+    ],
+    ids=["active", "inactive", "must-use", "regular-plus-must-use"],
+)
+def test_login_server_row_in_any_state_adds_exactly_one_note(
+    tmp_path: Path, rows: list[dict[str, str]]
+) -> None:
+    root = _project(tmp_path)
+    bin_dir = _install_fake_wp(tmp_path, plugins=(*DEFAULT_PLUGINS, *rows))
+
+    manifest = _run_probe(root, [str(bin_dir)])
+
+    assert manifest["wordpress"]["notes"].count(LOGIN_NOTE) == 1
+    assert _schema_errors(manifest) == []
+
+
+@pytest.mark.parametrize(
+    ("plugins", "failing"),
+    [
+        (DEFAULT_PLUGINS, None),
+        (
+            (*DEFAULT_PLUGINS, {"name": f"{LOGIN_SERVER}-extra", "status": "active", "version": "1.0"}),
+            None,
+        ),
+        (
+            ({"name": LOGIN_SERVER, "status": "active", "version": "1.5"},),
+            ("help ability", "help block", "help doctor", "help profile", "help login", "plugin list"),
+        ),
+    ],
+    ids=["no-row", "near-miss-name", "plugin-list-failed"],
+)
+def test_login_server_note_needs_an_exact_row_from_a_successful_plugin_list(
+    tmp_path: Path,
+    plugins: tuple[dict[str, str], ...],
+    failing: tuple[str, ...] | None,
+) -> None:
+    root = _project(tmp_path)
+    kwargs = {"plugins": plugins} if failing is None else {"plugins": plugins, "failing": failing}
+    bin_dir = _install_fake_wp(tmp_path, **kwargs)
+
+    manifest = _run_probe(root, [str(bin_dir)])
+
+    assert LOGIN_NOTE not in manifest["wordpress"]["notes"]
+    if failing is not None:
+        row = next(r for r in manifest["evidence"] if r["claim"] == "wordpress.active_plugins")
+        assert row["exit_code"] != 0, "a failed plugin list is not proof of absence"
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected_exit"),
+    [("json-exit-1", 1), ("not-json", 0)],
+    ids=["matching-row-but-exit-1", "exit-0-but-not-json"],
+)
+def test_login_server_note_ignores_an_unparsed_or_failed_list(
+    tmp_path: Path, mode: str, expected_exit: int
+) -> None:
+    """The row is on stdout in the first mode; only the exit code says to ignore it."""
+    root = _project(tmp_path)
+    bin_dir = _install_fake_wp(
+        tmp_path,
+        plugins=({"name": LOGIN_SERVER, "status": "active", "version": "1.5"},),
+        plugin_list_mode=mode,
+    )
+
+    manifest = _run_probe(root, [str(bin_dir)])
+
+    assert LOGIN_NOTE not in manifest["wordpress"]["notes"]
+    assert manifest["wordpress"]["active_plugins"] == []
+    row = next(r for r in manifest["evidence"] if r["claim"] == "wordpress.active_plugins")
+    assert row["exit_code"] == expected_exit
+
+
+def test_capability_grounding_fails_wp_login_against_a_clean_site(tmp_path: Path) -> None:
+    """Scenario B's shape for the login package: the manifest must change an outcome."""
+    root = _project(tmp_path)
+    bin_dir = _install_fake_wp(tmp_path)
+    manifest = _run_probe(root, [str(bin_dir)])
+
+    candidate = "## Verification\n\nRun `wp login as 2 --url-only` to open the editor.\n"
+    check = output_oracle.check_capability_grounding(candidate, manifest)
+
+    assert check.passed is False
+    assert "wp login: package_not_installed" in check.detail
+
+
+def test_capability_grounding_passes_wp_login_once_the_package_is_probed(tmp_path: Path) -> None:
+    root = _project(tmp_path)
+    bin_dir = _install_fake_wp(tmp_path, failing=FAILING_WITHOUT_LOGIN)
+    manifest = _run_probe(root, [str(bin_dir)])
+
+    candidate = "## Verification\n\nRun `wp login as 2 --url-only` to open the editor.\n"
+    check = output_oracle.check_capability_grounding(candidate, manifest)
+
+    assert check.passed is True
+    assert "not probed" not in check.detail
+
+
 def test_capability_grounding_names_unresolved_states_instead_of_passing_silently() -> None:
     manifest = {
         "wp_cli": {"status": "AVAILABLE", "commands": {"doctor": {"status": "UNKNOWN"}}},
@@ -313,6 +475,16 @@ def test_scenario_b_cli_flag_fails_the_run(tmp_path: Path) -> None:
 
 
 # --- Scenario C: golden manifest ---------------------------------------------
+
+
+def test_golden_records_every_help_root_the_probe_runs() -> None:
+    """The golden is only compared live, on the recording machine; this catches a
+    help root added to the probe without the golden being re-recorded."""
+    golden = json.loads(GOLDEN_WP_ENV.read_text(encoding="utf-8"))
+
+    assert set(golden["wp_cli"]["commands"]) == set(probe.WP_CLI_HELP_ROOTS)
+    claims = [row["claim"] for row in golden["evidence"] if row["claim"].startswith("wp_cli.commands.")]
+    assert claims == [f"wp_cli.commands.{root}" for root in probe.WP_CLI_HELP_ROOTS]
 
 
 def test_scenario_c_golden_manifest_is_schema_valid_and_stable() -> None:
@@ -466,6 +638,7 @@ PROBE_ISSUED_INVOCATIONS = [
     ["wp", "help", "ability"],
     ["wp", "help", "block"],
     ["wp", "help", "doctor"],
+    ["wp", "help", "login"],
     ["wp", "help", "dist-archive"],
     ["wp", "core", "version", "--extra"],
     ["wp", "core", "is-installed"],
@@ -1064,6 +1237,10 @@ if "--help" in args:
 if "--version" in args:
     sys.stdout.write({version!r} + "\\n")
     raise SystemExit(0)
+if args[:3] == ["wp", "help", "login"]:
+    # A clean site: the one-time-login package is not installed.
+    sys.stderr.write("Error: 'login' is not a registered wp command.\\n")
+    raise SystemExit(1)
 if args and args[0] == "wp":
     sys.stdout.write("WP-CLI version:\\t2.12.0\\n")
     raise SystemExit(0)

@@ -321,6 +321,19 @@
         "ddev",
         "wp",
         "help",
+        "login"
+      ],
+      "claim": "wp_cli.commands.login",
+      "duration_ms": 0,
+      "exit_code": 1,
+      "stderr_excerpt": "'help login' is not a registered wp command.",
+      "stdout_excerpt": ""
+    },
+    {
+      "argv": [
+        "ddev",
+        "wp",
+        "help",
         "plugin"
       ],
       "claim": "wp_cli.commands.plugin",
@@ -809,6 +822,10 @@
         "status": "AVAILABLE"
       },
       "doctor": {
+        "reason": "package_not_installed",
+        "status": "UNAVAILABLE"
+      },
+      "login": {
         "reason": "package_not_installed",
         "status": "UNAVAILABLE"
       },

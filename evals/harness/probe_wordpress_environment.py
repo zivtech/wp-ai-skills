@@ -40,11 +40,22 @@ SCHEMA_PATH = Path(__file__).resolve().parent / "schemas" / "capability-manifest
 DEFAULT_OUT = "capability-manifest.json"
 DEFAULT_TIMEOUT_SEC = 20
 PLUGIN_CHECK_TIMEOUT_SEC = 60
-# Nine 20s help probes plus a 60s plugin check is a ~6 minute worst case per
-# environment; the budget bounds the whole run so a wall of hanging commands
-# cannot stall the caller indefinitely.
+# Worst case per environment: 30 probes at the 20s default (3 host versions,
+# `--info`, `cli version`, 10 `help` roots, 7 WordPress reads, `ability list`,
+# 5 verification-tool versions, Studio's `--help` and `--version`) plus the 60s
+# `plugin check --help` is 660s, eleven minutes. The budget bounds the whole run
+# so a wall of hanging commands cannot stall the caller indefinitely.
 DEFAULT_BUDGET_SEC = 300
 EXCERPT_LIMIT = 2000
+# Companion plugin of the aaemnnosttv/wp-cli-login-command package; see the
+# role-scoped browser checks in docs/wordpress/lifecycle.md.
+LOGIN_SERVER_PLUGIN = "wp-cli-login-server"
+# Command roots probed with `<prefix> help <root>`, in run order. `login` is the
+# aaemnnosttv/wp-cli-login-command package; any `login` root answers, not only
+# that package.
+WP_CLI_HELP_ROOTS = (
+    "ability", "block", "doctor", "profile", "login", "plugin", "theme", "option", "post", "core",
+)
 
 # --- Version truth, verified August 2026 -------------------------------------
 # Each constant below carries its own delete condition. A caveat that cannot
@@ -1075,7 +1086,7 @@ def _probe_wp_cli(
     if parsed and parsed[0] >= 3 and WP_CLI_3X_IS_UNVERIFIED:
         wp_cli["notes"].append("wp_cli_3x_unverified")
 
-    for command in ("ability", "block", "doctor", "profile", "plugin", "theme", "option", "post", "core"):
+    for command in WP_CLI_HELP_ROOTS:
         result = runner.run(f"wp_cli.commands.{command}", [*prefix, "help", command])
         if result["ok"]:
             wp_cli["commands"][command] = {"status": "AVAILABLE", "reason": None}
@@ -1173,6 +1184,12 @@ def _probe_wordpress(
             for item in payload
             if isinstance(item, dict) and item.get("name")
         ]
+        # The companion plugin of the `wp login` package answers one-time login
+        # links. An exact-name row in any state (active, inactive, must-use)
+        # means a copy is present; only a successful list can say so, so a
+        # failed `plugin list` adds nothing and proves nothing.
+        if any(plugin["name"] == LOGIN_SERVER_PLUGIN for plugin in wordpress["active_plugins"]):
+            wordpress["notes"].append("wp_cli_login_server_present")
 
     themes = runner.run(
         "wordpress.active_themes",
