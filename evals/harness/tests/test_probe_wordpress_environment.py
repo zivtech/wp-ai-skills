@@ -305,7 +305,26 @@ def test_login_server_row_in_any_state_adds_exactly_one_note(
     manifest = _run_probe(root, [str(bin_dir)])
 
     assert manifest["wordpress"]["notes"].count(LOGIN_NOTE) == 1
+    assert "facts_from_wp_cli_read_probes" in manifest["wordpress"]["notes"], (
+        "the note is appended, never a replacement for earlier provenance notes"
+    )
     assert _schema_errors(manifest) == []
+
+
+def test_login_available_and_server_present_together(tmp_path: Path) -> None:
+    """The state right after lifecycle.md's setup: package installed, plugin active."""
+    root = _project(tmp_path)
+    bin_dir = _install_fake_wp(
+        tmp_path,
+        failing=FAILING_WITHOUT_LOGIN,
+        plugins=(*DEFAULT_PLUGINS, {"name": LOGIN_SERVER, "status": "active", "version": "1.5"}),
+    )
+
+    manifest = _run_probe(root, [str(bin_dir)])
+
+    assert manifest["wp_cli"]["commands"]["login"]["status"] == "AVAILABLE"
+    assert manifest["wordpress"]["notes"] == ["facts_from_wp_cli_read_probes", LOGIN_NOTE]
+    assert probe.evidence_gaps(manifest) == []
 
 
 @pytest.mark.parametrize(
@@ -317,11 +336,15 @@ def test_login_server_row_in_any_state_adds_exactly_one_note(
             None,
         ),
         (
+            (*DEFAULT_PLUGINS, {"name": LOGIN_SERVER.upper(), "status": "active", "version": "1.5"}),
+            None,
+        ),
+        (
             ({"name": LOGIN_SERVER, "status": "active", "version": "1.5"},),
             ("help ability", "help block", "help doctor", "help profile", "help login", "plugin list"),
         ),
     ],
-    ids=["no-row", "near-miss-name", "plugin-list-failed"],
+    ids=["no-row", "near-miss-name", "case-variant-name", "plugin-list-failed"],
 )
 def test_login_server_note_needs_an_exact_row_from_a_successful_plugin_list(
     tmp_path: Path,
@@ -485,6 +508,21 @@ def test_golden_records_every_help_root_the_probe_runs() -> None:
     assert set(golden["wp_cli"]["commands"]) == set(probe.WP_CLI_HELP_ROOTS)
     claims = [row["claim"] for row in golden["evidence"] if row["claim"].startswith("wp_cli.commands.")]
     assert claims == [f"wp_cli.commands.{root}" for root in probe.WP_CLI_HELP_ROOTS]
+
+
+def test_golden_command_statuses_agree_with_their_evidence() -> None:
+    """A spliced golden fragment must still be internally consistent: a command is
+    AVAILABLE exactly when its `help` probe exited 0."""
+    golden = json.loads(GOLDEN_WP_ENV.read_text(encoding="utf-8"))
+    rows = {
+        row["claim"]: row for row in golden["evidence"] if row["claim"].startswith("wp_cli.commands.")
+    }
+
+    for root, entry in golden["wp_cli"]["commands"].items():
+        row = rows[f"wp_cli.commands.{root}"]
+        assert row["argv"][-2:] == ["help", root], root
+        assert (entry["status"] == "AVAILABLE") == (row["exit_code"] == 0), root
+        assert (entry["reason"] is None) == (entry["status"] == "AVAILABLE"), root
 
 
 def test_scenario_c_golden_manifest_is_schema_valid_and_stable() -> None:
@@ -1238,7 +1276,8 @@ if "--version" in args:
     sys.stdout.write({version!r} + "\\n")
     raise SystemExit(0)
 if args[:3] == ["wp", "help", "login"]:
-    # A clean site: the one-time-login package is not installed.
+    # The one-time-login package is not installed. Every other `wp` call
+    # still succeeds, so this fake is not a clean site in general.
     sys.stderr.write("Error: 'login' is not a registered wp command.\\n")
     raise SystemExit(1)
 if args and args[0] == "wp":
