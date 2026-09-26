@@ -1,0 +1,26 @@
+name: paragraphs-heavy-v1
+suite: wordpress-planner.migration
+skill_under_test: wordpress-planner.migration
+skill_type: planner
+difficulty_tier: focused
+provenance: synthetic
+risk_class: source_structure_coverage
+expected_wordpress_apis:
+  - "serialize_blocks"
+  - "parse_blocks"
+  - "register_post_meta"
+  - "register_post_type"
+expected_verification_surfaces:
+  - "source-structure coverage"
+  - "non-empty post_content check"
+  - "semantic block oracle"
+  - "editor and frontend smoke"
+must_detect:
+  - "every inventoried component needs exactly one keyed structure disposition"
+  - "bare ids collide across kinds, so rows are keyed by kind:id"
+  - "reviewed FACT fields must not be flattened into CONTENT"
+  - "the zero-instance component is dropped with a stated reason"
+negative_space:
+  - "does not prove the dispositions are the right ones for the site"
+  - "does not prove a live import completed"
+  - "does not replace the runtime's completeness and non-empty-destination gates"

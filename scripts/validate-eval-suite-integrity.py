@@ -29,6 +29,7 @@ if str(HARNESS_ROOT) not in sys.path:
 from runtime_assertions import make_block_runtime_assertion  # noqa: E402
 from probe_wordpress_environment import load_schema as load_manifest_schema  # noqa: E402
 from probe_wordpress_environment import validate_against_schema  # noqa: E402
+from validate_wordpress_skill_output import load_source_structure  # noqa: E402
 
 
 MAX_YAML_BYTES = 1_048_576
@@ -119,8 +120,9 @@ DIRECTORY_FIXTURE_REQUIRED_FILES = ("prompt.md", "metadata.yaml", "oracle.spec.y
 # sidecar that pairs with no fixture is dead weight the runner would never
 # read, and a capability manifest that fails its own schema would silently
 # skip or misfire the manifest-gated checks instead of enabling them.
-FIXTURE_SIDECAR_SUFFIXES = (".capability-manifest.json", ".security-gate.json")
+FIXTURE_SIDECAR_SUFFIXES = (".capability-manifest.json", ".security-gate.json", ".source-structure.json")
 CAPABILITY_MANIFEST_SUFFIX = ".capability-manifest.json"
+SOURCE_STRUCTURE_SUFFIX = ".source-structure.json"
 DIRECTORY_FIXTURE_BUILT_FILES = ("seed.sh", "trigger.sh", "oracle.py", "reference-fix.sh")
 
 RUBRIC_PROFILE_KEYS = {
@@ -674,6 +676,17 @@ def _capability_manifest_issues(suite: str, path: Path) -> list[Issue]:
     return []
 
 
+def _source_structure_issues(suite: str, path: Path) -> list[Issue]:
+    """Load the sidecar through the oracle's own loader, so the two cannot disagree."""
+    try:
+        if len(_read_bounded_regular(path)) > MAX_YAML_BYTES:
+            raise OSError("source-structure sidecar exceeds its size limit")
+        load_source_structure(path)
+    except (OSError, UnicodeError, ValueError) as exc:
+        return [_schema_issue(suite, "schema_sidecar_source_structure", path, str(exc))]
+    return []
+
+
 def _sidecar_issues(suite: str, fixture_dir: Path, stems: set[str]) -> list[Issue]:
     issues: list[Issue] = []
     for suffix in FIXTURE_SIDECAR_SUFFIXES:
@@ -687,6 +700,8 @@ def _sidecar_issues(suite: str, fixture_dir: Path, stems: set[str]) -> list[Issu
                 continue
             if suffix == CAPABILITY_MANIFEST_SUFFIX:
                 issues.extend(_capability_manifest_issues(suite, path))
+            elif suffix == SOURCE_STRUCTURE_SUFFIX:
+                issues.extend(_source_structure_issues(suite, path))
     return issues
 
 

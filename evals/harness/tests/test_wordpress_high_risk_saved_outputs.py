@@ -187,7 +187,7 @@ def test_run_saved_output_reuses_existing_output(tmp_path, monkeypatch):
     monkeypatch.setattr(
         runner,
         "validate_contract",
-        lambda skill_name, output_path, contract_path, security_gate_path=None, capability_manifest_path=None: {
+        lambda skill_name, output_path, contract_path, security_gate_path=None, capability_manifest_path=None, source_structure_path=None: {
             "pass": False,
             "score": 0.5,
             "skill": skill_name,
@@ -228,7 +228,7 @@ def test_run_saved_output_passes_fixture_security_gate_sidecar(tmp_path, monkeyp
     output.write_text("saved output", encoding="utf-8")
     metadata.write_text("{}", encoding="utf-8")
 
-    def fake_validate(skill_name, output_path, contract_path, security_gate_path=None, capability_manifest_path=None):
+    def fake_validate(skill_name, output_path, contract_path, security_gate_path=None, capability_manifest_path=None, source_structure_path=None):
         seen["security_gate_path"] = security_gate_path
         return {"pass": True, "score": 1.0, "skill": skill_name}
 
@@ -260,7 +260,7 @@ def test_run_saved_output_records_invocation_failure(tmp_path, monkeypatch):
     monkeypatch.setattr(
         runner,
         "validate_contract",
-        lambda skill_name, output_path, contract_path, security_gate_path=None, capability_manifest_path=None: {
+        lambda skill_name, output_path, contract_path, security_gate_path=None, capability_manifest_path=None, source_structure_path=None: {
             "pass": False,
             "score": 0.0,
             "skill": skill_name,
@@ -405,7 +405,7 @@ def test_run_saved_output_passes_fixture_capability_manifest_sidecar(tmp_path, m
     output.write_text("saved output", encoding="utf-8")
     metadata.write_text("{}", encoding="utf-8")
 
-    def fake_validate(skill_name, output_path, contract_path, security_gate_path=None, capability_manifest_path=None):
+    def fake_validate(skill_name, output_path, contract_path, security_gate_path=None, capability_manifest_path=None, source_structure_path=None):
         seen["capability_manifest_path"] = capability_manifest_path
         return {"pass": True, "score": 1.0, "skill": skill_name}
 
@@ -437,3 +437,102 @@ def test_capability_manifest_sidecar_path_uses_fixture_directory(tmp_path, monke
     sidecar = fixtures / "case.capability-manifest.json"
     sidecar.write_text("{}", encoding="utf-8")
     assert runner.capability_manifest_sidecar_path("suite", "case") == sidecar
+
+
+def test_validate_contract_threads_source_structure_sidecar(tmp_path):
+    """A per-fixture inventory turns on the source-structure checks for that fixture."""
+    output = tmp_path / "output.md"
+    output.write_text("## Target Mapping\n\nDispositioned: 1/1\n", encoding="utf-8")
+    inventory = tmp_path / "fixture.source-structure.json"
+    inventory.write_text(
+        json.dumps({
+            "contract_version": "1.2.0",
+            "components": [{"kind": "paragraph_type", "id": "hero", "key": "paragraph_type:hero"}],
+        }),
+        encoding="utf-8",
+    )
+    contract = tmp_path / "contract.json"
+
+    result = runner.validate_contract(
+        "wordpress-planner.migration", output, contract, source_structure_path=inventory
+    )
+
+    coverage = next(
+        check for check in result["checks"] if check["id"] == "migration_source_structure_coverage"
+    )
+    assert coverage["passed"] is False
+    assert "paragraph_type:hero" in coverage["detail"]
+    assert result["pass"] is False
+    archived = json.loads(contract.read_text(encoding="utf-8"))
+    assert archived["source_structure_path"].endswith("fixture.source-structure.json")
+
+
+def test_validate_contract_skips_source_structure_checks_without_sidecar(tmp_path):
+    output = tmp_path / "output.md"
+    output.write_text("## Target Mapping\n\nDispositioned: 1/1\n", encoding="utf-8")
+    contract = tmp_path / "contract.json"
+
+    result = runner.validate_contract("wordpress-planner.migration", output, contract)
+
+    names = {check["id"] for check in result["checks"]}
+    assert "migration_source_structure_coverage" not in names
+    assert "source_structure_path" not in result
+
+
+def test_run_saved_output_passes_fixture_source_structure_sidecar(tmp_path, monkeypatch):
+    monkeypatch.setattr(runner, "RESULTS_ROOT", tmp_path)
+    sidecar = tmp_path / "fixtures" / "fixture-a.source-structure.json"
+    sidecar.parent.mkdir()
+    sidecar.write_text("{}", encoding="utf-8")
+    seen: dict[str, Path | None] = {}
+
+    monkeypatch.setattr(runner, "invoke_or_reuse", lambda **kwargs: None)
+    monkeypatch.setattr(runner, "security_gate_sidecar_path", lambda suite, fixture_id: None)
+    monkeypatch.setattr(runner, "capability_manifest_sidecar_path", lambda suite, fixture_id: None)
+    monkeypatch.setattr(runner, "source_structure_sidecar_path", lambda suite, fixture_id: sidecar)
+
+    output = runner.saved_output_path("run-1", "wordpress-planner.migration", "skill", "fixture-a")
+    metadata = runner.saved_metadata_path("run-1", "wordpress-planner.migration", "skill", "fixture-a")
+    output.parent.mkdir(parents=True)
+    output.write_text("saved output", encoding="utf-8")
+    metadata.write_text("{}", encoding="utf-8")
+
+    def fake_validate(
+        skill_name,
+        output_path,
+        contract_path,
+        security_gate_path=None,
+        capability_manifest_path=None,
+        source_structure_path=None,
+    ):
+        seen["source_structure_path"] = source_structure_path
+        return {"pass": True, "score": 1.0, "skill": skill_name}
+
+    monkeypatch.setattr(runner, "validate_contract", fake_validate)
+
+    entry = runner.run_saved_output(
+        run_id="run-1",
+        suite="wordpress-planner.migration",
+        fixture_id="fixture-a",
+        condition="skill",
+        skill_name="wordpress-planner.migration",
+        resume=True,
+        timeout_sec=1,
+        max_retries=1,
+        model=None,
+        effort=None,
+    )
+
+    assert seen["source_structure_path"] == sidecar
+    assert entry.source_structure_path == str(sidecar)
+    assert entry.capability_manifest_path is None
+
+
+def test_source_structure_sidecar_path_uses_fixture_directory(tmp_path, monkeypatch):
+    fixtures = tmp_path / "fixtures"
+    fixtures.mkdir()
+    monkeypatch.setattr(runner, "fixture_dir_for_suite", lambda suite: fixtures)
+    assert runner.source_structure_sidecar_path("suite", "case") is None
+    sidecar = fixtures / "case.source-structure.json"
+    sidecar.write_text("{}", encoding="utf-8")
+    assert runner.source_structure_sidecar_path("suite", "case") == sidecar

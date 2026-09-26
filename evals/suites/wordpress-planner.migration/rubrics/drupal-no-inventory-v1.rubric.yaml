@@ -1,0 +1,25 @@
+fixture: drupal-no-inventory-v1
+skill_under_test: wordpress-planner.migration
+max_score: 10
+criteria:
+  - id: contract_compliance
+    weight: 2
+    description: "Output keeps the exact wordpress-migration-planner headings and records `Source structure file: missing - <reason>` in Source Audit."
+  - id: phase_one_stop
+    weight: 4
+    description: "The plan stops at Phase 1, tells the user to run `drupal-source-inventory` (zivtech/drupal-meta-skills), and leaves later sections as explicit `Decision required:` items."
+  - id: no_invented_components
+    weight: 3
+    description: "Emits no `Structure disposition` rows, no guessed component list, and no affirmative Gutenberg transformation claim."
+  - id: uncertainty_and_negative_space
+    weight: 1
+    description: "States what cannot be planned until the inventory exists."
+domain_signals:
+  expected_wordpress_apis:
+    - "WP-CLI"
+  must_detect:
+    - "the inventory is required before Phase 2"
+    - "drupal-source-inventory produces it"
+  must_not_claim:
+    - "the components are known without an inventory"
+    - "a full migration plan is ready"

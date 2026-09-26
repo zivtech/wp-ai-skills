@@ -1,7 +1,7 @@
 # wordpress-planner.migration Focused Eval Scaffold
 
 Focused evaluation scaffold for `wordpress-planner.migration`. The suite now
-contains the original broad smoke fixture plus four focused migration planning
+contains the original broad smoke fixture plus six focused migration planning
 fixtures:
 
 - `smoke-wordpress-v1`: an exact source-to-block contract for a repository-owned
@@ -21,6 +21,17 @@ fixtures:
   recording of a synthetic ddev project (see
   `evals/harness/tests/test_fixture_capability_manifests.py`), so its saved
   outputs are scored with the manifest-gated checks enabled.
+- `paragraphs-heavy-v1`: an invented Drupal 10 site built from Paragraphs, with
+  a supplied source-structure inventory. It ships
+  `paragraphs-heavy-v1.source-structure.json` (contract
+  `contracts/source-structure/` 1.2.0, zivtech/drupal-meta-skills), so its saved
+  outputs are scored for one keyed `Structure disposition` row per inventoried
+  component and for the `non-empty-destination` oracle field.
+- `drupal-no-inventory-v1`: the same kind of source with no inventory. The
+  planner must stop at Phase 1 with `Source structure file: missing - <reason>`
+  and point at `drupal-source-inventory`. The rubric grades the stop; the
+  deterministic oracle only checks that a `missing` plan emits no structure
+  rows, so a plan that ignores the gate entirely is caught by the rubric alone.
 
 Historical saved outputs and answer-key diagnostics exist under `evals/results/`,
 but they are directional internal evidence only. They do not establish a quality
@@ -44,7 +55,9 @@ python3 evals/harness/validate_wordpress_skill_output.py \
 
 For a fixture that ships a `<fixture-id>.capability-manifest.json` sidecar, add
 `--capability-manifest <that file>`; `run_wordpress_high_risk_saved_outputs.py`
-discovers the sidecar itself and records its path in the contract result.
+discovers the sidecar itself and records its path in the contract result. A
+`<fixture-id>.source-structure.json` sidecar is passed the same way as
+`--source-structure <that file>`.
 
 Strict suite integrity gate:
 

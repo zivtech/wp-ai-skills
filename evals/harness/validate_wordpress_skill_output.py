@@ -767,6 +767,9 @@ def _literal_text_decision(section: str, label: str) -> str | None:
 SEMANTIC_ORACLE_FIELDS = frozenset({
     "text", "href", "alt", "attributes", "media", "unsupported", "order",
     "heading-level", "caption", "list-count", "freeform",
+    # Every item whose source component lands as CONTENT imports non-empty
+    # post_content (the migration planner's source-structure gate).
+    "non-empty-destination",
 })
 
 
@@ -1321,6 +1324,240 @@ def check_migration_disposition_contract(text: str, manifest: dict[str, Any]) ->
         else "; ".join(problems)
     )
     return Check("content_model_migration_disposition_coverage", passed, 4, detail)
+
+
+# The source-structure contract lives in zivtech/drupal-meta-skills at
+# contracts/source-structure/ (GPL-3.0). Its two schemas and VERSION are
+# vendored, unmodified, under data/source-structure-contract/ (see the README
+# there for the pinned upstream commit). The loader reads the supported major
+# and the closed `kind` and `verdict` enums from that copy, and enforces only
+# the consumer rules the coverage check depends on. It is not a full schema
+# validation. Components are keyed by `key` (`{kind}:{id}`), never by bare id:
+# bare ids collide across kinds (a Paragraphs Library item and a block_content
+# entity can both have id "1").
+SOURCE_STRUCTURE_CONTRACT_DIR = DATA_DIR / "source-structure-contract"
+
+
+@functools.lru_cache(maxsize=1)
+def _source_structure_contract() -> tuple[int, frozenset[str], frozenset[str]]:
+    version = (SOURCE_STRUCTURE_CONTRACT_DIR / "VERSION").read_text(encoding="utf-8").strip()
+    structure = json.loads(
+        (SOURCE_STRUCTURE_CONTRACT_DIR / "source-structure.schema.json").read_text(encoding="utf-8")
+    )
+    dispositions = json.loads(
+        (SOURCE_STRUCTURE_CONTRACT_DIR / "dispositions.schema.json").read_text(encoding="utf-8")
+    )
+    return (
+        int(version.split(".", 1)[0]),
+        frozenset(structure["definitions"]["kind"]["enum"]),
+        frozenset(dispositions["definitions"]["verdict"]["enum"]),
+    )
+
+
+def load_source_structure(path: Path) -> dict[str, Any]:
+    major, kinds, _ = _source_structure_contract()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"source-structure JSON is invalid: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("source-structure JSON must contain an object")
+    version = payload.get("contract_version")
+    if not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+\.\d+", version):
+        raise ValueError("source-structure JSON needs a `contract_version` of the form major.minor.patch")
+    if int(version.split(".", 1)[0]) != major:
+        raise ValueError(
+            f"source-structure contract_version {version} has an unsupported major; "
+            f"this validator reads major {major}"
+        )
+    components = payload.get("components")
+    if not isinstance(components, list) or not components:
+        raise ValueError("source-structure JSON must contain a non-empty 'components' array")
+    seen: set[str] = set()
+    for index, component in enumerate(components):
+        if not isinstance(component, dict):
+            raise ValueError(f"source-structure component {index} must be an object")
+        kind, item_id, key = (component.get(name) for name in ("kind", "id", "key"))
+        if not all(isinstance(value, str) and value.strip() for value in (kind, item_id, key)):
+            raise ValueError(f"source-structure component {index} needs non-empty string kind, id, and key")
+        if kind not in kinds:
+            raise ValueError(f"source-structure component {index} kind `{kind}` is not in the contract's kind enum")
+        if key != f"{kind}:{item_id}":
+            raise ValueError(f"source-structure component {index} key `{key}` is not `{kind}:{item_id}`")
+        if re.search(r"[()\s]", key):
+            raise ValueError(
+                f"source-structure component {index} key `{key}` contains whitespace or parentheses, "
+                "which a keyed plan record cannot name"
+            )
+        if key in seen:
+            raise ValueError(f"source-structure component key `{key}` appears more than once")
+        seen.add(key)
+    return payload
+
+
+STRUCTURE_ROW_LABEL = "Structure disposition"
+STRUCTURE_FILE_LABEL = "Source structure file"
+STRUCTURE_STOP_STATES = frozenset({"missing", "not-producible"})
+# DROP and DEFER rows carry a reason instead of a destination. A DEFER reason
+# must name the pending decision, so "pending" is allowed here; bare
+# placeholders are not.
+STRUCTURE_REASON_PLACEHOLDER_RE = re.compile(
+    r"\b(?:not\s+decided|undecided|tbd|to\s+be\s+determined|todo|"
+    r"still\s+being\s+figured\s+out|unknown|n/?a)\b|\?\?\?",
+    re.IGNORECASE,
+)
+STRUCTURE_REASON_MIN_WORDS = 3
+DISPOSITIONED_RE = re.compile(r"(?P<done>\d+)\s*/\s*(?P<total>\d+)")
+
+
+def _structure_row_problem(value: str, verdicts: frozenset[str]) -> str | None:
+    parts = re.split(r"\s+[-–—]\s+", value, maxsplit=1)
+    head = parts[0].strip().upper()
+    tail = parts[1].strip() if len(parts) == 2 else ""
+    if head not in verdicts:
+        return f"verdict `{parts[0].strip()}` is not one of {', '.join(sorted(verdicts))}"
+    if head in {"DROP", "DEFER"}:
+        if not _usable_decision(tail) or STRUCTURE_REASON_PLACEHOLDER_RE.search(tail):
+            return f"{head} needs a stated reason after ` - `"
+        # "pending" alone names no decision; the contract requires a DEFER to
+        # say what is pending and a DROP to give its evidence.
+        substance = re.sub(r"\bpending\b", " ", tail, flags=re.IGNORECASE)
+        if len(re.findall(r"[A-Za-z0-9][\w'-]*", substance)) < STRUCTURE_REASON_MIN_WORDS:
+            return f"{head} reason must name the evidence or the pending decision, not just `{tail}`"
+        return None
+    if not _usable_content_model_decision(tail):
+        return f"{head} needs a WordPress destination after ` - `"
+    return None
+
+
+def _structure_file_state(value: str | None) -> tuple[str | None, str]:
+    """Return (state, detail): state is 'path', 'missing', 'not-producible', or None when unusable."""
+    if not value:
+        return None, "no single `Source structure file:` record in Source Audit"
+    parts = re.split(r"\s+[-–—]\s+", value, maxsplit=1)
+    head = parts[0].strip().strip("`").lower()
+    if head in STRUCTURE_STOP_STATES:
+        reason = parts[1].strip() if len(parts) == 2 else ""
+        if not _usable_decision(reason) or STRUCTURE_REASON_PLACEHOLDER_RE.search(reason):
+            return None, f"`Source structure file: {head}` needs a reason after ` - `"
+        return head, ""
+    path = value.strip().strip("`")
+    if not path.endswith(".json") or not _usable_content_model_decision(path):
+        return None, "`Source structure file:` must name a `.json` inventory, `missing - <reason>`, or `not-producible - <reason>`"
+    return "path", ""
+
+
+def check_source_structure_contract(text: str, source_structure: dict[str, Any] | None) -> list[Check]:
+    """Source-structure gates for the migration planner (upstream completeness and non-empty destination).
+
+    `migration_source_structure_record` runs whenever the plan cites an inventory
+    or emits `Structure disposition` rows, and always when an inventory is
+    supplied. A plan that records the inventory as `missing` or `not-producible`
+    has stopped at Phase 1 and must not disposition components anyway.
+    `migration_source_structure_coverage` needs the supplied inventory: the
+    oracle is the inventory itself, not the plan's own count.
+    `migration_non_empty_destination` requires the `non-empty-destination`
+    semantic oracle field whenever any row lands a component as CONTENT.
+    """
+    sections = markdown_sections(text)
+    audit = sections.get("Source Audit", "")
+    target = sections.get("Target Mapping", "")
+    validation = sections.get("Validation Plan", "")
+    rows = _keyed_decision_records(target, STRUCTURE_ROW_LABEL)
+    file_values = _decision_values(audit, STRUCTURE_FILE_LABEL)
+    if source_structure is None and not rows and not file_values:
+        return []
+    _, _, verdicts = _source_structure_contract()
+    checks: list[Check] = []
+
+    state, detail = _structure_file_state(file_values[0] if len(file_values) == 1 else None)
+    record_problems: list[str] = [] if state else [detail]
+    if state in STRUCTURE_STOP_STATES:
+        if rows:
+            record_problems.append(
+                f"`Source structure file: {state}` stops the plan at Phase 1, but Target Mapping has "
+                f"{len(rows)} `{STRUCTURE_ROW_LABEL}` row(s)"
+            )
+        if source_structure is not None:
+            record_problems.append(f"an inventory was supplied, but the plan records it as `{state}`")
+    checks.append(Check(
+        "migration_source_structure_record",
+        not record_problems,
+        2,
+        "; ".join(record_problems) or f"`Source structure file:` is a usable `{state}` record",
+    ))
+
+    if source_structure is not None:
+        checks.append(_source_structure_coverage(target, rows, source_structure, verdicts))
+
+    parsed = [(key, re.split(r"\s+[-–—]\s+", value, maxsplit=1)[0].strip().upper()) for key, value in rows]
+    content_keys = sorted(key for key, verdict in parsed if verdict == "CONTENT")
+    if rows or source_structure is not None:
+        if not content_keys:
+            checks.append(Check(
+                "migration_non_empty_destination", True, 1,
+                "vacuous: no component is dispositioned CONTENT",
+            ))
+        else:
+            fields_value = _decision_value(validation, "Semantic oracle fields") or ""
+            fields = {item.strip().lower() for item in fields_value.split(",")}
+            passed = "non-empty-destination" in fields
+            checks.append(Check(
+                "migration_non_empty_destination", passed, 3,
+                "`Semantic oracle fields:` includes `non-empty-destination`" if passed else
+                "components dispositioned CONTENT (" + ", ".join(content_keys) + ") need "
+                "`non-empty-destination` in `Semantic oracle fields:`",
+            ))
+    return checks
+
+
+def _source_structure_coverage(
+    target: str, rows: list[tuple[str, str]], source_structure: dict[str, Any], verdicts: frozenset[str]
+) -> Check:
+    keys = [str(component.get("key")) for component in source_structure.get("components") or []
+            if isinstance(component, dict) and component.get("key")]
+    if not keys:
+        return Check(
+            "migration_source_structure_coverage", False, 4,
+            "source-structure inventory has no components; coverage cannot be verified against an empty inventory",
+        )
+    counts: dict[str, int] = {}
+    for key, _ in rows:
+        counts[key] = counts.get(key, 0) + 1
+    mapping = {key: value for key, value in rows if counts[key] == 1}
+    problems: list[str] = []
+    missing = [key for key in keys if key not in counts]
+    invalid = []
+    for key in keys:
+        if key in mapping:
+            problem = _structure_row_problem(mapping[key], verdicts)
+            if problem:
+                invalid.append(f"{key} ({problem})")
+    duplicates = sorted(key for key, count in counts.items() if count > 1)
+    unknown = sorted(set(counts) - set(keys))
+    dispositioned = _decision_values(target, "Dispositioned")
+    match = DISPOSITIONED_RE.fullmatch(dispositioned[0]) if len(dispositioned) == 1 else None
+    if match is None:
+        problems.append("Target Mapping needs exactly one `Dispositioned: N/M` record")
+    elif int(match["total"]) != len(keys) or int(match["done"]) != len(keys):
+        problems.append(
+            f"`Dispositioned: {match['done']}/{match['total']}` does not equal the inventory's "
+            f"{len(keys)}/{len(keys)}"
+        )
+    if missing:
+        problems.append(f"missing `{STRUCTURE_ROW_LABEL}` row for: {', '.join(missing)}")
+    if invalid:
+        problems.append(f"invalid `{STRUCTURE_ROW_LABEL}` for: {', '.join(invalid)}")
+    if duplicates:
+        problems.append(f"duplicate `{STRUCTURE_ROW_LABEL}` rows for: {', '.join(duplicates)}")
+    if unknown:
+        problems.append(f"`{STRUCTURE_ROW_LABEL}` rows for keys outside the inventory: {', '.join(unknown)}")
+    return Check(
+        "migration_source_structure_coverage",
+        not problems,
+        4,
+        "; ".join(problems) or f"every one of {len(keys)} inventoried components has one valid `{STRUCTURE_ROW_LABEL}` row",
+    )
 
 
 def check_headings(text: str, contract: dict[str, Any]) -> Check:
@@ -2143,6 +2380,7 @@ def validate_output(
     security_gate: dict[str, Any] | None = None,
     capability_manifest: dict[str, Any] | None = None,
     source_manifest: dict[str, Any] | None = None,
+    source_structure: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     requested_skill = skill
     skill = ALIASES.get(skill, skill)
@@ -2165,6 +2403,7 @@ def validate_output(
         checks.extend(check_plugin_plan_contract(authoritative))
     if skill == "wordpress-migration-planner":
         checks.extend(check_gutenberg_migration_contract(authoritative))
+        checks.extend(check_source_structure_contract(authoritative, source_structure))
     if skill == "wordpress-content-model-planner":
         checks.extend(check_content_model_plan_contract(authoritative))
         if source_manifest is not None:
@@ -2210,6 +2449,14 @@ def build_parser() -> argparse.ArgumentParser:
             "Optional source-manifest.json sidecar ({'items': [{'id': ...}, ...]}) for "
             "wordpress-content-model-planner migration mode. When supplied, every item id "
             "must appear in a `Disposition row:` record or the run fails."
+        ),
+    )
+    parser.add_argument(
+        "--source-structure",
+        help=(
+            "Optional source-structure.json inventory (contract: zivtech/drupal-meta-skills "
+            "contracts/source-structure/) for wordpress-planner.migration. When supplied, every "
+            "component key must have one `Structure disposition (<kind>:<id>):` row in Target Mapping."
         ),
     )
     return parser
@@ -2266,12 +2513,30 @@ def main(argv: list[str] | None = None) -> int:
         except ValueError as exc:
             print(json.dumps({"pass": False, "error": str(exc)}, indent=2), file=sys.stderr)
             return 1
+    source_structure = None
+    if args.source_structure:
+        source_structure_path = Path(args.source_structure)
+        if not source_structure_path.exists():
+            print(
+                json.dumps(
+                    {"pass": False, "error": f"source-structure file not found: {source_structure_path}"},
+                    indent=2,
+                ),
+                file=sys.stderr,
+            )
+            return 1
+        try:
+            source_structure = load_source_structure(source_structure_path)
+        except ValueError as exc:
+            print(json.dumps({"pass": False, "error": str(exc)}, indent=2), file=sys.stderr)
+            return 1
     result = validate_output(
         args.skill,
         output_path.read_text(encoding="utf-8"),
         security_gate=security_gate,
         capability_manifest=capability_manifest,
         source_manifest=source_manifest,
+        source_structure=source_structure,
     )
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result["pass"] else 1

@@ -1,0 +1,32 @@
+fixture: paragraphs-heavy-v1
+skill_under_test: wordpress-planner.migration
+max_score: 10
+criteria:
+  - id: contract_compliance
+    weight: 2
+    description: "Output uses the exact wordpress-migration-planner headings, the Gutenberg migration records, `Source structure file:`, and `Dispositioned: 13/13`."
+  - id: structure_coverage
+    weight: 3
+    description: "Every one of the 13 inventoried components has exactly one `Structure disposition (<kind>:<id>):` record with a contract verdict, a WordPress destination, or a reason for DROP/DEFER."
+  - id: data_preservation
+    weight: 2
+    description: "Reviewed FACT fields (rate tiers, outage dates, affected streets) land as queryable structured data, not flattened markup, and multi-value fields keep their cardinality."
+  - id: non_empty_destination
+    weight: 2
+    description: "Requires `non-empty-destination` for CONTENT components and names the concrete check for empty `post_content` after import."
+  - id: uncertainty_and_negative_space
+    weight: 1
+    description: "States that the plan does not prove the dispositions or a live import, and keeps unresolved items as explicit decisions."
+domain_signals:
+  expected_wordpress_apis:
+    - "serialize_blocks"
+    - "parse_blocks"
+    - "register_post_meta"
+    - "WP-CLI"
+  must_detect:
+    - "every inventoried component needs one keyed row"
+    - "the library item and the block_content entity share a bare id"
+    - "the zero-instance paragraph type is dropped with a reason"
+  must_not_claim:
+    - "the inventory proves the migration is complete"
+    - "a heading-only plan satisfies source-structure coverage"

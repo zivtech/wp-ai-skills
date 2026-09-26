@@ -1,0 +1,18 @@
+name: drupal-no-inventory-v1
+suite: wordpress-planner.migration
+skill_under_test: wordpress-planner.migration
+skill_type: planner
+difficulty_tier: focused
+provenance: synthetic
+risk_class: source_structure_stop
+expected_wordpress_apis:
+  - "WP-CLI"
+expected_verification_surfaces:
+  - "source-structure inventory"
+  - "Phase 1 stop record"
+must_detect:
+  - "a Drupal 8+ source with config export needs the source-structure inventory before Phase 2"
+  - "the plan stops and names drupal-source-inventory instead of guessing components"
+negative_space:
+  - "does not plan target mapping without the inventory"
+  - "does not claim the source's components are known"

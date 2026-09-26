@@ -145,6 +145,16 @@ The snapshot records the canonical rebuild command, OCI index and platform
 digests, source metadata, and a normalized function/class digest. Ordinary CI
 validates that metadata and digest without network access; a maintainer rebuild
 must be byte-identical to the committed file.
+
+## Vendored Contract Entries
+
+The migration planner's output oracle consumes the source-structure contract,
+which lives in a sibling Zivtech repository. The files are copied unmodified;
+they are data schemas, not prompt text, and no skill prompt adapts them.
+
+| Local path | Source | Commit | License | Reuse Class | Rationale |
+|---|---|---:|---|---|---|
+| `evals/harness/data/source-structure-contract/` (`VERSION`, `source-structure.schema.json`, `dispositions.schema.json`) | zivtech/drupal-meta-skills `contracts/source-structure/` | `2236cbc4c68e02cf0229374a1fffd34cd4612505` (contract `1.2.0`) | GPL-3.0 | Vendored verbatim | The contract's consumer checklist asks each consumer to vendor the schemas and pin the version; the oracle reads the major version and the `kind`/`verdict` enums from them. Pinned by sha256 in `evals/harness/tests/test_source_structure_contract.py`. |
 # Plan 009 sandbox feasibility inventory (verified 2026-07-14)
 
 Step 0 records the official Node, Composer, Python, Playwright, WordPress,

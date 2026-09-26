@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from copy import deepcopy
 from pathlib import Path
@@ -665,6 +666,41 @@ def test_malformed_capability_manifest_sidecar_is_a_schema_issue(tmp_path, paylo
     suite_dir = _suite(tmp_path)
     (suite_dir / "fixtures" / "case.capability-manifest.json").write_text(payload, encoding="utf-8")
     assert _codes(suite_dir) == {"schema_sidecar_manifest"}
+
+
+VALID_SOURCE_STRUCTURE = json.dumps({
+    "contract_version": "1.2.0",
+    "components": [{"kind": "paragraph_type", "id": "hero", "key": "paragraph_type:hero"}],
+})
+
+
+def test_valid_source_structure_sidecar_is_accepted(tmp_path):
+    suite_dir = _suite(tmp_path)
+    (suite_dir / "fixtures" / "case.source-structure.json").write_text(VALID_SOURCE_STRUCTURE, encoding="utf-8")
+    assert _codes(suite_dir) == set()
+
+
+def test_source_structure_sidecar_without_fixture_is_extra(tmp_path):
+    suite_dir = _suite(tmp_path)
+    (suite_dir / "fixtures" / "orphan.source-structure.json").write_text(VALID_SOURCE_STRUCTURE, encoding="utf-8")
+    assert _codes(suite_dir) == {"extra_sidecar"}
+
+
+@pytest.mark.parametrize(
+    "payload",
+    (
+        "not json",
+        "[]",
+        "{}",
+        '{"contract_version": "2.0.0", "components": [{"kind": "menu", "id": "main", "key": "menu:main"}]}',
+        '{"contract_version": "1.2.0", "components": []}',
+        '{"contract_version": "1.2.0", "components": [{"kind": "menu", "id": "main", "key": "main"}]}',
+    ),
+)
+def test_malformed_source_structure_sidecar_is_a_schema_issue(tmp_path, payload):
+    suite_dir = _suite(tmp_path)
+    (suite_dir / "fixtures" / "case.source-structure.json").write_text(payload, encoding="utf-8")
+    assert _codes(suite_dir) == {"schema_sidecar_source_structure"}
 
 
 def test_schema_sidecar_issue_is_structural_and_never_quarantinable():
