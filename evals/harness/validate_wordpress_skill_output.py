@@ -1406,6 +1406,7 @@ STRUCTURE_REASON_PLACEHOLDER_RE = re.compile(
     r"still\s+being\s+figured\s+out|unknown|n/?a)\b|\?\?\?",
     re.IGNORECASE,
 )
+STRUCTURE_REASON_MIN_WORDS = 3
 DISPOSITIONED_RE = re.compile(r"(?P<done>\d+)\s*/\s*(?P<total>\d+)")
 
 
@@ -1418,6 +1419,11 @@ def _structure_row_problem(value: str, verdicts: frozenset[str]) -> str | None:
     if head in {"DROP", "DEFER"}:
         if not _usable_decision(tail) or STRUCTURE_REASON_PLACEHOLDER_RE.search(tail):
             return f"{head} needs a stated reason after ` - `"
+        # "pending" alone names no decision; the contract requires a DEFER to
+        # say what is pending and a DROP to give its evidence.
+        substance = re.sub(r"\bpending\b", " ", tail, flags=re.IGNORECASE)
+        if len(re.findall(r"[A-Za-z0-9][\w'-]*", substance)) < STRUCTURE_REASON_MIN_WORDS:
+            return f"{head} reason must name the evidence or the pending decision, not just `{tail}`"
         return None
     if not _usable_content_model_decision(tail):
         return f"{head} needs a WordPress destination after ` - `"

@@ -213,6 +213,28 @@ def test_coverage_failures(old, new, expected):
     assert expected in coverage["detail"]
 
 
+@pytest.mark.parametrize("reason", ("pending", "pending decision", "Pending review", "dead"))
+def test_defer_or_drop_reason_must_carry_substance(reason):
+    plan = _replace(
+        "Structure disposition (paragraph_type:legacy_iframe): DROP - zero live instances in the inventory",
+        f"Structure disposition (paragraph_type:legacy_iframe): DEFER - {reason}",
+    )
+    coverage = _checks(plan, _heavy())["migration_source_structure_coverage"]
+    assert coverage["passed"] is False
+    assert "paragraph_type:legacy_iframe" in coverage["detail"]
+
+
+def test_mass_bare_pending_deferral_fails_coverage():
+    plan = PLAN
+    for line in PLAN.splitlines():
+        if line.startswith("Structure disposition ("):
+            key_part = line.split("): ", 1)[0]
+            plan = plan.replace(line, f"{key_part}): DEFER - pending")
+    coverage = _checks(plan, _heavy())["migration_source_structure_coverage"]
+    assert coverage["passed"] is False
+    assert "must name the evidence or the pending decision" in coverage["detail"]
+
+
 def test_defer_may_name_the_pending_decision():
     plan = _replace(
         "Structure disposition (paragraph_type:legacy_iframe): DROP - zero live instances in the inventory",
