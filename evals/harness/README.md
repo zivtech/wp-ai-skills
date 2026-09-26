@@ -61,7 +61,8 @@ validator.
 - `evals/harness/run_wordpress_high_risk_saved_outputs.py` — generates focused
   WordPress skill/baseline outputs and applies the deterministic output oracle,
   passing a fixture's `<fixture-id>.capability-manifest.json` sidecar as
-  `--capability-manifest` when one exists.
+  `--capability-manifest` and its `<fixture-id>.source-structure.json` sidecar
+  as `--source-structure` when they exist.
 - `evals/harness/score_wordpress_high_risk_answer_keys.py` — deterministic
   answer-key scoring for the focused high-risk suites.
 - `evals/harness/run_pairwise_pilot.py` — bounded blind pairwise diagnostic.
