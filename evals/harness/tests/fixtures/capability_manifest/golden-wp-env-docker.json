@@ -220,7 +220,7 @@
       "duration_ms": 0,
       "exit_code": 0,
       "stderr_excerpt": "\u2139 Starting 'wp --info' on the cli container. \n\n\u2714 Ran `wp --info` in 'cli'. (in <normalized>)",
-      "stdout_excerpt": "OS:\tLinux [REDACTED]\nShell:\t\nPHP binary:\t/usr/local/bin/php\nPHP version:\t8.3.33\nphp.ini used:\t/usr/local/etc/php/php.ini\nMySQL binary:\t/usr/bin/mariadb\nMySQL version:\tmariadb from 11.8.8-MariaDB, client 15.2 for Linux (aarch64) using readline 5.1\nSQL modes:\t\nWP-CLI root dir:\tphar://wp-cli.phar/vendor/wp-cli/wp-cli\nWP-CLI vendor dir:\tphar://wp-cli.phar/vendor\nWP_CLI phar path:\tphar:///usr/local/bin/wp\nWP-CLI packages dir:\t\nWP-CLI cache dir:\t~/.wp-cli/cache\nWP-CLI global config:\t\nWP-CLI project config:\t/var/www/html/wp-cli.yml\nWP-CLI version:\t2.12.0"
+      "stdout_excerpt": "OS:\tLinux [REDACTED]\nShell:\t\nPHP binary:\t/usr/local/bin/php\nPHP version:\t8.3.35\nphp.ini used:\t/usr/local/etc/php/php.ini\nMySQL binary:\t/usr/bin/mariadb\nMySQL version:\tmariadb from 11.8.8-MariaDB, client 15.2 for Linux (aarch64) using readline 5.1\nSQL modes:\t\nWP-CLI root dir:\tphar://wp-cli.phar/vendor/wp-cli/wp-cli\nWP-CLI vendor dir:\tphar://wp-cli.phar/vendor\nWP_CLI phar path:\tphar:///usr/local/bin/wp\nWP-CLI packages dir:\t\nWP-CLI cache dir:\t~/.wp-cli/cache\nWP-CLI global config:\t\nWP-CLI project config:\t/var/www/html/wp-cli.yml\nWP-CLI version:\t2.12.0"
     },
     {
       "argv": [
@@ -445,7 +445,7 @@
       "duration_ms": 0,
       "exit_code": 0,
       "stderr_excerpt": "",
-      "stdout_excerpt": "PHP version:\t8.3.33"
+      "stdout_excerpt": "PHP version:\t8.3.35"
     },
     {
       "argv": [
@@ -510,7 +510,7 @@
       "duration_ms": 0,
       "exit_code": 0,
       "stderr_excerpt": "\u2139 Starting 'wp plugin list --format=json --fields=name,status,version,update' on the cli container. \n\n\u2714 Ran `wp plugin list --format=json --fields=name,status,version,update` in 'cli'. (in <normalized>)",
-      "stdout_excerpt": "[{\"name\":\"hello\",\"status\":\"inactive\",\"version\":\"1.7.2\",\"update\":\"none\"},{\"name\":\"plugin-check\",\"status\":\"active\",\"version\":\"2.0.0\",\"update\":\"none\"}]"
+      "stdout_excerpt": "[{\"name\":\"hello\",\"status\":\"inactive\",\"version\":\"1.7.2\",\"update\":\"none\"},{\"name\":\"plugin-check\",\"status\":\"active\",\"version\":\"2.0.0\",\"update\":\"available\"}]"
     },
     {
       "argv": [
@@ -624,8 +624,44 @@
       "claim": "verification_tools.playground_cli",
       "duration_ms": 0,
       "exit_code": 1,
-      "stderr_excerpt": "npm warn Unknown user config \"min-release-age\". This will stop working in the next major version of npm.\nnpm error npx canceled due to missing packages and no YES option: [\"@wp-playground/cli@3.1.49\"]\nnpm error A complete log of this run can be found in: ~/.npm/_logs/<normalized>-debug-0.log",
+      "stderr_excerpt": "npm warn Unknown user config \"min-release-age\". This will stop working in the next major version of npm.\nnpm error npx canceled due to missing packages and no YES option: [\"@wp-playground/cli@3.1.55\"]\nnpm error A complete log of this run can be found in: ~/.npm/_logs/<normalized>-debug-0.log",
       "stdout_excerpt": ""
+    },
+    {
+      "argv": [
+        "<filesystem>",
+        "exists",
+        ".ddev/providers/pressable.y[a]ml"
+      ],
+      "claim": "runtime_tools.ddev_pressable",
+      "duration_ms": 0,
+      "exit_code": 1,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "absent"
+    },
+    {
+      "argv": [
+        "<filesystem>",
+        "config-scan",
+        ".mcp.json"
+      ],
+      "claim": "runtime_tools.standalone_studio_mcp",
+      "duration_ms": 0,
+      "exit_code": 1,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "absent"
+    },
+    {
+      "argv": [
+        "<filesystem>",
+        "exists",
+        "node_modules/studio-mcp"
+      ],
+      "claim": "runtime_tools.standalone_studio_mcp",
+      "duration_ms": 0,
+      "exit_code": 1,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "absent"
     },
     {
       "argv": [
@@ -870,7 +906,7 @@
     "notes": [
       "facts_from_wp_cli_read_probes"
     ],
-    "php_version": "8.3.33",
+    "php_version": "8.3.35",
     "reason": null,
     "siteurl": "http://localhost:8901",
     "status": "AVAILABLE"
