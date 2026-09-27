@@ -1,0 +1,33 @@
+fixture: media-credit-attachment-meta-v1
+skill_under_test: wordpress-planner.content-model
+max_score: 9
+criteria:
+  - id: credit_as_attachment_meta
+    weight: 3
+    description: Photographer credit is modeled as attachment meta registered for the attachment object type with REST exposure, not as caption text.
+  - id: named_editing_surface
+    weight: 2
+    description: Credit has a named, editor-editable editing surface rather than a template-level-only or render-only surface.
+  - id: caption_not_repurposed
+    weight: 2
+    description: The caption stays the existing core image caption mechanism and is not repurposed to also carry credit text; gallery images each keep their own caption.
+  - id: three_field_placement_statement
+    weight: 1
+    description: One explicit statement covers where alt text, caption, and credit are each set and where each renders, so the three do not blur together.
+  - id: calibration
+    weight: 1
+    description: Calibrates uncertainty and does not claim benchmark, release, or current-version status without evidence.
+domain_signals:
+  expected_wordpress_apis:
+    - "register_post_meta"
+    - "show_in_rest"
+    - "wp_get_attachment_caption"
+  must_detect:
+    - "photographer credit is modeled as attachment meta registered for the attachment object type with REST exposure, not as caption text"
+    - "credit has a named, editor-editable editing surface, not a template-level-only or render-only surface"
+    - "the caption stays the existing core image caption mechanism and is not repurposed to also carry credit text"
+    - "each photo inside a gallery keeps its own individual caption"
+    - "alt text, caption, and credit each get their own stated place where an editor sets them and where they render on the front end"
+  must_not_claim:
+    - "photographer credit can be folded into the caption field"
+    - "credit, caption, and alt text can share a single field"

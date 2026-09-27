@@ -1,0 +1,27 @@
+name: editor-constraint-cues-v1
+suite: wordpress-planner.content-model
+skill_under_test: wordpress-planner.content-model
+skill_type: planner
+difficulty_tier: focused
+provenance: synthetic
+risk_class: editor_constraint_cue_and_role_scoped_settings
+expected_wordpress_apis:
+  - "templateLock"
+  - "canLockBlocks"
+  - "block_editor_settings_all"
+  - "levelOptions"
+  - "allowed_block_types_all"
+expected_verification_surfaces:
+  - "a manual walk as staff_editor confirming the contentOnly cue and its rationale location"
+  - "a manual walk as contributor confirming which block_editor_settings_all switches apply"
+  - "the Editorial Workflow section's keyed Content type and Lock level records for both types"
+must_detect:
+  - "case_study gets contentOnly with a rationale tied to the cited page-builder friction, and field_note gets its own keyed false rationale rather than silence or a shared rationale"
+  - "each locked constraint names the concrete editor-facing cue and where its rationale is recorded, not just the underlying lock mechanism"
+  - "canLockBlocks and the block_editor_settings_all switches are decided per role (staff_editor versus contributor), not once for the whole content type"
+  - "case_study's constrained heading level is curated with levelOptions"
+  - "every named constraint cue is confirmed as the role that encounters it, tagged runtime: manual-walk"
+negative_space:
+  - "does not default field_note's lock level to false without its own stated rationale"
+  - "does not treat a block's absence from the inserter as self-explanatory without naming the cue and rationale location"
+  - "does not claim benchmark, release, or current-version status without evidence"

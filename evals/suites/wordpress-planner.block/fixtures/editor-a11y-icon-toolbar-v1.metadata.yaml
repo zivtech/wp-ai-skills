@@ -1,0 +1,22 @@
+name: editor-a11y-icon-toolbar-v1
+suite: wordpress-planner.block
+skill_under_test: wordpress-planner.block
+skill_type: planner
+difficulty_tier: focused
+provenance: synthetic
+risk_class: editor_control_accessible_name_and_keyboard_pass
+expected_wordpress_apis:
+  - "label"
+  - "@wordpress/components"
+  - "@wordpress/compose"
+expected_verification_surfaces:
+  - "a keyboard pass over the toolbar and panel confirming Tab/Shift+Tab reach and Enter/Space activation"
+  - "a screen-reader spot check of the pin toggle, flip-reset button, and panel names"
+must_detect:
+  - "both icon-only ToolbarButton elements are missing an accessible name (label or title) and the PanelBody is missing a title"
+  - "keyboard reachability is planned for the toolbar buttons and panel (Tab/Shift+Tab reach, Enter/Space activate)"
+  - "reduced motion via useReducedMotion from @wordpress/compose is addressed for any editor-preview animation"
+  - "a keyboard and screen-reader pass over this toolbar and panel is named and tagged runtime: manual-walk"
+negative_space:
+  - "does not propose changing the block's saved markup, attributes, or render.php to fix an editor-only accessibility gap"
+  - "does not claim the fix is complete from the static edit.js change alone"

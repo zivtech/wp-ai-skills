@@ -16,9 +16,9 @@ Use after theme planning or implementation, especially for block themes, theme.j
 Phase 0 - Theme review boundary: classify block/classic/hybrid/child theme scope and name what evidence is available.
     Phase 1 - Pre-commitment predictions: predict theme.json, template hierarchy, parity, accessibility, and asset risks before detailed review.
     Phase 2 - Evidence audit: inspect theme.json, templates, parts, patterns, styles, functions.php, block styles, assets, screenshots, and docs.
-    Phase 3 - Theme correctness: check template hierarchy, block markup validity, global styles scope, token consistency, pattern intent, style variation boundaries, and child/parent interactions.
-    Phase 4 - Editor/frontend parity: compare Site Editor, post editor, frontend, archives, navigation, search, and error template behavior.
-    Phase 5 - Accessibility and responsive review: check landmarks, headings, skip links, focus, contrast, reduced motion, forms, keyboard behavior, responsive media, and zoom resilience.
+    Phase 3 - Theme correctness: check template hierarchy, block markup validity, global styles scope, token consistency, pattern intent, style variation boundaries, and child/parent interactions. Check preset slugs and labels against their output forms: `--wp--preset--{category}--{slug}`, plus classes such as `.has-{slug}-color` where the category has them.
+    Phase 4 - Editor/frontend parity: compare Site Editor, post editor, frontend, archives, navigation, search, and error template behavior. Templates and parts that carry `templateLock` are judged on whether the editor sees a cue for the lock, not only on parity; whether the cue appears is a runtime claim, tagged `runtime: manual-walk` (a recorded manual walk as that role on a local wp-env site, the only environment the recorded-walk procedure covers today: supporting evidence, not a gate, and never a substitute for the named oracles). A `settings.*: false` whose control still shows is a finding unless a `settings.blocks.{blockName}` override re-enables it for that block (whether it shows is a runtime claim, tagged `runtime: manual-walk`), and so is a legacy `add_theme_support()` call that still decides what editors see because theme.json omits that key. A block-styling stylesheet loaded only on the front end (for example only on `wp_enqueue_scripts`) is a parity finding that names the missing `add_editor_style()` or `wp_enqueue_block_style()` call.
+    Phase 5 - Accessibility and responsive review: check landmarks, headings, skip links, focus, contrast, reduced motion, forms, keyboard behavior, responsive media, and zoom resilience. Review the editor surface separately from the front end: contrast under the editor styles, reduced motion in the editor canvas, and the editor's landmark regions, tagged `runtime: manual-walk` (a recorded manual walk as that role on a local wp-env site, the only environment the recorded-walk procedure covers today: supporting evidence, not a gate, and never a substitute for the named oracles).
     Phase 6 - Performance/maintainability review: check conditional assets, specificity, font/image loading, global CSS burden, cache implications, and support burden.
     Phase 7 - Gap analysis: identify missing viewport checks, editor checks, pattern documentation, token provenance, rollback, and visual regression evidence.
     Phase 8 - Self-audit and realist check.
@@ -41,7 +41,7 @@ Treat uncertainty as design data. Separate observed evidence from assumptions, n
 
 ## Failure Modes
 
-Watch for hidden authorization assumptions, unsafe production commands, missing rollback, missing test strategy, cache claims without invalidation, block/theme editor parity gaps, unlogged upstream reuse, and unsupported version claims.
+Watch for hidden authorization assumptions, unsafe production commands, missing rollback, missing test strategy, cache claims without invalidation, block/theme editor parity gaps, a parity verdict that never compares the editor's styles, unlogged upstream reuse, and unsupported version claims.
 
 ## Output Contract
 
@@ -61,3 +61,5 @@ Use these headings:
 ## Provenance
 
 Original Zivtech critic protocol. Compatible references remain reference-only unless reuse is logged and licensed.
+
+The editor-UX review checks (lock cues, preset output forms, theme-support precedence, editor style parity, and the editor-surface accessibility lens) were added 2026-09-27 from the 2026-09-25 editor-UX discovery. They are clean-room text. Compatible references, reference-only unless a ledger row says otherwise: WordPress/agent-skills `wp-block-themes`, WordPress/gutenberg `design-system-ui-review` (ADAPT-ELIGIBLE, no text adapted), and teamchrisfromthelc/wp-preset.

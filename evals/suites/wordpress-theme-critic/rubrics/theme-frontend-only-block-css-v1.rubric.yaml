@@ -1,0 +1,24 @@
+fixture: theme-frontend-only-block-css-v1
+skill_under_test: wordpress-theme-critic
+max_score: 4
+criteria:
+  - id: detect_frontend_only_enqueue
+    weight: 2
+    description: "Identifies that the block-styling stylesheet is enqueued only on wp_enqueue_scripts, with no add_editor_style() or wp_enqueue_block_style() call, so it never reaches the block editor."
+  - id: names_the_missing_call
+    weight: 1
+    description: "Names the specific missing call (add_editor_style() or wp_enqueue_block_style()) as the concrete fix, not a generic 'load styles in the editor too' remark."
+  - id: no_false_positive_on_theme_json_only_case
+    weight: 1
+    type: false_positive_trap
+    description: "Does not claim a theme styled only through theme.json settings/styles would need add_editor_style(); that path already loads in the editor."
+domain_signals:
+  must_detect:
+    - "functions.php enqueues assets/css/blocks.css, which styles .wp-block-button__link and .wp-block-quote, only through the wp_enqueue_scripts hook, with no add_editor_style() or wp_enqueue_block_style() call, so the styling never loads in the block editor and the editor preview differs from the front end"
+  expected_wordpress_apis:
+    - "add_editor_style"
+    - "wp_enqueue_block_style"
+    - "wp_enqueue_scripts"
+  must_not_penalize_or_do:
+    - "claims a theme styled only through theme.json settings and styles would need add_editor_style(), since theme.json-driven styling already loads in the editor"
+    - "flags the CSS rules themselves as wrong when the defect is only that they never reach the editor"

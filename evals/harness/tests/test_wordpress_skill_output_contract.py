@@ -608,6 +608,130 @@ def test_whole_commonmark_raw_block_cannot_satisfy_output_contract(wrapper):
     assert "required_output_headings" in failed
 
 
+@pytest.mark.parametrize(
+    "fence",
+    [
+        "```php\n<?php\nadd_action( 'init', 'acme_review_init' );\n```",
+        "~~~php\n<?php\nadd_action( 'init', 'acme_review_init' );\n~~~",
+        "```json\n{\n  \"data\": \"<?php\\nadd_action( 'init', 'acme_review_init' );\\n\"\n}\n```",
+        "    <?php\n    add_action( 'init', 'acme_review_init' );",
+    ],
+    ids=("backtick-fence", "tilde-fence", "json-string-in-fence", "indented-code"),
+)
+def test_unclosed_php_open_tag_inside_code_does_not_hide_later_sections(fence):
+    """WordPress files omit the closing ``?>``; code cannot open an HTML block.
+
+    Before the raw-HTML pass became fence-aware, the first ``<?php`` in a
+    packet blanked every heading after it (observed 2026-09-27 on
+    wordpress-plugin-executor outputs whose packets were complete).
+    """
+    candidate = GOOD_PLANNER.replace(
+        "## Current-State Evidence", f"{fence}\n\n## Current-State Evidence"
+    )
+
+    result = oracle.validate_output("wordpress-plugin-planner", candidate)
+    headings = next(
+        check for check in result["checks"] if check["id"] == "required_output_headings"
+    )
+
+    assert headings["passed"] is True, headings["detail"]
+    assert result == oracle.validate_output("wordpress-plugin-planner", GOOD_PLANNER)
+
+
+def test_unclosed_php_open_tag_outside_code_still_hides_the_rest_of_the_document():
+    """An unfenced ``<?`` block that never closes runs to the end, as it renders."""
+    candidate = GOOD_PLANNER.replace(
+        "## Current-State Evidence",
+        "<?php\nadd_action( 'init', 'acme_review_init' );\n\n## Current-State Evidence",
+    )
+
+    result = oracle.validate_output("wordpress-plugin-planner", candidate)
+    headings = next(
+        check for check in result["checks"] if check["id"] == "required_output_headings"
+    )
+
+    assert headings["passed"] is False
+    assert "Current-State Evidence" in headings["detail"]
+
+
+def test_raw_text_element_name_inside_code_span_does_not_hide_later_sections():
+    """A ``<script>`` named in a code span is text, not an element that swallows the rest.
+
+    Observed on the recorded 2026-06-21 security-critic output
+    ``input-sql-output-handling-v1``: one such code span hid the next eight
+    headings.
+    """
+    candidate = GOOD_PLANNER.replace(
+        "## Current-State Evidence",
+        "Stored notes may carry `<script>` or `<iframe>` markup that "
+        "`wp_kses_post()` strips.\n\n## Current-State Evidence",
+    )
+
+    result = oracle.validate_output("wordpress-plugin-planner", candidate)
+    headings = next(
+        check for check in result["checks"] if check["id"] == "required_output_headings"
+    )
+
+    assert headings["passed"] is True, headings["detail"]
+    assert result["pass"] is True
+
+
+@pytest.mark.parametrize(
+    ("opening", "closing"),
+    [("<!--", "-->"), ("<?php", "?>"), ("<![CDATA[", "]]>")],
+    ids=("comment", "processing-instruction", "cdata"),
+)
+def test_closed_inline_raw_html_still_hides_its_record(opening, closing):
+    candidate = GOOD_BLOCK_PLANNER.replace(
+        "Primary serialization: dynamic",
+        f"Prose {opening}\nPrimary serialization: dynamic\n{closing}",
+    )
+
+    result = oracle.validate_output("wordpress-planner.block", candidate)
+    failed = {check["id"] for check in result["checks"] if not check["passed"]}
+
+    assert "block_scope_contract" in failed
+
+
+def test_unclosed_inline_raw_html_opener_is_literal_text():
+    """Mid-line ``<!--`` or ``<?`` that never closes renders as text and hides nothing."""
+    candidate = GOOD_PLANNER.replace(
+        "## Current-State Evidence",
+        "Files begin with <?php and legacy templates still carry <!-- markers.\n\n"
+        "## Current-State Evidence",
+    )
+
+    result = oracle.validate_output("wordpress-plugin-planner", candidate)
+    headings = next(
+        check for check in result["checks"] if check["id"] == "required_output_headings"
+    )
+
+    assert headings["passed"] is True, headings["detail"]
+
+
+@pytest.mark.parametrize(
+    "replacement",
+    [
+        "`prose\n<!-- hidden`\nPrimary serialization: dynamic\n-->",
+        "``` `\n<!--\n```\nPrimary serialization: dynamic\n-->",
+    ],
+    ids=("code-span-across-block-opener", "backtick-in-fence-info-string"),
+)
+def test_code_constructs_that_do_not_parse_as_code_cannot_mask_a_block_opener(replacement):
+    """The masking pass must never hide an opener that a renderer honours.
+
+    A code span cannot cross a line-start ``<!--`` (it interrupts the
+    paragraph), and a backtick fence whose info string holds a backtick is
+    prose. In both shapes the record is inside a rendered HTML block.
+    """
+    candidate = GOOD_BLOCK_PLANNER.replace("Primary serialization: dynamic", replacement)
+
+    result = oracle.validate_output("wordpress-planner.block", candidate)
+    failed = {check["id"] for check in result["checks"] if not check["passed"]}
+
+    assert "block_scope_contract" in failed
+
+
 @pytest.mark.parametrize("tag", ["div", "section", "table", "details", "custom-element"])
 def test_raw_html_block_opening_hides_following_contract_section(tag):
     result = oracle.validate_output(
@@ -1155,6 +1279,54 @@ def test_migration_verification_terms_are_contract_evidence():
     assert check.passed is True
     assert "wp post list" in check.detail
     assert "wp search-replace" in check.detail
+
+
+def test_manual_walk_line_does_not_hide_a_real_oracle():
+    check = oracle.check_verification_specificity(
+        "## Verification Plan\n"
+        "- Run `phpunit` against the settings sanitizer.\n"
+        "- Check the admin screen as an Editor, tagged `runtime: manual-walk`\n"
+        "  (a recorded manual walk on a local wp-env site).\n"
+    )
+
+    assert check.passed is True
+    assert "phpunit" in check.detail
+    assert "wp-env" not in check.detail
+    assert "ignored 1 `runtime: manual-walk`" in check.detail
+
+
+def test_manual_walk_lines_alone_are_not_an_oracle():
+    check = oracle.check_verification_specificity(
+        "## Verification Plan\n"
+        "- Walk each constraint cue as an Author, `runtime: manual-walk` on a local wp-env site.\n"
+        "- Compare editor and frontend in Playground, runtime: manual-walk.\n"
+        "- Check the Site Editor lock cue as an Editor, tagged `runtime: manual-walk`\n"
+        "  on a local wp-env site: supporting evidence, not a gate.\n"
+        "**runtime:** `manual-walk` — Query Monitor open during the walk.\n"
+    )
+
+    assert check.passed is False
+    assert check.detail.startswith("no concrete verification oracle named")
+    assert "ignored 4 `runtime: manual-walk`" in check.detail
+
+
+def test_dropping_a_manual_walk_line_does_not_join_neighbors_into_a_term():
+    # "wp" ends one line and "cli" starts the line after the tagged one; with the
+    # tagged line removed they must not read as "wp cli".
+    check = oracle.check_verification_specificity(
+        "Record the result in wp\n"
+        "- Walk the list table as an Editor, runtime: manual-walk.\n"
+        "cli output is attached separately.\n"
+    )
+
+    assert check.passed is False
+
+
+def test_untagged_output_detail_is_unchanged():
+    check = oracle.check_verification_specificity("Smoke test in wp-env and Playground.")
+
+    assert check.passed is True
+    assert check.detail == "verification terms present: playground, wp-env"
 
 
 def test_bad_critic_output_fails_verdict_and_headings():

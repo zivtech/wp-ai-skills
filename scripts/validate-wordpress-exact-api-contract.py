@@ -139,11 +139,44 @@ _THEME_SURFACE_TOKENS = (
     "core/navigation",
     "render_block",
 )
+# Editor-UX surfaces (added 2026-09-27): each tuple pins the names the
+# editor-UX phase text relies on, so deleting that text fails the gate.
+_BLOCK_EDITOR_UX_TOKENS = ("@wordpress/components", "@wordpress/compose")
+_THEME_EDITOR_UX_TOKENS = (
+    "add_editor_style",
+    "wp_enqueue_block_style",
+    "wp_get_global_stylesheet",
+    "add_theme_support",
+)
+_CONTENT_MODEL_EDITOR_UX_TOKENS = (
+    "block_editor_settings_all",
+    "canLockBlocks",
+    "levelOptions",
+    "wp_get_attachment_caption",
+)
+_PLUGIN_ADMIN_UX_TOKENS = (
+    "add_menu_page",
+    "add_submenu_page",
+    "WP_List_Table",
+    "add_settings_section",
+    "add_settings_field",
+    "block_editor_settings_all",
+)
+_THEME_CRITIC_EDITOR_UX_TOKENS = (
+    "add_editor_style",
+    "wp_enqueue_block_style",
+    "add_theme_support",
+)
 PROMPT_CONTRACT_TOKENS: dict[str, tuple[str, ...]] = {
-    "wordpress-planner.block": _BLOCK_EDITOR_SURFACE_TOKENS,
-    "wordpress-block-planner": _BLOCK_EDITOR_SURFACE_TOKENS,
-    "wordpress-planner.theme": _THEME_SURFACE_TOKENS,
-    "wordpress-theme-planner": _THEME_SURFACE_TOKENS,
+    "wordpress-planner.block": _BLOCK_EDITOR_SURFACE_TOKENS + _BLOCK_EDITOR_UX_TOKENS,
+    "wordpress-block-planner": _BLOCK_EDITOR_SURFACE_TOKENS + _BLOCK_EDITOR_UX_TOKENS,
+    "wordpress-planner.theme": _THEME_SURFACE_TOKENS + _THEME_EDITOR_UX_TOKENS,
+    "wordpress-theme-planner": _THEME_SURFACE_TOKENS + _THEME_EDITOR_UX_TOKENS,
+    "wordpress-planner.content-model": _CONTENT_MODEL_EDITOR_UX_TOKENS,
+    "wordpress-content-model-planner": _CONTENT_MODEL_EDITOR_UX_TOKENS,
+    "wordpress-planner.plugin": _PLUGIN_ADMIN_UX_TOKENS,
+    "wordpress-plugin-planner": _PLUGIN_ADMIN_UX_TOKENS,
+    "wordpress-theme-critic": _THEME_CRITIC_EDITOR_UX_TOKENS,
 }
 
 CATEGORY_NAMES = {

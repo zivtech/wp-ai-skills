@@ -1,0 +1,36 @@
+fixture_id: theme-legacy-palette-leak-v1
+tranche: J
+provenance: authored
+license: GPL-2.0-or-later
+source: hand-authored
+expected_verdict: REVISE
+status: active
+tool_invisibility:
+  phpcs_wordpress: clean
+  phpstan: clean
+  plugin_check: pending
+  verified_on: 2026-09-27
+  notes: >-
+    phpcs (WordPress standard, installed_paths wpcs/phpcsutils/phpcsextra) was run directly
+    against the functions.php excerpt: it reports only Squiz.Commenting and
+    PEAR.Functions.FunctionCallSignature style findings (missing file-comment spacing/
+    @package tag, multi-line function-call formatting) -- none of the disqualifying
+    WordPress.Security.*/WordPress.DB.PreparedSQL/WordPress.WP.Capabilities/
+    WordPress.WP.PostsPerPage/WordPress.DB.SlowDBQuery sniffs fire, so it is clean by the
+    tranche-J entry criterion. phpstan (level max, WordPress stubs scanned) reports zero
+    findings. Neither tool cross-checks a theme.json settings.color object against a
+    functions.php add_theme_support('editor-color-palette', ...) call to determine which
+    palette actually reaches the color picker -- that theme.json/theme-support precedence
+    judgment is exactly what no linter here performs. plugin_check requires a full
+    WordPress runtime and is recorded as pending until run in a provisioned environment.
+grounding:
+  - description: "theme.json's settings.color object sets custom, customGradient, and defaultPalette but omits palette, so the legacy palette from functions.php's add_theme_support call is what editors actually see in the color picker"
+    sniff: wordpress.theme.theme-json-theme-support-color-precedence
+    file: theme.json
+    line: 5
+    severity: MAJOR
+  - description: "functions.php's add_theme_support('editor-color-palette', ...) call supplies an off-brand legacy palette that reaches editors only because theme.json leaves settings.color.palette unset, not because the theme support call overrides theme.json"
+    sniff: wordpress.theme.theme-json-theme-support-color-precedence
+    file: functions.php
+    line: 5
+    severity: MAJOR

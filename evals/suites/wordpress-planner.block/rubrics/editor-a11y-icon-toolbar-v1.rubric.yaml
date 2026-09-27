@@ -1,0 +1,33 @@
+fixture: editor-a11y-icon-toolbar-v1
+skill_under_test: wordpress-planner.block
+max_score: 9
+criteria:
+  - id: missing_accessible_names_identified
+    weight: 3
+    description: Both icon-only ToolbarButton elements and the PanelBody are identified as missing an accessible name (label/title for the buttons, title for the panel).
+  - id: keyboard_reachability_planned
+    weight: 2
+    description: Keyboard reachability is planned for the toolbar buttons and panel (Tab/Shift+Tab reach, Enter/Space activate).
+  - id: reduced_motion_addressed
+    weight: 1
+    description: Reduced motion via useReducedMotion from @wordpress/compose is addressed for any editor-preview animation.
+  - id: manual_walk_named
+    weight: 2
+    description: "A keyboard and screen-reader pass over this specific toolbar and panel is named and tagged runtime: manual-walk, rather than asserting completeness from the static edit alone."
+  - id: scope_discipline
+    weight: 1
+    type: false_positive_trap
+    description: Does not propose changing the block's saved markup, attributes, or render.php to fix an editor-only accessibility gap.
+domain_signals:
+  expected_wordpress_apis:
+    - "label"
+    - "@wordpress/components"
+    - "@wordpress/compose"
+  must_detect:
+    - "both icon-only ToolbarButton elements are missing an accessible name (label or title) and the PanelBody is missing a title"
+    - "keyboard reachability is planned for the toolbar buttons and panel (Tab/Shift+Tab reach, Enter/Space activate)"
+    - "reduced motion via useReducedMotion from @wordpress/compose is addressed for any editor-preview animation"
+    - "a keyboard and screen-reader pass over this toolbar and panel is named and tagged runtime: manual-walk"
+  must_not_claim:
+    - "changing the block's saved markup, attributes, or render.php is needed to fix an editor-only accessibility gap"
+    - "the fix is complete from the static edit.js change alone"
