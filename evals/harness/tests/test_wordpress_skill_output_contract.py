@@ -1609,6 +1609,190 @@ def test_content_model_plan_binding_key_mismatch_does_not_satisfy_pairing():
     assert "hero_headline" in checks["content_model_storage_decision_contract"]["detail"]
 
 
+GOOD_EDITORIAL_WORKFLOW = """\
+Editorial guardrails phase: completed
+Content type: event
+Content type: story
+Content type: exhibit
+Lock level (event): contentOnly
+Lock level (story): false
+Lock level rationale (story): donor features need freeform layout.
+Lock level (exhibit): contentOnly
+"""
+
+GOOD_FIELD_MATRIX_RECORDS = """\
+Storage decision rule applied: yes
+Binding source (event_dates): core/post-meta
+Editing surface (event_dates): event-dates block (register_block_bindings_source, setValues)
+Binding source (footer_contact): core/post-meta
+Editing surface (footer_contact): site footer template part bound via setValues
+"""
+
+
+def _content_model_checks(editorial: str = GOOD_EDITORIAL_WORKFLOW, matrix: str = GOOD_FIELD_MATRIX_RECORDS) -> dict:
+    assert GOOD_EDITORIAL_WORKFLOW in GOOD_CONTENT_MODEL_PLANNER
+    assert GOOD_FIELD_MATRIX_RECORDS in GOOD_CONTENT_MODEL_PLANNER
+    candidate = GOOD_CONTENT_MODEL_PLANNER.replace(GOOD_EDITORIAL_WORKFLOW, editorial).replace(
+        GOOD_FIELD_MATRIX_RECORDS, matrix
+    )
+    result = oracle.validate_output("wordpress-content-model-planner", candidate)
+    return {check["id"]: check for check in result["checks"]}
+
+
+def test_content_model_bold_wrapped_records_pass():
+    """Saved sonnet outputs wrote `**Content type: case_study**`; the strict
+    regex read `case_study**` as the key, so no lock record ever matched."""
+    checks = _content_model_checks(
+        editorial=(
+            "**Editorial guardrails phase: completed**\n"
+            "**Content type: event**\n"
+            "**Content type: story**\n"
+            "**Content type:** exhibit\n"
+            "**Lock level (event): contentOnly**\n"
+            "**Lock level (story):** false\n"
+            "**Lock level rationale (story)**: donor features need freeform layout.\n"
+            "**Lock level (exhibit): contentOnly** — rationale: fixed gallery order.\n"
+        ),
+        matrix=(
+            "**Storage decision rule applied: yes.** Dates are facts needed outside the body.\n"
+            "**Binding source (event_dates):** core/post-meta\n"
+            "**Editing surface (event_dates):** event-dates block (setValues)\n"
+        ),
+    )
+
+    assert checks["content_model_editorial_guardrails_contract"]["passed"] is True, checks
+    assert checks["content_model_storage_decision_contract"]["passed"] is True, checks
+
+
+def test_content_model_backtick_wrapped_records_pass():
+    checks = _content_model_checks(
+        editorial=(
+            "Editorial guardrails phase: `completed`\n"
+            "`Content type: event`\n"
+            "Content type: `story`\n"
+            "Content type: `exhibit`\n"
+            "Lock level (`event`): `contentOnly`\n"
+            "`Lock level (story): false`\n"
+            "`Lock level rationale (story):` donor features need freeform layout.\n"
+            "Lock level (exhibit): `contentOnly`.\n"
+        ),
+        matrix=(
+            "Storage decision rule applied: `yes`\n"
+            "`Binding source (event_dates):` `core/post-meta`\n"
+            "Editing surface (`event_dates`): event-dates block (setValues)\n"
+        ),
+    )
+
+    assert checks["content_model_editorial_guardrails_contract"]["passed"] is True, checks
+    assert checks["content_model_storage_decision_contract"]["passed"] is True, checks
+
+
+def test_content_model_annotated_content_type_keys_to_its_slug():
+    """`Content type: attachment (the only content type ...)` declares
+    `attachment`; the annotation is not part of the key."""
+    checks = _content_model_checks(
+        editorial=GOOD_EDITORIAL_WORKFLOW.replace(
+            "Content type: exhibit\n",
+            "Content type: exhibit (the only type with a gallery; posts are unaffected).\n",
+        ).replace(
+            "Content type: event\n", "Content type: `event` — recurring dated programs\n"
+        ),
+    )
+
+    assert checks["content_model_editorial_guardrails_contract"]["passed"] is True, checks
+
+
+def test_content_model_wrapped_types_still_need_one_lock_record_each():
+    """Tolerating emphasis must not reopen the five-types-one-lock gap."""
+    checks = _content_model_checks(
+        editorial=(
+            "**Editorial guardrails phase: completed**\n"
+            "**Content type: event**\n"
+            "**Content type: story**\n"
+            "**Content type: exhibit (gallery)**\n"
+            "**Lock level (event): contentOnly**\n"
+        ),
+    )
+    detail = checks["content_model_editorial_guardrails_contract"]["detail"]
+
+    assert checks["content_model_editorial_guardrails_contract"]["passed"] is False
+    assert "Lock level (story)" in detail and "Lock level (exhibit)" in detail
+
+
+def test_content_model_keys_that_normalize_equal_are_duplicates():
+    checks = _content_model_checks(
+        editorial=GOOD_EDITORIAL_WORKFLOW + "**Lock level (`event`):** false\n",
+    )
+
+    assert checks["content_model_editorial_guardrails_contract"]["passed"] is False
+    assert "duplicate `Lock level:` records for: event" in (
+        checks["content_model_editorial_guardrails_contract"]["detail"]
+    )
+
+
+@pytest.mark.parametrize(
+    "replacement",
+    [
+        "Content type: story (or event, whichever the team prefers)\n",
+        "Content type: story (template_lock does not apply to it)\n",
+    ],
+)
+def test_content_model_hedged_type_annotation_fails(replacement):
+    checks = _content_model_checks(
+        editorial=GOOD_EDITORIAL_WORKFLOW.replace("Content type: story\n", replacement),
+    )
+
+    assert checks["content_model_editorial_guardrails_contract"]["passed"] is False
+    assert "hedged `Content type: story`" in checks["content_model_editorial_guardrails_contract"]["detail"]
+
+
+@pytest.mark.parametrize(
+    "lock_record",
+    [
+        "Lock level (event): contentOnly or false\n",
+        "**Lock level (event): contentOnly** or insert, TBD\n",
+        "Lock level (event): contentOnly — or false if editors object\n",
+        "Lock level (event): not applicable\n",
+    ],
+)
+def test_content_model_hedged_lock_level_fails(lock_record):
+    checks = _content_model_checks(
+        editorial=GOOD_EDITORIAL_WORKFLOW.replace("Lock level (event): contentOnly\n", lock_record),
+    )
+
+    assert checks["content_model_editorial_guardrails_contract"]["passed"] is False
+    assert "Lock level (event)" in checks["content_model_editorial_guardrails_contract"]["detail"]
+
+
+@pytest.mark.parametrize(
+    "lock_record",
+    [
+        "- Lock level (event): contentOnly\n",
+        "    Lock level (event): contentOnly\n",
+        "| Lock level (event): contentOnly |\n",
+    ],
+)
+def test_content_model_list_indented_and_table_records_are_not_authoritative(lock_record):
+    """Only emphasis is tolerated; the column-zero rule still holds."""
+    checks = _content_model_checks(
+        editorial=GOOD_EDITORIAL_WORKFLOW.replace("Lock level (event): contentOnly\n", lock_record),
+    )
+
+    assert checks["content_model_editorial_guardrails_contract"]["passed"] is False
+    assert "Lock level (event)" in checks["content_model_editorial_guardrails_contract"]["detail"]
+
+
+def test_content_model_wrapped_guardrails_phase_must_still_be_completed():
+    checks = _content_model_checks(
+        editorial=GOOD_EDITORIAL_WORKFLOW.replace(
+            "Editorial guardrails phase: completed\n", "**Editorial guardrails phase: pending**\n"
+        ),
+    )
+
+    assert checks["content_model_editorial_guardrails_contract"]["passed"] is False
+    assert "Editorial guardrails phase" in checks["content_model_editorial_guardrails_contract"]["detail"]
+
+
 SOURCE_MANIFEST = {
     "schema": "wordpress-source-manifest",
     "items": [
