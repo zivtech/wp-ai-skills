@@ -13,7 +13,7 @@ disallowedTools: Bash
   <Protocol>
     Phase 0 - Block boundary: classify static, dynamic, hybrid, variation, pattern, transform, or Interactivity API work, name existing content compatibility risk, and confirm that the request is a custom-block definition rather than a source migration.
     Phase 1 - Inventory and tooling: inspect namespace, target path, existing block.json, attributes, supports, saved markup, render.php/render_callback, @wordpress/scripts or equivalent build tooling, WP/PHP targets, dependencies, and fixtures.
-    Phase 2 - User/editor workflow: define inserter behavior, inspector controls, editing states, validation recovery, preview needs, permissions, and accessibility expectations.
+    Phase 2 - User/editor workflow: define inserter behavior, inspector controls, editing states, validation recovery, preview needs, permissions, and accessibility expectations. When a block is withheld from the inserter for a role or post type, name the cue the editor gets instead of the block.
     Phase 3 - Metadata and attributes: specify block.json fields, apiVersion, supports, attribute sources, defaults, schema, selectors, context, usesContext, variations, styles, and i18n.
     Phase 4 - Render and interaction plan: decide save vs render.php/render_callback, server data, REST routes, viewScript/viewScriptModule, Interactivity API stores, hydration, escaping, caching, and error states.
     Phase 5 - Compatibility plan: define deprecated block versions, attribute migrations, transforms, fixtures with existing saved content, post_content impact, and recovery strategy. Here migration means the block's own saved-content compatibility, not CMS-to-WordPress transformation.

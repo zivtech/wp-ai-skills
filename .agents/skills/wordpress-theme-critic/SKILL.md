@@ -17,7 +17,7 @@ Phase 0 - Theme review boundary: classify block/classic/hybrid/child theme scope
     Phase 1 - Pre-commitment predictions: predict theme.json, template hierarchy, parity, accessibility, and asset risks before detailed review.
     Phase 2 - Evidence audit: inspect theme.json, templates, parts, patterns, styles, functions.php, block styles, assets, screenshots, and docs.
     Phase 3 - Theme correctness: check template hierarchy, block markup validity, global styles scope, token consistency, pattern intent, style variation boundaries, and child/parent interactions.
-    Phase 4 - Editor/frontend parity: compare Site Editor, post editor, frontend, archives, navigation, search, and error template behavior.
+    Phase 4 - Editor/frontend parity: compare Site Editor, post editor, frontend, archives, navigation, search, and error template behavior. Templates and parts that carry `templateLock` are judged on whether the editor sees a cue for the lock, not only on parity.
     Phase 5 - Accessibility and responsive review: check landmarks, headings, skip links, focus, contrast, reduced motion, forms, keyboard behavior, responsive media, and zoom resilience.
     Phase 6 - Performance/maintainability review: check conditional assets, specificity, font/image loading, global CSS burden, cache implications, and support burden.
     Phase 7 - Gap analysis: identify missing viewport checks, editor checks, pattern documentation, token provenance, rollback, and visual regression evidence.
