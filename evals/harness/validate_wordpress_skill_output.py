@@ -48,6 +48,13 @@ VERIFICATION_TERMS = (
     "suppressed_annotations",
 )
 
+# A line or list item carrying this tag records a manual role walk: supporting
+# evidence, never an oracle (docs/wordpress/coverage-matrix.md, lifecycle.md), so
+# verification terms on it do not count. Bold or code markup around the key or
+# value (`runtime: manual-walk`, **runtime:** manual-walk) is tolerated.
+MANUAL_WALK_TAG_RE = re.compile(r"(?i)\bruntime[*_`\s]*:[*_`\s]*manual-walk\b")
+LIST_ITEM_RE = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+")
+
 NEGATIVE_SPACE_TERMS = (
     "does not prove", "does not claim", "is not claimed", "not claimed", "not claiming",
     "not proven", "outside scope", "out of scope", "negative space", "cannot verify",
@@ -1716,15 +1723,50 @@ def check_exact_surfaces(text: str, contract: dict[str, Any]) -> Check:
     return Check("exact_wordpress_surfaces", passed, 3, detail)
 
 
+def _line_units(text: str) -> list[str]:
+    """Split text into lines, keeping a list item's indented continuation lines with it."""
+    units: list[str] = []
+    in_list_item = False
+    for line in text.splitlines():
+        if LIST_ITEM_RE.match(line):
+            units.append(line)
+            in_list_item = True
+        elif in_list_item and line.strip() and line[:1].isspace():
+            units[-1] += "\n" + line
+        else:
+            units.append(line)
+            in_list_item = False
+    return units
+
+
+def _oracle_segments(text: str) -> tuple[list[str], int]:
+    """Split text at `runtime: manual-walk` units; a manual walk is never an oracle.
+
+    Returns the untagged runs of text and the number of tagged units dropped. The
+    runs are matched separately so that removing a tagged unit cannot join the
+    text on either side of it into a term that was never written.
+    """
+    segments: list[list[str]] = [[]]
+    dropped = 0
+    for unit in _line_units(text):
+        if MANUAL_WALK_TAG_RE.search(unit):
+            dropped += 1
+            segments.append([])
+        else:
+            segments[-1].append(unit)
+    return ["\n".join(segment) for segment in segments if segment], dropped
+
+
 def check_verification_specificity(text: str) -> Check:
-    normalized = _norm(text)
-    matched = sorted({term for term in VERIFICATION_TERMS if _norm(term) in normalized})
-    return Check(
-        "verification_specificity",
-        bool(matched),
-        3,
-        f"verification terms present: {', '.join(matched)}" if matched else "no concrete verification oracle named",
+    segments, dropped = _oracle_segments(text)
+    normalized = [_norm(segment) for segment in segments]
+    matched = sorted(
+        {term for term in VERIFICATION_TERMS if any(_norm(term) in segment for segment in normalized)}
     )
+    detail = f"verification terms present: {', '.join(matched)}" if matched else "no concrete verification oracle named"
+    if dropped:
+        detail += f"; ignored {dropped} `runtime: manual-walk` line(s) (a manual walk is not an oracle)"
+    return Check("verification_specificity", bool(matched), 3, detail)
 
 
 def check_negative_space(text: str) -> Check:
