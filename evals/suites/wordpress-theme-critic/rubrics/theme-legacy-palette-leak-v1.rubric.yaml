@@ -1,0 +1,25 @@
+fixture: theme-legacy-palette-leak-v1
+skill_under_test: wordpress-theme-critic
+max_score: 5
+criteria:
+  - id: detect_missing_palette_key
+    weight: 2
+    description: "Identifies that theme.json's settings.color object sets custom, customGradient, and defaultPalette but omits palette, so the legacy add_theme_support palette is what editors see."
+  - id: correct_precedence_reasoning
+    weight: 2
+    description: "Explains the defect as theme.json omitting a key it could set, not as add_theme_support overriding or taking precedence over theme.json."
+  - id: no_false_positive_on_other_color_switches
+    weight: 1
+    type: false_positive_trap
+    description: "Does not flag theme.json's custom, customGradient, or defaultPalette switches themselves as misconfigured."
+domain_signals:
+  must_detect:
+    - "theme.json's settings.color object sets custom, customGradient, and defaultPalette but omits palette, so the legacy palette from functions.php's add_theme_support call is what editors actually see in the color picker"
+    - "functions.php's add_theme_support('editor-color-palette', ...) call supplies an off-brand legacy palette that reaches editors only because theme.json leaves settings.color.palette unset, not because the theme support call overrides theme.json"
+  expected_wordpress_apis:
+    - "theme.json"
+    - "add_theme_support"
+    - "wp_get_global_stylesheet"
+  must_not_penalize_or_do:
+    - "claims add_theme_support overrides or takes precedence over a key theme.json sets; theme.json wins on any key it sets, and this defect exists only because theme.json omits the palette key"
+    - "flags theme.json's custom, customGradient, or defaultPalette switches as misconfigured when only the missing palette key is the issue"
