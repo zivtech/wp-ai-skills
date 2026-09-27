@@ -1281,6 +1281,54 @@ def test_migration_verification_terms_are_contract_evidence():
     assert "wp search-replace" in check.detail
 
 
+def test_manual_walk_line_does_not_hide_a_real_oracle():
+    check = oracle.check_verification_specificity(
+        "## Verification Plan\n"
+        "- Run `phpunit` against the settings sanitizer.\n"
+        "- Check the admin screen as an Editor, tagged `runtime: manual-walk`\n"
+        "  (a recorded manual walk on a local wp-env site).\n"
+    )
+
+    assert check.passed is True
+    assert "phpunit" in check.detail
+    assert "wp-env" not in check.detail
+    assert "ignored 1 `runtime: manual-walk`" in check.detail
+
+
+def test_manual_walk_lines_alone_are_not_an_oracle():
+    check = oracle.check_verification_specificity(
+        "## Verification Plan\n"
+        "- Walk each constraint cue as an Author, `runtime: manual-walk` on a local wp-env site.\n"
+        "- Compare editor and frontend in Playground, runtime: manual-walk.\n"
+        "- Check the Site Editor lock cue as an Editor, tagged `runtime: manual-walk`\n"
+        "  on a local wp-env site: supporting evidence, not a gate.\n"
+        "**runtime:** `manual-walk` — Query Monitor open during the walk.\n"
+    )
+
+    assert check.passed is False
+    assert check.detail.startswith("no concrete verification oracle named")
+    assert "ignored 4 `runtime: manual-walk`" in check.detail
+
+
+def test_dropping_a_manual_walk_line_does_not_join_neighbors_into_a_term():
+    # "wp" ends one line and "cli" starts the line after the tagged one; with the
+    # tagged line removed they must not read as "wp cli".
+    check = oracle.check_verification_specificity(
+        "Record the result in wp\n"
+        "- Walk the list table as an Editor, runtime: manual-walk.\n"
+        "cli output is attached separately.\n"
+    )
+
+    assert check.passed is False
+
+
+def test_untagged_output_detail_is_unchanged():
+    check = oracle.check_verification_specificity("Smoke test in wp-env and Playground.")
+
+    assert check.passed is True
+    assert check.detail == "verification terms present: playground, wp-env"
+
+
 def test_bad_critic_output_fails_verdict_and_headings():
     result = oracle.validate_output("wordpress-critic", BAD_CRITIC)
     failed = {check["id"] for check in result["checks"] if not check["passed"]}
