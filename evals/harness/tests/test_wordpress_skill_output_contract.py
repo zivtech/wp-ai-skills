@@ -1965,6 +1965,106 @@ def test_content_model_wrapped_guardrails_phase_must_still_be_completed():
     assert "Editorial guardrails phase" in checks["content_model_editorial_guardrails_contract"]["detail"]
 
 
+# Shape of the saved sonnet/low media-credit output: an affirmative editing
+# surface, a recommended default, then a warning sentence that opens "Do not".
+AFFIRMATIVE_SURFACE_WITH_WARNING = (
+    "a client-side Block Bindings source registered with `registerBlockBindingsSource()` "
+    "implementing `setValues`, surfaced in the event-dates block. Recommended default: the "
+    "block field, because dates are set once per event. Do not rely on a template-level-only "
+    "binding or a render-only PHP source; either would display but not edit."
+)
+
+
+def test_content_model_editing_surface_with_trailing_warning_passes():
+    checks = _content_model_checks(
+        matrix=GOOD_FIELD_MATRIX_RECORDS.replace(
+            "Editing surface (event_dates): event-dates block (register_block_bindings_source, setValues)\n",
+            f"Editing surface (`event_dates`): {AFFIRMATIVE_SURFACE_WITH_WARNING}\n",
+        ),
+    )
+
+    assert checks["content_model_storage_decision_contract"]["passed"] is True, checks
+
+
+def test_content_model_binding_and_lock_records_with_trailing_warning_pass():
+    checks = _content_model_checks(
+        editorial=GOOD_EDITORIAL_WORKFLOW.replace(
+            "Lock level (event): contentOnly\n",
+            "Lock level (event): contentOnly — editors fill the declared slots; do not unlock the header.\n",
+        ),
+        matrix=GOOD_FIELD_MATRIX_RECORDS.replace(
+            "Binding source (event_dates): core/post-meta\n",
+            "Binding source (event_dates): core/post-meta. Do not register a PHP-only source.\n",
+        ),
+    )
+
+    assert checks["content_model_editorial_guardrails_contract"]["passed"] is True, checks
+    assert checks["content_model_storage_decision_contract"]["passed"] is True, checks
+
+
+@pytest.mark.parametrize(
+    "surface",
+    [
+        "none",
+        "**none**",
+        "none — the importer sets the value",
+        "none; the importer sets the value",
+        "not required",
+        "Not required. The importer sets the value.",
+        "out of scope for this phase",
+        "the field does not have an editor surface.",
+        "Media Library field. TBD whether a block is needed.",
+    ],
+)
+def test_content_model_negated_or_placeholder_editing_surface_still_fails(surface):
+    checks = _content_model_checks(
+        matrix=GOOD_FIELD_MATRIX_RECORDS.replace(
+            "Editing surface (event_dates): event-dates block (register_block_bindings_source, setValues)\n",
+            f"Editing surface (event_dates): {surface}\n",
+        ),
+    )
+
+    assert checks["content_model_storage_decision_contract"]["passed"] is False
+    assert "Editing surface (event_dates)" in checks["content_model_storage_decision_contract"]["detail"]
+
+
+@pytest.mark.parametrize(
+    "binding",
+    ["none", "not used. The block renders static text.", "out of scope — static text only"],
+)
+def test_content_model_negated_binding_source_still_fails(binding):
+    checks = _content_model_checks(
+        matrix=GOOD_FIELD_MATRIX_RECORDS.replace(
+            "Binding source (event_dates): core/post-meta\n",
+            f"Binding source (event_dates): {binding}\n",
+        ),
+    )
+
+    assert checks["content_model_storage_decision_contract"]["passed"] is False
+    assert "Binding source (event_dates)" in checks["content_model_storage_decision_contract"]["detail"]
+
+
+def test_content_model_false_lock_rationale_that_is_a_negation_still_fails():
+    checks = _content_model_checks(
+        editorial=GOOD_EDITORIAL_WORKFLOW.replace(
+            "Lock level rationale (story): donor features need freeform layout.\n",
+            "Lock level rationale (story): not required. Stories are short.\n",
+        ),
+    )
+
+    assert checks["content_model_editorial_guardrails_contract"]["passed"] is False
+    assert "Lock level rationale (story)" in checks["content_model_editorial_guardrails_contract"]["detail"]
+
+
+def test_leading_clause_negation_does_not_loosen_shared_decision_helpers():
+    """NEGATED_DECISION_RE and `_usable_decision` still read the whole value
+    for the Gutenberg migration, plugin delivery unit, and security gates."""
+    assert oracle.NEGATED_DECISION_RE.search(AFFIRMATIVE_SURFACE_WITH_WARNING)
+    assert oracle._usable_decision(AFFIRMATIVE_SURFACE_WITH_WARNING) is False
+    assert oracle._usable_content_model_decision(AFFIRMATIVE_SURFACE_WITH_WARNING) is False
+    assert oracle._usable_content_model_record(AFFIRMATIVE_SURFACE_WITH_WARNING) is True
+
+
 SOURCE_MANIFEST = {
     "schema": "wordpress-source-manifest",
     "items": [

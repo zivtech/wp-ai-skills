@@ -1291,6 +1291,38 @@ def _usable_content_model_decision(value: str | None) -> bool:
     return not HEDGE_PLACEHOLDER_RE.search(value or "")
 
 
+# Where a content-model record's decision ends: a sentence break (terminal
+# punctuation then an upper-case, backtick, quote, or parenthesis start), a
+# semicolon, or a spaced dash. Text after it elaborates or warns.
+_LEADING_CLAUSE_END_RE = re.compile(r"[.!?](?=\s+[A-Z`\"'(*])|;\s|\s[—–-]+\s")
+
+
+def _leading_clause(value: str) -> str:
+    lead = _LEADING_CLAUSE_END_RE.split(value.strip(), maxsplit=1)[0]
+    return _strip_record_emphasis(lead)
+
+
+def _usable_content_model_record(value: str | None) -> bool:
+    """`_usable_content_model_decision` with negation read from the leading clause.
+
+    For `Binding source`, `Editing surface`, `Lock level`, and `Lock level
+    rationale` records only. A saved sonnet/low media-credit output decided an
+    editing surface, then warned "Do not rely on a template-level-only
+    binding ..." three sentences later, and NEGATED_DECISION_RE read the
+    warning as the decision. Across 28 distinct saved content-model outputs
+    that was the only record whose gate outcome the negation rule decided.
+    The leading clause still carries the negation and none/missing checks
+    (`none`, `**none**`, `none — imported`, `not required. ...`, `out of
+    scope`, `does not have an editor surface` all fail), and a hedge or placeholder anywhere
+    in the value still fails. NEGATED_DECISION_RE itself is unchanged, so the
+    Gutenberg migration, plugin delivery unit, and security gates and the
+    other content-model and migration records keep whole-value negation.
+    """
+    if not value or not _usable_content_model_decision(_leading_clause(value)):
+        return False
+    return not HEDGE_PLACEHOLDER_RE.search(value)
+
+
 # Content-model records as models actually write them. Saved sonnet outputs
 # for the editor-constraint and media-credit fixtures wrapped every record in
 # Markdown emphasis despite the column-zero instruction: `**Content type:
@@ -1460,12 +1492,12 @@ def check_content_model_plan_contract(text: str) -> list[Check]:
     for content_type in unique_types:
         value = lock_records.get(content_type)
         lock_level = _lock_level_value(value) if value is not None else None
-        if lock_level is None or not _usable_content_model_decision(value):
+        if lock_level is None or not _usable_content_model_record(value):
             guardrail_problems.append(f"missing/invalid `Lock level ({content_type}):` record")
             continue
         if lock_level == "false":
             rationale = rationale_records.get(content_type)
-            if rationale is None or not _usable_content_model_decision(rationale):
+            if rationale is None or not _usable_content_model_record(rationale):
                 guardrail_problems.append(f"missing `Lock level rationale ({content_type}):` record")
     if lock_duplicate_keys:
         guardrail_problems.append(f"duplicate `Lock level:` records for: {', '.join(lock_duplicate_keys)}")
@@ -1497,11 +1529,11 @@ def check_content_model_plan_contract(text: str) -> list[Check]:
     if not storage_ok:
         storage_problems.append("no single `Storage decision rule applied: yes` record")
     for meta_key, value in binding_records.items():
-        if not _usable_content_model_decision(value):
+        if not _usable_content_model_record(value):
             storage_problems.append(f"hedged/negated/placeholder `Binding source ({meta_key}):`")
             continue
         surface = surface_records.get(meta_key)
-        if surface is None or not _usable_content_model_decision(surface):
+        if surface is None or not _usable_content_model_record(surface):
             storage_problems.append(f"missing or placeholder `Editing surface ({meta_key}):` record")
     if binding_duplicate_keys:
         storage_problems.append(f"duplicate `Binding source:` records for: {', '.join(binding_duplicate_keys)}")
