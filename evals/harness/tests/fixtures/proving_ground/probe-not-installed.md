@@ -29,6 +29,8 @@ Proving ground: not installed
 
 NOT CHECKED: probe_wordpress_environment.py (no proving ground root resolved)
 
+Set up the proving ground: install uv (https://docs.astral.sh/uv/) and run `[ -d ~/wp-ai-skills ] || git clone https://github.com/zivtech/wp-ai-skills ~/wp-ai-skills; ~/wp-ai-skills/install.sh --harness-only`.
+
 ## Downstream Handoff
 
 Do not pass a capability manifest to `validate_wordpress_skill_output.py`;

@@ -31,6 +31,7 @@ import validate_wordpress_skill_output as oracle
 
 
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures" / "proving_ground"
+SETUP_LINE = "Run `~/wp-ai-skills/install.sh --harness-only` after installing uv.\n\n"
 
 
 def _find_check(result: dict, check_id: str) -> dict:
@@ -43,6 +44,12 @@ def _pg_block(value: str, required_files: tuple[str, ...], needs_not_checked: bo
         lines.append("")
         for name in required_files:
             lines.append(f"NOT CHECKED: {name} (no proving ground root resolved)")
+    if value.startswith("not installed"):
+        lines.append("")
+        lines.append(
+            "Set up the proving ground: install uv and run `[ -d ~/wp-ai-skills ] || git clone "
+            "https://github.com/zivtech/wp-ai-skills ~/wp-ai-skills; ~/wp-ai-skills/install.sh --harness-only`."
+        )
     return "\n".join(lines) + "\n\n"
 
 
@@ -671,7 +678,7 @@ def test_not_checked_line_with_root_token_counts():
         f"NOT CHECKED: <root>/evals/harness/{name} (no proving ground root resolved)"
         for name in PLUGIN_EXECUTOR_REQUIRED_FILES
     )
-    text = _plugin_executor_text(f"Proving ground: not installed\n\n{not_checked}\n\n")
+    text = _plugin_executor_text(f"Proving ground: not installed\n\n{not_checked}\n\n{SETUP_LINE}")
     result = oracle.validate_output("wordpress-plugin-executor", text, require_proving_ground=True)
     check = _find_check(result, "proving_ground_record")
     assert check["passed"] is True, check["detail"]
@@ -691,6 +698,7 @@ def test_generated_plugin_dir_line_above_record_does_not_hide_it():
         "Generated files land under `<generated-plugin-dir>` for this packet.\n"
         "Proving ground: not installed\n\n"
         f"{not_checked}\n\n"
+        + SETUP_LINE
     )
     text = _plugin_executor_text(block)
     result = oracle.validate_output("wordpress-plugin-executor", text, require_proving_ground=True)
@@ -705,3 +713,29 @@ def test_record_under_a_repeated_heading_fails_closed():
     )
     result = oracle.validate_output("wordpress-plugin-executor", text, require_proving_ground=True)
     assert _find_check(result, "proving_ground_record")["passed"] is False
+
+
+def test_bullet_record_with_explanation_passes():
+    """Agents write the record as a bullet with a reason; the meaning is the same."""
+    block = _pg_block("not installed", PLUGIN_EXECUTOR_REQUIRED_FILES, True).replace(
+        "Proving ground: not installed", "- Proving ground: not installed (no home file, no variable)"
+    )
+    result = oracle.validate_output("wordpress-plugin-executor", _plugin_executor_text(block), require_proving_ground=True)
+    assert _find_check(result, "proving_ground_record")["passed"] is True
+
+
+def test_not_installed_without_the_setup_command_fails():
+    block = _pg_block("not installed", PLUGIN_EXECUTOR_REQUIRED_FILES, True).replace("install.sh --harness-only", "install.sh")
+    check = _find_check(
+        oracle.validate_output("wordpress-plugin-executor", _plugin_executor_text(block), require_proving_ground=True),
+        "proving_ground_record",
+    )
+    assert check["passed"] is False
+    assert "setup command" in check["detail"]
+
+
+def test_unusable_does_not_require_the_setup_command():
+    block = _pg_block("/opt/wp-ai-skills (unusable: uv not found)", PLUGIN_EXECUTOR_REQUIRED_FILES, True)
+    assert "install.sh" not in block
+    result = oracle.validate_output("wordpress-plugin-executor", _plugin_executor_text(block), require_proving_ground=True)
+    assert _find_check(result, "proving_ground_record")["passed"] is True

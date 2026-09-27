@@ -28,5 +28,7 @@ NOT CHECKED: validate_wordpress_executor_packet.py (no proving ground root resol
 NOT CHECKED: materialize_wordpress_executor_packet.py (no proving ground root resolved)
 NOT CHECKED: validate_wordpress_artifact.py (no proving ground root resolved)
 
+Set up the proving ground: install uv (https://docs.astral.sh/uv/) and run `[ -d ~/wp-ai-skills ] || git clone https://github.com/zivtech/wp-ai-skills ~/wp-ai-skills; ~/wp-ai-skills/install.sh --harness-only`.
+
 ## Critic Handoff
 Send the packet to wordpress-critic and wordpress-security-critic.

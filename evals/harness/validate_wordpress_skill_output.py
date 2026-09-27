@@ -66,7 +66,14 @@ VERDICT_RE = re.compile(r"(?im)^\*\*VERDICT:\s*([A-Z-]+).*?\*\*")
 
 # Opt-in proving-ground record (--require-proving-ground). A column-zero line
 # naming whether this saved output was produced with a resolved harness root.
-PROVING_GROUND_LINE_RE = re.compile(r"(?m)^Proving ground:[ \t]*(.*)$")
+# A leading list marker is tolerated: agents often write the record as a bullet
+# under the owning heading, and the record's meaning is the same.
+PROVING_GROUND_LINE_RE = re.compile(r"(?m)^(?:[-*] )?Proving ground:[ \t]*(.*)$")
+# `not installed` may be followed by an explanation, e.g. "(no home file, no variable)".
+PROVING_GROUND_NOT_INSTALLED_RE = re.compile(r"^not installed(?:[ .:;,(\u2014-].*)?$")
+# The guard tells the user how to set up the proving ground; this must appear
+# whenever the record says it is not installed.
+PROVING_GROUND_SETUP_TOKEN = "install.sh --harness-only"
 # The root path may not contain "@", so a malformed commit suffix cannot hide in it.
 _PROVING_GROUND_ABS_PATH = r"/[^\s@]+"
 _PROVING_GROUND_COMMIT = r"[0-9a-f]{7,40}"
@@ -2510,7 +2517,7 @@ def _has_not_checked_line(text: str, needle: str) -> bool:
     return any("NOT CHECKED" in line and needle in line for line in text.splitlines())
 
 
-def check_proving_ground_record(text: str, skill: str) -> Check | None:
+def check_proving_ground_record(text: str, skill: str, raw_text: str | None = None) -> Check | None:
     """Require a ``Proving ground:`` record for the skills in ``PROVING_GROUND_RECORDS``.
 
     ``text`` is fence-only-stripped (see ``_strip_fenced_code``), not the full
@@ -2596,7 +2603,8 @@ def check_proving_ground_record(text: str, skill: str) -> Check | None:
             )
         return Check("proving_ground_record", True, 3, f"proving ground record valid: {raw_value}")
 
-    if value == "not installed" or PROVING_GROUND_UNUSABLE_RE.match(value):
+    not_installed = bool(PROVING_GROUND_NOT_INSTALLED_RE.match(value))
+    if not_installed or PROVING_GROUND_UNUSABLE_RE.match(value):
         missing = [name for name in required_files if not _has_not_checked_line(text, name)]
         if missing:
             return Check(
@@ -2604,6 +2612,15 @@ def check_proving_ground_record(text: str, skill: str) -> Check | None:
                 False,
                 3,
                 f"'Proving ground: {raw_value}' needs a NOT CHECKED line naming: {', '.join(missing)}",
+            )
+        # The setup command may sit inside a fenced code block, so look at the raw text.
+        if not_installed and PROVING_GROUND_SETUP_TOKEN not in (raw_text if raw_text is not None else text):
+            return Check(
+                "proving_ground_record",
+                False,
+                3,
+                f"'Proving ground: {raw_value}' must tell the user the setup command "
+                f"({PROVING_GROUND_SETUP_TOKEN})",
             )
         return Check("proving_ground_record", True, 3, f"proving ground record valid: {raw_value}")
 
@@ -2671,7 +2688,7 @@ def validate_output(
         checks.append(check_runtime_tool_grounding(text, capability_manifest))
         checks.append(check_runtime_sync_confirmation(text, capability_manifest))
     if require_proving_ground:
-        proving_ground_check = check_proving_ground_record(_strip_fenced_code(text), skill)
+        proving_ground_check = check_proving_ground_record(_strip_fenced_code(text), skill, raw_text=text)
         if proving_ground_check is not None:
             checks.append(proving_ground_check)
     total = sum(check.weight for check in checks)
