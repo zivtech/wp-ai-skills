@@ -8,6 +8,15 @@ skills named in ``PROVING_GROUND_RECORDS`` must carry exactly one
 files with a ``NOT CHECKED`` line. ``run_wordpress_high_risk_saved_outputs.py``
 records the flag in a new run's manifest and applies it to the ``skill``
 condition only; ``--resume`` honors whatever the manifest already recorded.
+
+Known blind spot: ``check_proving_ground_record`` only validates the
+``Proving ground:`` record and its ``NOT CHECKED`` lines. It cannot detect an
+otherwise-invented harness result written elsewhere in the same output -- for
+example, a fabricated WP-CLI version string or a made-up capability boolean
+sitting next to a truthful ``Proving ground: not installed`` record. Nothing
+in this test module (or in ``validate_wordpress_skill_output.py``) checks
+that the rest of the prose is consistent with the record; that is a
+prose-honesty problem the record check was never scoped to catch.
 """
 
 from __future__ import annotations
@@ -184,33 +193,68 @@ def test_flag_off_explicit_false_matches_omitted_default():
 # ---------------------------------------------------------------------------
 
 
-FORMS = [
+# Forms every guarded skill accepts, regardless of command/reference variant:
+# "not installed", "unusable", and an installed path WITH a commit suffix (the
+# mandatory form for command skills, and also accepted for reference skills).
+UNIVERSAL_FORMS = [
     pytest.param("not installed", True, id="not-installed"),
-    pytest.param("/opt/wp-ai-skills@abc1234", False, id="installed"),
-    pytest.param("/opt/wp-ai-skills", False, id="installed-no-commit"),
+    pytest.param("/opt/wp-ai-skills@abc1234", False, id="installed-with-commit"),
     pytest.param("/opt/wp-ai-skills (unusable: uv not found)", True, id="unusable"),
 ]
 
+# skill, output builder, required harness files, guard variant ("command" or "reference").
 SKILLS = [
     pytest.param(
-        "wordpress-environment-probe", _probe_text, ("probe_wordpress_environment.py",), id="probe"
+        "wordpress-environment-probe", _probe_text, ("probe_wordpress_environment.py",), "command", id="probe"
     ),
     pytest.param(
-        "wordpress-plugin-executor", _plugin_executor_text, PLUGIN_EXECUTOR_REQUIRED_FILES, id="plugin-executor"
+        "wordpress-plugin-executor", _plugin_executor_text, PLUGIN_EXECUTOR_REQUIRED_FILES, "command",
+        id="plugin-executor",
     ),
     pytest.param(
-        "wordpress-planner.block", _planner_block_text, ("wp-symbols.json",), id="planner-block"
+        "wordpress-planner.block", _planner_block_text, ("wp-symbols.json",), "reference", id="planner-block"
     ),
 ]
 
 
-@pytest.mark.parametrize("skill,builder,required_files", SKILLS)
-@pytest.mark.parametrize("value,needs_not_checked", FORMS)
-def test_each_value_form_passes_for_each_named_skill(skill, builder, required_files, value, needs_not_checked):
+@pytest.mark.parametrize("skill,builder,required_files,variant", SKILLS)
+@pytest.mark.parametrize("value,needs_not_checked", UNIVERSAL_FORMS)
+def test_each_universal_form_passes_for_each_named_skill(skill, builder, required_files, variant, value, needs_not_checked):
     text = builder(_pg_block(value, required_files, needs_not_checked))
     result = oracle.validate_output(skill, text, require_proving_ground=True)
     assert result["pass"] is True, result["checks"]
     assert _find_check(result, "proving_ground_record")["passed"] is True
+
+
+@pytest.mark.parametrize("skill,builder,required_files,variant", SKILLS)
+def test_installed_without_commit_passes_only_for_reference_skills(skill, builder, required_files, variant):
+    """RED before the per-variant fix: this form passed unconditionally for every skill.
+
+    Command skills (the probe and the four executors) run the harness, so their
+    record must carry a resolved commit; only reference skills (the planners) may
+    omit it.
+    """
+    text = builder(_pg_block("/opt/wp-ai-skills", required_files, False))
+    result = oracle.validate_output(skill, text, require_proving_ground=True)
+    expect_pass = variant == "reference"
+    assert _find_check(result, "proving_ground_record")["passed"] is expect_pass
+
+
+@pytest.mark.parametrize("skill,builder,required_files,variant", SKILLS)
+def test_unresolved_form_is_reference_only(skill, builder, required_files, variant):
+    """RED before this feature existed: 'unresolved (<reason>)' did not parse at all.
+
+    Valid, with its NOT CHECKED lines, only for reference skills; command skills
+    must fail closed with a detail explaining why.
+    """
+    text = builder(_pg_block("unresolved (no shell available)", required_files, True))
+    result = oracle.validate_output(skill, text, require_proving_ground=True)
+    check = _find_check(result, "proving_ground_record")
+    if variant == "reference":
+        assert check["passed"] is True, check["detail"]
+    else:
+        assert check["passed"] is False
+        assert "reference" in check["detail"]
 
 
 @pytest.mark.parametrize(
@@ -485,6 +529,73 @@ def test_main_resume_honors_manifest_without_key(tmp_path, monkeypatch):
     assert manifest["require_proving_ground"] is False
 
 
+def test_new_run_writes_an_early_in_progress_manifest_before_generation(tmp_path, monkeypatch):
+    """RED before the early write existed: no manifest was on disk until the
+
+    end-of-run summary, so an interruption partway through a new run left
+    `--resume` with no file to read `require_proving_ground` from.
+    """
+    monkeypatch.setattr(runner, "RESULTS_ROOT", tmp_path)
+    monkeypatch.setattr(runner, "skill_name_for_suite", lambda suite: "wordpress-plugin-executor")
+
+    seen: dict[str, object] = {}
+
+    def _stub_run_saved_output(**kwargs):
+        manifest_path = runner.run_manifest_path(kwargs["run_id"])
+        seen["exists_before_generation"] = manifest_path.exists()
+        if manifest_path.exists():
+            seen["data"] = json.loads(manifest_path.read_text(encoding="utf-8"))
+        return runner.SavedOutputEntry(
+            suite=kwargs["suite"],
+            fixture_id=kwargs["fixture_id"],
+            condition=kwargs["condition"],
+            output_path="x",
+            metadata_path="y",
+            contract_path="z",
+            security_gate_path=None,
+            generation_ok=True,
+            contract_pass=True,
+            contract_score=1.0,
+            duration_sec=0.1,
+        )
+
+    monkeypatch.setattr(runner, "run_saved_output", _stub_run_saved_output)
+
+    exit_code = runner.main(
+        [
+            "--suite", "wordpress-plugin-executor-suite",
+            "--run-id", "run-early",
+            "--fixtures", "fixture-a",
+            "--conditions", "skill",
+        ]
+    )
+    assert exit_code == 0
+    assert seen["exists_before_generation"] is True
+    assert seen["data"]["run_id"] == "run-early"
+    assert seen["data"]["require_proving_ground"] is True
+    assert seen["data"]["status"] == "in-progress"
+
+    # The end-of-run summary still overwrites manifest.json with the full summary.
+    final = json.loads((tmp_path / "run-early" / "manifest.json").read_text(encoding="utf-8"))
+    assert final["require_proving_ground"] is True
+    assert "status" not in final
+
+
+def test_resume_after_interruption_keeps_true(tmp_path, monkeypatch):
+    """An interrupted new run leaves only the early in-progress manifest;
+
+    `--resume` must still resolve `require_proving_ground` to True from it,
+    the same as the early write's contract promises.
+    """
+    monkeypatch.setattr(runner, "RESULTS_ROOT", tmp_path)
+    run_id = "run-interrupted"
+    runner.write_json(
+        runner.run_manifest_path(run_id),
+        {"run_id": run_id, "require_proving_ground": True, "status": "in-progress"},
+    )
+    assert runner.resolve_require_proving_ground(run_id, resume=True) is True
+
+
 # ---------------------------------------------------------------------------
 # Cross-checks and decoys.
 # ---------------------------------------------------------------------------
@@ -502,14 +613,24 @@ def _load_parity_validator():
 
 
 def test_record_skills_match_the_guarded_skills():
-    """The skills whose guard promises a record are exactly the skills this check covers."""
+    """The skills whose guard promises a record are exactly the skills this check covers.
+
+    Also cross-checks the command/reference variant this module keys off of
+    against the parity validator's PROVING_GROUND_SKILLS variant, so the two
+    modules cannot silently drift on which skills must carry a commit.
+    """
     parity = _load_parity_validator()
-    guarded = {
+    guarded_headings = {
         parity.SKILL_TO_AGENT[skill]: heading
         for skill, (_variant, heading) in parity.PROVING_GROUND_SKILLS.items()
     }
-    covered = {skill: heading for skill, (heading, _files) in oracle.PROVING_GROUND_RECORDS.items()}
-    assert covered == guarded
+    guarded_variants = {
+        parity.SKILL_TO_AGENT[skill]: variant
+        for skill, (variant, _heading) in parity.PROVING_GROUND_SKILLS.items()
+    }
+    covered_headings = {skill: heading for skill, (heading, _files) in oracle.PROVING_GROUND_RECORDS.items()}
+    assert covered_headings == guarded_headings
+    assert oracle.PROVING_GROUND_VARIANTS == guarded_variants
 
 
 def test_record_inside_a_fence_does_not_count_twice():
@@ -538,6 +659,43 @@ def test_not_checked_lines_inside_a_fence_do_not_count():
     assert check["passed"] is False
     for name in PLUGIN_EXECUTOR_REQUIRED_FILES:
         assert name in check["detail"]
+
+
+def test_not_checked_line_with_root_token_counts():
+    """RED before the fence-only fix: `<root>/...` looked like a raw HTML block
+
+    and the full authoritative stripper blanked the NOT CHECKED line (and every
+    following line up to the next blank line) that named it.
+    """
+    not_checked = "\n".join(
+        f"NOT CHECKED: <root>/evals/harness/{name} (no proving ground root resolved)"
+        for name in PLUGIN_EXECUTOR_REQUIRED_FILES
+    )
+    text = _plugin_executor_text(f"Proving ground: not installed\n\n{not_checked}\n\n")
+    result = oracle.validate_output("wordpress-plugin-executor", text, require_proving_ground=True)
+    check = _find_check(result, "proving_ground_record")
+    assert check["passed"] is True, check["detail"]
+
+
+def test_generated_plugin_dir_line_above_record_does_not_hide_it():
+    """RED before the fence-only fix: a `<generated-plugin-dir>` line directly
+
+    above the record (no blank line between them) put the record itself inside
+    the same "raw HTML block" the full authoritative stripper blanks through to
+    the next blank line, hiding the `Proving ground:` line entirely.
+    """
+    not_checked = "\n".join(
+        f"NOT CHECKED: {name} (no proving ground root resolved)" for name in PLUGIN_EXECUTOR_REQUIRED_FILES
+    )
+    block = (
+        "Generated files land under `<generated-plugin-dir>` for this packet.\n"
+        "Proving ground: not installed\n\n"
+        f"{not_checked}\n\n"
+    )
+    text = _plugin_executor_text(block)
+    result = oracle.validate_output("wordpress-plugin-executor", text, require_proving_ground=True)
+    check = _find_check(result, "proving_ground_record")
+    assert check["passed"] is True, check["detail"]
 
 
 def test_record_under_a_repeated_heading_fails_closed():

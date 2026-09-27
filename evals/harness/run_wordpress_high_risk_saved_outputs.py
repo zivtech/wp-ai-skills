@@ -478,6 +478,20 @@ def main(argv: list[str] | None = None) -> int:
     entries: list[SavedOutputEntry] = []
     require_proving_ground = resolve_require_proving_ground(args.run_id, resume=args.resume)
 
+    if not args.resume:
+        # Write the flag before any generation starts, so an interruption partway
+        # through a new run still leaves a manifest a later `--resume` can read
+        # `require_proving_ground` from. The end-of-run summary below overwrites
+        # this file with the full summary, same as before this early write existed.
+        write_json(
+            run_manifest_path(args.run_id),
+            {
+                "run_id": args.run_id,
+                "require_proving_ground": require_proving_ground,
+                "status": "in-progress",
+            },
+        )
+
     for fixture_id in fixtures:
         for condition in conditions:
             print(f"[saved-output] suite={suite} fixture={fixture_id} condition={condition}", flush=True)

@@ -1,24 +1,29 @@
 ## Detected Environment
 
-wp-env with the docker runtime, marker `.wp-env.json`, validated by
-`wp-env run cli wp --info`. The probe oracle is
-`evals/harness/probe_wordpress_environment.py`.
+No proving ground root resolved, so the environment probe never ran. Whether
+the target project uses wp-env, DDEV, or another runtime, and which marker
+file it has (`.wp-env.json`, `.ddev/config.yaml`), is UNKNOWN. The probe
+oracle is `evals/harness/probe_wordpress_environment.py`; it was never
+invoked, so no `wp-env run cli wp --info` (or equivalent) call happened.
 
 ## Capability Summary
 
-can_run_wp_cli true (`wp cli version` answered WP-CLI 2.12.0);
-can_run_plugin_check true via `wp plugin check`; can_run_static_analysis true
-(phpcs and phpstan both answered `--version`).
+can_run_wp_cli UNKNOWN; can_run_plugin_check UNKNOWN; can_run_static_analysis
+UNKNOWN. No `WP-CLI` command, `Plugin Check` run, or static analyzer answered
+`--version`, so none of these capabilities is measured; reporting a version
+number or a true/false value for any of them without running the probe would
+be an invented fact.
 
 ## Blockers
 
-mcp_adapter_absent (MAJOR): no MCP adapter plugin observed, so MCP
-reachability is outside scope of this run and stays unknown.
+proving_ground_not_installed (MAJOR): no proving ground root resolved, so the
+probe never ran and every capability above stays UNKNOWN until it does.
 
 ## Evidence
 
-`wp plugin list --format=json` inventoried plugins; `wp core is-installed`
-exited 0. Every fact traces to an evidence entry by claim path.
+No evidence was gathered because the probe did not run: there is no `wp
+plugin list --format=json` or `wp core is-installed` result to cite, and none
+is claimed.
 
 Proving ground: not installed
 
@@ -26,5 +31,6 @@ NOT CHECKED: probe_wordpress_environment.py (no proving ground root resolved)
 
 ## Downstream Handoff
 
-Pass `--capability-manifest capability-manifest.json` to
-`validate_wordpress_skill_output.py` when validating wordpress-planner output.
+Do not pass a capability manifest to `validate_wordpress_skill_output.py`;
+none was produced. Install the proving ground and rerun the probe before any
+downstream planner, executor, or critic skill runs against this project.
