@@ -19,6 +19,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+import markdown_visibility
+
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = ROOT / "evals" / "harness" / "data"
@@ -636,151 +638,28 @@ def _leading_markdown_columns(line: str) -> int:
     return columns
 
 
-FENCE_OPENING_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})(?:[^\n]*)$")
-FENCE_CLOSING_RE = re.compile(r"^ {0,3}(`+|~+)\s*$")
-# Stricter than FENCE_OPENING_RE: a backtick fence whose info string holds a
-# backtick is not a fence in CommonMark. The masking pass uses this form so a
-# line the renderer reads as prose can never hide a raw-HTML opener from it;
-# the line pass keeps the permissive form and blanks such a line anyway.
-MASKABLE_FENCE_OPENING_RE = re.compile(r"^ {0,3}(?:(`{3,})[^`\n]*|(~{3,})[^\n]*)$")
-
-# Raw-text elements swallow everything up to their closing tag (or the end of
-# the document) wherever they open, because a browser renders nothing inside
-# them even when Markdown keeps parsing the lines that follow.
-RAW_TEXT_ELEMENT_RE = re.compile(
-    r"(?is)<(?P<tag>pre|script|style|textarea|template|code|xmp|iframe|"
-    r"noembed|noframes|plaintext)\b[^>]*>.*?(?:</(?P=tag)\s*>|\Z)"
-)
-# CommonMark HTML blocks of kinds 2-5 start a line (at most three spaces of
-# indent) and run to their end string; an unclosed one runs to the end of the
-# document, which is what a renderer would do too.
-RAW_HTML_BLOCK_RES = (
-    re.compile(r"(?ms)^ {0,3}<!--.*?(?:-->|\Z)"),
-    re.compile(r"(?ms)^ {0,3}<!\[CDATA\[.*?(?:\]\]>|\Z)"),
-    re.compile(r"(?ms)^ {0,3}<\?.*?(?:\?>|\Z)"),
-    re.compile(r"(?ms)^ {0,3}<![A-Z].*?(?:>|\Z)"),
-)
-# The same constructs opened mid-line are inline raw HTML: they hide their
-# content only when they close inside the paragraph. An unclosed one is
-# literal text, so it must not blank anything.
-RAW_HTML_INLINE_RES = (
-    re.compile(r"(?s)<!--(?:(?!\n[ \t]*\n).)*?-->"),
-    re.compile(r"(?s)<!\[CDATA\[(?:(?!\n[ \t]*\n).)*?\]\]>"),
-    re.compile(r"(?s)<\?(?:(?!\n[ \t]*\n).)*?\?>"),
-    re.compile(r"(?s)<![A-Z](?:(?!\n[ \t]*\n).)*?>"),
-)
-
-
-def _fenced_line_indexes(lines: list[str]) -> set[int]:
-    """Indexes of every line inside a fenced code block, fence markers included."""
-    fenced: set[int] = set()
-    fence_character = None
-    fence_length = 0
-    for index, line in enumerate(lines):
-        if fence_character is not None:
-            fenced.add(index)
-            closing = FENCE_CLOSING_RE.match(line)
-            if (
-                closing
-                and closing.group(1)[0] == fence_character
-                and len(closing.group(1)) >= fence_length
-            ):
-                fence_character = None
-                fence_length = 0
-            continue
-        opening = MASKABLE_FENCE_OPENING_RE.match(line)
-        if opening:
-            marker = opening.group(1) or opening.group(2)
-            fence_character = marker[0]
-            fence_length = len(marker)
-            fenced.add(index)
-    return fenced
-
-
-def _blank_span(text: str, start: int, end: int) -> str:
-    """Replace ``text[start:end]`` with spaces, keeping every newline in place."""
-    return text[:start] + re.sub(r"[^\n]", " ", text[start:end]) + text[end:]
-
-
-def _mask_code_spans(text: str) -> str:
-    """Blank the inside of every single-line backtick code span.
-
-    A code span closes at the next backtick string of the same length; an
-    opener that never closes is literal text and the next backtick string is
-    tried as an opener instead. Only spans that open and close on one line are
-    masked: a span that ran across a line break could hide a line-start HTML
-    block opener, which in CommonMark interrupts the paragraph and wins.
-    """
-    return "\n".join(_mask_line_code_spans(line) for line in text.split("\n"))
-
-
-def _mask_line_code_spans(line: str) -> str:
-    opener: tuple[int, int] | None = None
-    for run in re.finditer(r"`+", line):
-        length = run.end() - run.start()
-        if opener is None:
-            opener = (length, run.end())
-        elif length == opener[0]:
-            line = _blank_span(line, opener[1], run.start())
-            opener = None
-    return line
-
-
-def _strip_raw_html(text: str) -> str:
-    """Blank raw HTML that a reader would never see rendered.
-
-    Fenced code and code spans have CommonMark precedence over raw HTML, so
-    the patterns are matched against a masked copy of the document in which
-    those constructs are blanked; each match is then blanked in the returned
-    text at the same offsets. Blanking keeps the document's length and line
-    breaks, so the masked and visible copies stay aligned. Without the mask, a
-    ``<?php`` file that correctly omits its closing ``?>`` inside a fenced
-    packet blanked every heading after it.
-    """
-    lines = text.splitlines()
-    fenced = _fenced_line_indexes(lines)
-    visible = "\n".join(lines)
-    masked = "\n".join(
-        re.sub(r"[^\n]", " ", line) if index in fenced else line
-        for index, line in enumerate(lines)
-    )
-    masked = _mask_code_spans(masked)
-    for pattern in (RAW_TEXT_ELEMENT_RE, *RAW_HTML_BLOCK_RES, *RAW_HTML_INLINE_RES):
-        while match := pattern.search(masked):
-            masked = _blank_span(masked, match.start(), match.end())
-            visible = _blank_span(visible, match.start(), match.end())
-    return visible
-
-
 def _strip_non_authoritative_markdown(text: str) -> str:
-    text = _strip_raw_html(text)
+    """Return ``text`` with everything a reader would not see rendered blanked.
+
+    ``markdown_visibility.visible_source`` decides that from CommonMark block
+    structure and a model of what a browser displays. On top of it, the line
+    rules below stay deliberately stricter than any renderer: a line carrying
+    an HTML tag, and every line after it up to the next blank source line, is
+    not authoritative (the tag may hide its content by CSS the model cannot
+    see), and an indented line is treated as code even where a list would make
+    it a paragraph. Both rules hide more, never less.
+    """
+    visible = markdown_visibility.visible_source(text).split("\n")
+    source = markdown_visibility.normalized_lines(text)
     output = []
-    fence_character = None
-    fence_length = 0
     raw_html_block = False
-    for line in text.split("\n"):
+    for line, source_line in zip(visible, source):
         if raw_html_block:
-            if not line.strip():
+            if not source_line.strip():
                 raw_html_block = False
             output.append("")
             continue
-        if fence_character is not None:
-            closing = FENCE_CLOSING_RE.match(line)
-            if (
-                closing
-                and closing.group(1)[0] == fence_character
-                and len(closing.group(1)) >= fence_length
-            ):
-                fence_character = None
-                fence_length = 0
-            output.append("")
-            continue
-        opening = FENCE_OPENING_RE.match(line)
-        if opening:
-            fence_character = opening.group(1)[0]
-            fence_length = len(opening.group(1))
-            output.append("")
-        elif (
+        if (
             re.match(
                 r"(?i)^ {0,3}</?(?:address|article|aside|base|basefont|blockquote|"
                 r"body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|"
