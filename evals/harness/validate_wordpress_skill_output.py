@@ -64,6 +64,19 @@ MD_HEADING_RE = re.compile(r"(?m)^##\s+(.+?)\s*$")
 BOLD_HEADING_RE = re.compile(r"(?m)^\*\*(.+?)\*\*\s*$")
 VERDICT_RE = re.compile(r"(?im)^\*\*VERDICT:\s*([A-Z-]+).*?\*\*")
 
+# Opt-in proving-ground record (--require-proving-ground). A column-zero line
+# naming whether this saved output was produced with a resolved harness root.
+PROVING_GROUND_LINE_RE = re.compile(r"(?m)^Proving ground:[ \t]*(.*)$")
+# The root path may not contain "@", so a malformed commit suffix cannot hide in it.
+_PROVING_GROUND_ABS_PATH = r"/[^\s@]+"
+_PROVING_GROUND_COMMIT = r"[0-9a-f]{7,40}"
+PROVING_GROUND_INSTALLED_RE = re.compile(
+    rf"^{_PROVING_GROUND_ABS_PATH}(?:@{_PROVING_GROUND_COMMIT})?$"
+)
+PROVING_GROUND_UNUSABLE_RE = re.compile(
+    rf"^{_PROVING_GROUND_ABS_PATH} \(unusable: .+\)$"
+)
+
 
 PLANNER_HEADINGS = {
     "wordpress-planner": [
@@ -313,6 +326,46 @@ ALIASES = {
     "wordpress-planner.theme": "wordpress-theme-planner",
 }
 CONTRACT_CHOICES = sorted(set(CONTRACTS) | set(ALIASES))
+
+# Skills that must carry a ``Proving ground:`` record under
+# ``--require-proving-ground``, keyed by the canonical (post-alias) skill name:
+# the heading that owns the record, and the harness file names that must each
+# get a ``NOT CHECKED`` line when the proving ground is not installed or
+# unusable. wordpress-plugin-planner is absent because it cites no harness
+# file, so it carries no proving-ground guard.
+PROVING_GROUND_RECORDS: dict[str, tuple[str, tuple[str, ...]]] = {
+    "wordpress-environment-probe": ("Evidence", ("probe_wordpress_environment.py",)),
+    "wordpress-block-executor": (
+        "Verification Notes",
+        (
+            "validate_wordpress_executor_packet.py",
+            "materialize_wordpress_executor_packet.py",
+            "validate_wordpress_artifact.py",
+        ),
+    ),
+    "wordpress-plugin-executor": (
+        "Verification Notes",
+        (
+            "validate_wordpress_executor_packet.py",
+            "materialize_wordpress_executor_packet.py",
+            "validate_wordpress_artifact.py",
+        ),
+    ),
+    "wordpress-blueprint-executor": (
+        "Verification Notes",
+        (
+            "validate_wordpress_executor_packet.py",
+            "materialize_wordpress_executor_packet.py",
+            "validate_wordpress_artifact.py",
+        ),
+    ),
+    "wordpress-theme-executor": ("Verification Notes", ("validate_wordpress_artifact.py",)),
+    "wordpress-planner": ("Current-State Evidence", ("wp-symbols.json",)),
+    "wordpress-block-planner": ("Current-State Evidence", ("wp-symbols.json",)),
+    "wordpress-content-model-planner": ("Current-State Evidence", ("wp-symbols.json",)),
+    "wordpress-theme-planner": ("Current-State Evidence", ("wp-symbols.json",)),
+    "wordpress-migration-planner": ("Current-State Evidence", ("wp-symbols.json",)),
+}
 
 
 @dataclass(frozen=True)
@@ -2374,6 +2427,78 @@ def check_runtime_sync_confirmation(text: str, manifest: dict[str, Any]) -> Chec
     return Check("runtime_sync_confirmation", not failures, 3, detail)
 
 
+def _has_not_checked_line(text: str, needle: str) -> bool:
+    return any("NOT CHECKED" in line and needle in line for line in text.splitlines())
+
+
+def check_proving_ground_record(text: str, skill: str) -> Check | None:
+    """Require a ``Proving ground:`` record for the skills in ``PROVING_GROUND_RECORDS``.
+
+    ``text`` is the authoritative (fence-stripped) body, matching every other
+    prose-shape check in this module; a record inside a fenced code sample does
+    not count. Returns ``None`` for a skill outside ``PROVING_GROUND_RECORDS``,
+    so the caller only appends this check where it applies.
+    """
+    record = PROVING_GROUND_RECORDS.get(skill)
+    if record is None:
+        return None
+    heading, required_files = record
+
+    matches = list(PROVING_GROUND_LINE_RE.finditer(text))
+    if not matches:
+        return Check(
+            "proving_ground_record",
+            False,
+            3,
+            f"no 'Proving ground:' record found; expected one under '## {heading}'",
+        )
+    if len(matches) > 1:
+        return Check(
+            "proving_ground_record",
+            False,
+            3,
+            f"found {len(matches)} 'Proving ground:' records; expected exactly one",
+        )
+
+    match = matches[0]
+    sections = markdown_sections(text)
+    section_text = sections.get(heading, "")
+    if not PROVING_GROUND_LINE_RE.search(section_text):
+        return Check(
+            "proving_ground_record",
+            False,
+            3,
+            f"'Proving ground:' record is not inside the '## {heading}' section",
+        )
+
+    raw_value = match.group(1).strip()
+    value = raw_value
+    if len(value) >= 2 and value.startswith("`") and value.endswith("`"):
+        value = value[1:-1]
+
+    if value == "not installed" or PROVING_GROUND_UNUSABLE_RE.match(value):
+        missing = [name for name in required_files if not _has_not_checked_line(text, name)]
+        if missing:
+            return Check(
+                "proving_ground_record",
+                False,
+                3,
+                f"'Proving ground: {raw_value}' needs a NOT CHECKED line naming: {', '.join(missing)}",
+            )
+        return Check("proving_ground_record", True, 3, f"proving ground record valid: {raw_value}")
+
+    if PROVING_GROUND_INSTALLED_RE.match(value):
+        return Check("proving_ground_record", True, 3, f"proving ground record valid: {raw_value}")
+
+    return Check(
+        "proving_ground_record",
+        False,
+        3,
+        f"'Proving ground: {raw_value}' is not 'not installed', an absolute "
+        "path (optionally @commit), or an absolute path with an (unusable: <reason>) suffix",
+    )
+
+
 def validate_output(
     skill: str,
     text: str,
@@ -2381,6 +2506,7 @@ def validate_output(
     capability_manifest: dict[str, Any] | None = None,
     source_manifest: dict[str, Any] | None = None,
     source_structure: dict[str, Any] | None = None,
+    require_proving_ground: bool = False,
 ) -> dict[str, Any]:
     requested_skill = skill
     skill = ALIASES.get(skill, skill)
@@ -2416,6 +2542,10 @@ def validate_output(
         checks.append(check_capability_grounding(text, capability_manifest))
         checks.append(check_runtime_tool_grounding(text, capability_manifest))
         checks.append(check_runtime_sync_confirmation(text, capability_manifest))
+    if require_proving_ground:
+        proving_ground_check = check_proving_ground_record(authoritative, skill)
+        if proving_ground_check is not None:
+            checks.append(proving_ground_check)
     total = sum(check.weight for check in checks)
     earned = sum(check.weight for check in checks if check.passed)
     return {
@@ -2457,6 +2587,16 @@ def build_parser() -> argparse.ArgumentParser:
             "Optional source-structure.json inventory (contract: zivtech/drupal-meta-skills "
             "contracts/source-structure/) for wordpress-planner.migration. When supplied, every "
             "component key must have one `Structure disposition (<kind>:<id>):` row in Target Mapping."
+        ),
+    )
+    parser.add_argument(
+        "--require-proving-ground",
+        action="store_true",
+        help=(
+            "Opt in to the proving-ground record check (default off; existing callers keep "
+            "today's behavior). For the skills PROVING_GROUND_RECORDS names, require a single "
+            "'Proving ground:' record under the owning heading, and a NOT CHECKED line naming each "
+            "required harness file when the value is 'not installed' or unusable."
         ),
     )
     return parser
@@ -2537,6 +2677,7 @@ def main(argv: list[str] | None = None) -> int:
         capability_manifest=capability_manifest,
         source_manifest=source_manifest,
         source_structure=source_structure,
+        require_proving_ground=args.require_proving_ground,
     )
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result["pass"] else 1
