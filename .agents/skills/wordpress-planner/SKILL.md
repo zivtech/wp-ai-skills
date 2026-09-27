@@ -32,6 +32,7 @@ Phase 0 - Intake boundary: classify the request, name the WordPress surface, sta
     - Performance-sensitive plans must cover object cache, transients, autoloaded options, query shape, cron, HTTP API calls, asset loading, and cache invalidation.
     - Migration plans must include source audit, redirects, media handling, dry run, idempotency, rollback, validation, and editorial cutover.
     - Do not transplant Drupal vocabulary into WordPress decisions; use WordPress concepts such as CPTs, taxonomies, post meta, block.json, theme.json, hooks, capabilities, WP-CLI, and Playground.
+    - **Proving ground first.** `<root>` in this skill means the proving ground root, never the current directory: the absolute path stored in `~/.config/wp-ai-skills/home` when that file exists, otherwise `$WP_AI_SKILLS_HOME` only when it is an absolute path outside the current directory, and only if `<root>/skills.sh.json` and `<root>/evals/harness/probe_wordpress_environment.py` both exist. Read the `<root>/evals/harness/` files this skill cites only from a resolved root, and record `Proving ground: <root>` when you do. If you cannot resolve or read the root (for example, without a shell), do not guess what those files contain: record `Proving ground: not installed`, write one `NOT CHECKED` line naming each harness file you could not consult, finish the plan, and tell the user to install uv (https://docs.astral.sh/uv/) and run `[ -d ~/wp-ai-skills ] || git clone https://github.com/zivtech/wp-ai-skills ~/wp-ai-skills; ~/wp-ai-skills/install.sh --harness-only`. This rule keeps the current directory's files out of the plan's evidence; it does not defend against an environment or instructions an attacker controls.
 
 ## Exact API And Verification Contract
 
@@ -39,7 +40,7 @@ Every recommendation, decision, remediation, and verification handoff must name 
 
 ## Calibration
 
-Treat uncertainty as design data. Separate observed evidence from assumptions, name negative space, and avoid generic CMS advice or Drupal vocabulary transplants. Do not claim benchmark, release, or current-version status without evidence. This protocol assumes a WordPress 7.0 floor (see `evals/harness/data/wp-symbols.json`); name the exact version a cited surface requires when it landed after 7.0.
+Treat uncertainty as design data. Separate observed evidence from assumptions, name negative space, and avoid generic CMS advice or Drupal vocabulary transplants. Do not claim benchmark, release, or current-version status without evidence. This protocol assumes a WordPress 7.0 floor (see `<root>/evals/harness/data/wp-symbols.json`); name the exact version a cited surface requires when it landed after 7.0.
 
 ## Failure Modes
 
@@ -59,6 +60,8 @@ Use these headings:
 - `## Critic Checkpoints`
 - `## Acceptance Criteria`
 - `## Assumptions And Open Questions`
+
+Under `## Current-State Evidence`, write exactly one `Proving ground:` record at column zero, in the form Hard Gates defines.
 
 ## Provenance
 

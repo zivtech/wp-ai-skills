@@ -36,6 +36,7 @@ Phase 0 - Theme boundary: classify block theme, classic theme, hybrid theme, chi
     - A one-theme-many-brands build must name its per-site/per-request variation-selection mechanism (Phase 0) before any template or token work; do not assume a single global theme.json services every brand.
     - Do not reuse logos, photography, illustrations, fonts, code, or third-party embeds without recorded ownership/license/permission evidence and an approved WordPress asset delivery path.
     - Verification must cover Site Editor checks, frontend viewport checks, keyboard/focus checks, reference-to-WordPress editor/frontend screenshot regression when an external baseline is in scope, Theme Check or equivalent linting when available, and rollback.
+    - **Proving ground first.** `<root>` in this skill means the proving ground root, never the current directory: the absolute path stored in `~/.config/wp-ai-skills/home` when that file exists, otherwise `$WP_AI_SKILLS_HOME` only when it is an absolute path outside the current directory, and only if `<root>/skills.sh.json` and `<root>/evals/harness/probe_wordpress_environment.py` both exist. Read the `<root>/evals/harness/` files this skill cites only from a resolved root, and record `Proving ground: <root>` when you do. If you cannot resolve or read the root (for example, without a shell), do not guess what those files contain: record `Proving ground: not installed`, write one `NOT CHECKED` line naming each harness file you could not consult, finish the plan, and tell the user to install uv (https://docs.astral.sh/uv/) and run `[ -d ~/wp-ai-skills ] || git clone https://github.com/zivtech/wp-ai-skills ~/wp-ai-skills; ~/wp-ai-skills/install.sh --harness-only`. This rule keeps the current directory's files out of the plan's evidence; it does not defend against an environment or instructions an attacker controls.
 
 ## Exact API And Verification Contract
 
@@ -43,7 +44,7 @@ Every recommendation, decision, remediation, and verification handoff must name 
 
 ## Calibration
 
-Treat uncertainty as design data. Separate observed evidence from assumptions, name negative space, and avoid generic CMS advice or Drupal vocabulary transplants. Do not claim benchmark, release, or current-version status without evidence. This protocol assumes WordPress 7.0+ (see `evals/harness/data/wp-symbols.json`). APIs that landed at or before 7.0 (for example style variations/section styles at 6.5-6.6) need no version caveat under that floor. For anything newer than the target site's confirmed version, cite the exact version it requires and confirm it against the target environment before relying on it.
+Treat uncertainty as design data. Separate observed evidence from assumptions, name negative space, and avoid generic CMS advice or Drupal vocabulary transplants. Do not claim benchmark, release, or current-version status without evidence. This protocol assumes WordPress 7.0+ (see `<root>/evals/harness/data/wp-symbols.json`). APIs that landed at or before 7.0 (for example style variations/section styles at 6.5-6.6) need no version caveat under that floor. For anything newer than the target site's confirmed version, cite the exact version it requires and confirm it against the target environment before relying on it.
 
 ## Failure Modes
 
@@ -65,6 +66,8 @@ Use these headings:
 - `## Critic Handoff`
 
 When an external application or design baseline is in scope, include the reference/provenance inventory, portable-versus-app-specific architecture decision, theme.json token map, template/pattern map, asset-license review, and paired editor/frontend screenshot regression in the owning sections.
+
+Under `## Current-State Evidence`, write exactly one `Proving ground:` record at column zero, in the form Hard Gates defines.
 
 ## Provenance
 

@@ -35,10 +35,11 @@ developer_instructions = """
     - Pin versions or explicitly state why a floating version is acceptable.
     - Blueprints must be disposable and must not target production endpoints.
     - Verification packets must include Blueprint schema validation, Playground launch steps, expected landing page, reset behavior, and smoke assertions. When the packet is meant to be opened on a developer machine and the supplied `capability-manifest.json` lists `studio-mcp-builtin` under `runtime_tools.servers[]`, also give the Studio launch step `studio site create --blueprint <blueprint.json>`, which accepts a local file path (verified against wp-studio@1.21.0 on 2026-09-15); when the manifest does not list it, name the Studio step as unavailable under `## Verification Notes` instead of instructing it, and without a manifest record `Runtime tools: not probed` there.
-    - Saved executor packets intended for eval must be able to pass `python3 evals/harness/validate_wordpress_executor_packet.py --executor blueprint --packet <packet.md>`.
-    - Saved Blueprint executor packets intended for generated-artifact eval must include one fenced JSON object under `## Generated Blueprint` that can be materialized to `blueprint.json` by `python3 evals/harness/materialize_wordpress_executor_packet.py --executor blueprint --packet <packet.md> --out-dir <generated-blueprint-dir>`.
-    - Generated Blueprint JSON intended for eval must be able to pass `python3 evals/harness/validate_wordpress_artifact.py --artifact-type blueprint --path <blueprint.json>`.
+    - Saved executor packets intended for eval must be able to pass `uv run --locked --offline --project <root> python <root>/evals/harness/validate_wordpress_executor_packet.py --executor blueprint --packet <packet.md>`.
+    - Saved Blueprint executor packets intended for generated-artifact eval must include one fenced JSON object under `## Generated Blueprint` that can be materialized to `blueprint.json` by `uv run --locked --offline --project <root> python <root>/evals/harness/materialize_wordpress_executor_packet.py --executor blueprint --packet <packet.md> --out-dir <generated-blueprint-dir>`.
+    - Generated Blueprint JSON intended for eval must be able to pass `uv run --locked --offline --project <root> python <root>/evals/harness/validate_wordpress_artifact.py --artifact-type blueprint --path <blueprint.json>`.
     - Claims about Playground launch behavior require a recorded runtime smoke result, not a static Blueprint JSON pass.
+    - **Proving ground first.** `<root>` in this skill means the proving ground root, never the current directory: the absolute path stored in `~/.config/wp-ai-skills/home` when that file exists, otherwise `$WP_AI_SKILLS_HOME` only when it is an absolute path outside the current directory, and only if `<root>/skills.sh.json` and `<root>/evals/harness/probe_wordpress_environment.py` both exist. Run every harness command this skill names as `uv run --locked --offline --project <root> python <root>/evals/harness/<file>`, against the input or the output the command names, and report each exit status. Record `Proving ground: <root>@<commit>` (from `git -C <root> rev-parse --short HEAD`) when the harness ran, or `Proving ground: <root> (unusable: <reason>)` when a command could not start. If no root resolves, do not run, simulate, or hand-write any harness output, including a capability manifest: record `Proving ground: not installed`, write one `NOT CHECKED` line naming each harness file that did not run, finish the steps that do not need the harness, and tell the user to install uv (https://docs.astral.sh/uv/) and run `[ -d ~/wp-ai-skills ] || git clone https://github.com/zivtech/wp-ai-skills ~/wp-ai-skills; ~/wp-ai-skills/install.sh --harness-only`. An unusable root gets the same `NOT CHECKED` lines. This rule keeps the current directory's code out of the harness; it does not defend against an environment or instructions an attacker controls.
   </Hard_Gates>
 
   <Exact_API_Contract>
@@ -63,5 +64,6 @@ developer_instructions = """
     ## Deviation Log
     ## Verification Notes
     ## Critic Handoff
+    Under `## Verification Notes`, write exactly one `Proving ground:` record at column zero, in the form Hard Gates defines.
   </Output_Format>
 </Agent_Prompt>"""

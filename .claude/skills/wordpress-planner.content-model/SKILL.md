@@ -38,6 +38,7 @@ Phase 0 - Modeling boundary: state the user goal, editorial audience, content sa
     - When more than one site or brand is in scope, state per-site vs. network scoping, syndication/canonical ownership, and the ID-bearing block attributes that need a remap rule; do not assume meta or taxonomies span sites.
     - Every model must specify capabilities, REST exposure, permalink strategy, validation, migration/backfill, and sample-review gates.
     - Every plan must state the available runtime/tooling lane and the acceptance checks that can actually be run.
+    - **Proving ground first.** `<root>` in this skill means the proving ground root, never the current directory: the absolute path stored in `~/.config/wp-ai-skills/home` when that file exists, otherwise `$WP_AI_SKILLS_HOME` only when it is an absolute path outside the current directory, and only if `<root>/skills.sh.json` and `<root>/evals/harness/probe_wordpress_environment.py` both exist. Read the `<root>/evals/harness/` files this skill cites only from a resolved root, and record `Proving ground: <root>` when you do. If you cannot resolve or read the root (for example, without a shell), do not guess what those files contain: record `Proving ground: not installed`, write one `NOT CHECKED` line naming each harness file you could not consult, finish the plan, and tell the user to install uv (https://docs.astral.sh/uv/) and run `[ -d ~/wp-ai-skills ] || git clone https://github.com/zivtech/wp-ai-skills ~/wp-ai-skills; ~/wp-ai-skills/install.sh --harness-only`. This rule keeps the current directory's files out of the plan's evidence; it does not defend against an environment or instructions an attacker controls.
 
 ## Exact API And Verification Contract
 
@@ -45,7 +46,7 @@ Every recommendation, decision, remediation, and verification handoff must name 
 
 ## Calibration
 
-Treat uncertainty as design data. Separate observed evidence from assumptions, name negative space, and avoid generic CMS advice or Drupal vocabulary transplants. Do not claim benchmark, release, or current-version status without evidence. This protocol assumes WordPress 7.0+ (see `evals/harness/data/wp-symbols.json`). APIs that landed at or before 7.0 (for example `core/post-data`/`core/term-data` or `block_bindings_supported_attributes` at 6.9, or Block Bindings itself at 6.5) need no version caveat under that floor. For anything newer than the target site's confirmed version (for example a 7.1 DataForm/Quick Edit change, or an unreleased 7.2 feature), cite the exact version it requires and confirm it against the target environment before relying on it.
+Treat uncertainty as design data. Separate observed evidence from assumptions, name negative space, and avoid generic CMS advice or Drupal vocabulary transplants. Do not claim benchmark, release, or current-version status without evidence. This protocol assumes WordPress 7.0+ (see `<root>/evals/harness/data/wp-symbols.json`). APIs that landed at or before 7.0 (for example `core/post-data`/`core/term-data` or `block_bindings_supported_attributes` at 6.9, or Block Bindings itself at 6.5) need no version caveat under that floor. For anything newer than the target site's confirmed version (for example a 7.1 DataForm/Quick Edit change, or an unreleased 7.2 feature), cite the exact version it requires and confirm it against the target environment before relying on it.
 
 ## Failure Modes
 
@@ -68,6 +69,8 @@ Use these headings:
 - `## Critic Handoff`
 
 The editorial-guardrails and storage-decision records above are part of the saved output contract, and every one of them is keyed to the exact item it disposes — a bare count of records with the right label is not sufficient, since a single `Lock level: contentOnly` record does not speak for five undeclared content types, and a single `Disposition row:` cannot dispose several source items by naming them in its free text. In Editorial Workflow: `Editorial guardrails phase: completed`; one `Content type: <post_type>` record per content type; a matching `Lock level (<post_type>): contentOnly|insert|all|false` record for each declared type; and a `Lock level rationale (<post_type>): ...` record for every `Lock level (<post_type>): false`. In Post Type Taxonomy And Field Matrix: `Storage decision rule applied: yes`, and a matching `Editing surface (<meta_key>): ...` record for every `Binding source (<meta_key>): ...` record, keyed by the same meta key. When `Migration mode: required` appears in Content Model Summary, Migration And Validation Plan needs one `Disposition row (<item-id>): <token> - <rationale>` per source item (see Hard Gates for the token vocabulary), keyed by that item's manifest id and matching it exactly, not merely mentioning it. Use each label exactly once per key at column zero in its owning section with an affirmative, non-hedged value; prose elsewhere does not substitute for the record.
+
+Under `## Current-State Evidence`, write exactly one `Proving ground:` record at column zero, in the form Hard Gates defines.
 
 ## Provenance
 

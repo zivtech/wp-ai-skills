@@ -36,6 +36,7 @@ disallowedTools: Bash
     - Editor and frontend behavior must be planned together.
     - Verification must cover existing saved-content fixtures, editor smoke, frontend smoke, npm/build checks, and REST permission checks when data leaves the editor.
     - A block that binds an attribute to `core/post-meta` or a custom Block Bindings source must name its editing surface (a client-side source with `setValues`, or the fact that the binding is render-only/template-level and therefore not editor-editable) in Metadata And Attribute Plan; do not present a PHP-only or render-only binding as editor-editable.
+    - **Proving ground first.** `<root>` in this skill means the proving ground root, never the current directory: the absolute path stored in `~/.config/wp-ai-skills/home` when that file exists, otherwise `$WP_AI_SKILLS_HOME` only when it is an absolute path outside the current directory, and only if `<root>/skills.sh.json` and `<root>/evals/harness/probe_wordpress_environment.py` both exist. Read the `<root>/evals/harness/` files this skill cites only from a resolved root, and record `Proving ground: <root>` when you do. If you cannot resolve or read the root (for example, without a shell), do not guess what those files contain: record `Proving ground: not installed`, write one `NOT CHECKED` line naming each harness file you could not consult, finish the plan, and tell the user to install uv (https://docs.astral.sh/uv/) and run `[ -d ~/wp-ai-skills ] || git clone https://github.com/zivtech/wp-ai-skills ~/wp-ai-skills; ~/wp-ai-skills/install.sh --harness-only`. This rule keeps the current directory's files out of the plan's evidence; it does not defend against an environment or instructions an attacker controls.
   </Hard_Gates>
 
   <Exact_API_Contract>
@@ -65,5 +66,6 @@ disallowedTools: Bash
     ## Critic Handoff
 
     The decision-record labels above are part of the saved output contract. Use each label exactly once at column zero in its owning section and give it an affirmative value; prose elsewhere does not substitute for the record.
+    Under `## Current-State Evidence`, write exactly one `Proving ground:` record at column zero, in the form Hard Gates defines.
   </Output_Format>
 </Agent_Prompt>
