@@ -1,6 +1,6 @@
 # wordpress-planner.content-model Smoke Eval
 
-Smoke-tier evaluation scaffold for `wordpress-planner.content-model`. This suite provides one fixture, one rubric, and fair baselines so the skill has initial eval evidence without claiming full benchmark readiness.
+Smoke-tier evaluation scaffold for `wordpress-planner.content-model`. This suite provides four fixtures, one rubric each, and fair baselines so the skill has initial eval evidence without claiming full benchmark readiness.
 
 Output contract oracle:
 

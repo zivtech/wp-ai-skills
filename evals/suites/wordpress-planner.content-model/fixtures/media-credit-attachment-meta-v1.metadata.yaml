@@ -1,0 +1,24 @@
+name: media-credit-attachment-meta-v1
+suite: wordpress-planner.content-model
+skill_under_test: wordpress-planner.content-model
+skill_type: planner
+difficulty_tier: focused
+provenance: synthetic
+risk_class: media_credit_caption_alt_text_separation
+expected_wordpress_apis:
+  - "register_post_meta"
+  - "show_in_rest"
+  - "wp_get_attachment_caption"
+expected_verification_surfaces:
+  - "the front-end template check confirming credit renders separately from caption under the image"
+  - "an editor walkthrough of the attachment meta editing surface for credit"
+must_detect:
+  - "photographer credit is modeled as attachment meta registered for the attachment object type with REST exposure, not as caption text"
+  - "credit has a named, editor-editable editing surface, not a template-level-only or render-only surface"
+  - "the caption stays the existing core image caption mechanism and is not repurposed to also carry credit text"
+  - "each photo inside a gallery keeps its own individual caption"
+  - "alt text, caption, and credit each get their own stated place where an editor sets them and where they render on the front end"
+negative_space:
+  - "does not fold photographer credit into the caption field"
+  - "does not model credit as a single field shared with caption or alt text"
+  - "does not claim benchmark, release, or current-version status without evidence"
