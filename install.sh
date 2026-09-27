@@ -2,11 +2,17 @@
 # install.sh — Symlink wp-ai-skills into Claude and Codex skill dirs.
 #
 # Usage:
-#   ./install.sh              # install (symlink) all skills
-#   ./install.sh --remove     # remove all symlinks created by this script
-#   ./install.sh --verify     # verify integrity without installing
-#   ./install.sh --no-verify  # install without integrity checks
-#   ./install.sh --force      # replace unrelated symlinks, never files/dirs
+#   ./install.sh                  # install (symlink) all skills; also writes the home file
+#   ./install.sh --remove         # remove all symlinks created by this script
+#   ./install.sh --verify         # verify integrity without installing
+#   ./install.sh --generate-manifest  # regenerate MANIFEST.sha256
+#   ./install.sh --no-verify      # install (or --harness-only) without integrity checks
+#   ./install.sh --force          # replace unrelated symlinks, never files/dirs; also
+#                                  # lets install/--harness-only overwrite a home file
+#                                  # that points at a different checkout
+#   ./install.sh --harness-only   # skills.sh users: uv-sync the harness, write the home
+#                                  # file, and run the doctor -- no skill links
+#   ./install.sh --doctor         # report what proving-ground gates can run here
 #
 # Skills update automatically when you git pull. Re-run after adding new skills.
 
@@ -98,6 +104,15 @@ LEGACY_AGENTS_SKILLS_DIR="$HOME/.agents/skills"
 CLAUDE_AGENTS_DIR="$HOME/.claude/agents"
 SKILL_TARGET_DIRS=("$CLAUDE_SKILLS_DIR" "$CODEX_SKILLS_DIR" "$LEGACY_AGENTS_SKILLS_DIR")
 INSTALL_LOG="$HOME/.claude/install.log"
+# The proving-ground home file: written by plain install and --harness-only so
+# skills know where `evals/harness/` lives without ever trusting the current
+# directory. evals/harness/proving_ground.py implements the same resolution
+# rule the skills' "Proving ground first" Hard Gate describes.
+CONFIG_DIR="$HOME/.config/wp-ai-skills"
+HOME_FILE="$CONFIG_DIR/home"
+# log_install writes here; --harness-only points it at $CONFIG_DIR/install.log
+# instead, since that mode must never touch ~/.claude.
+LOG_FILE="$INSTALL_LOG"
 VERIFY_ONLY=false
 MODE="install"
 SKIP_VERIFY=false
@@ -134,7 +149,7 @@ log_install() {
   fi
   printf '%s action=%q name=%q commit=%q source=%q\n' \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$action" "$name" "$commit" "$source" \
-    >> "$INSTALL_LOG"
+    >> "$LOG_FILE"
 }
 
 is_managed_link() {
@@ -224,10 +239,90 @@ generate_manifest() {
     --root "$REPO_DIR" --generate-manifest
 }
 
+# ── Home file ─────────────────────────────────────────────────────
+# Writes $REPO_DIR to $HOME_FILE atomically (temp file + mv, both inside
+# $CONFIG_DIR). Refuses outright if $CONFIG_DIR or $HOME_FILE is a symlink.
+# An existing home file pointing elsewhere is preserved unless $FORCE=true;
+# $hard_fail_on_conflict controls what "preserved" means to the caller:
+# false (plain install) prints PRESERVE and returns 0 -- installing skills
+# should not fail because of the home file. true (--harness-only) prints the
+# same fact to stderr and returns 1, because that mode's only job for this
+# checkout is to become the resolved proving ground.
+write_home_file() {
+  local hard_fail_on_conflict="$1"
+  local existing
+  local tmp_file
+
+  if [ -L "$CONFIG_DIR" ]; then
+    echo "Refusing to write home file: $CONFIG_DIR is a symlink" >&2
+    return 1
+  fi
+  mkdir -p "$CONFIG_DIR"
+
+  if [ -L "$HOME_FILE" ]; then
+    echo "Refusing to write home file: $HOME_FILE is a symlink" >&2
+    return 1
+  fi
+
+  if [ -e "$HOME_FILE" ] && [ ! -f "$HOME_FILE" ]; then
+    printf 'Refusing to write home file: %q exists and is not a regular file\n' "$HOME_FILE" >&2
+    return 1
+  fi
+
+  if [ -e "$HOME_FILE" ]; then
+    existing="$(cat "$HOME_FILE" 2>/dev/null || true)"
+    if [ "$existing" = "$REPO_DIR" ]; then
+      printf 'Home file %q already points at %q\n' "$HOME_FILE" "$REPO_DIR"
+      return 0
+    fi
+    if [ "$FORCE" != true ]; then
+      if [ "$hard_fail_on_conflict" = true ]; then
+        if [ -z "$existing" ]; then
+          printf 'Home file %q is empty, not %q; refusing to overwrite without --force\n' \
+            "$HOME_FILE" "$REPO_DIR" >&2
+        else
+          printf 'Home file %q points at %q, not %q; refusing to overwrite without --force\n' \
+            "$HOME_FILE" "$existing" "$REPO_DIR" >&2
+        fi
+        return 1
+      fi
+      if [ -z "$existing" ]; then
+        printf '  PRESERVE home file %q (it is empty); use --force to replace\n' "$HOME_FILE"
+      else
+        printf '  PRESERVE home file %q (points at %q, not %q); use --force to replace\n' \
+          "$HOME_FILE" "$existing" "$REPO_DIR"
+      fi
+      return 0
+    fi
+  fi
+
+  tmp_file="$(mktemp "$CONFIG_DIR/home.XXXXXX")" || {
+    echo "Could not create a temp file in $CONFIG_DIR" >&2
+    return 1
+  }
+  printf '%s\n' "$REPO_DIR" > "$tmp_file"
+  if ! mv "$tmp_file" "$HOME_FILE"; then
+    echo "Could not move temp file into place at $HOME_FILE" >&2
+    rm -f "$tmp_file"
+    return 1
+  fi
+  printf '  Wrote home file %q -> %q\n' "$HOME_FILE" "$REPO_DIR"
+  return 0
+}
+
+# ── Doctor / harness-only prerequisite ─────────────────────────────
+require_uv() {
+  if ! command -v uv >/dev/null 2>&1; then
+    printf '%s requires uv on PATH. Install it: https://docs.astral.sh/uv/\n' "$1" >&2
+    return 1
+  fi
+  return 0
+}
+
 # ── Command-line mode ─────────────────────────────────────────────
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --remove|--verify|--generate-manifest)
+    --remove|--verify|--generate-manifest|--harness-only|--doctor)
       if [ "$MODE" != "install" ]; then
         echo "Only one operation may be selected" >&2
         exit 2
@@ -248,12 +343,12 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 
-if [ "$MODE" != "install" ] && [ "$FORCE" = true ]; then
-  echo "--force is valid only for installation" >&2
+if [ "$MODE" != "install" ] && [ "$MODE" != "harness-only" ] && [ "$FORCE" = true ]; then
+  echo "--force is valid only for installation and --harness-only" >&2
   exit 2
 fi
-if [ "$MODE" != "install" ] && [ "$SKIP_VERIFY" = true ]; then
-  echo "--no-verify is valid only for installation" >&2
+if [ "$MODE" != "install" ] && [ "$MODE" != "harness-only" ] && [ "$SKIP_VERIFY" = true ]; then
+  echo "--no-verify is valid only for installation and --harness-only" >&2
   exit 2
 fi
 
@@ -287,6 +382,22 @@ if [ "$MODE" = "remove" ]; then
     }
   done
 
+  # Only delete the home file when it is a plain file (never a symlink) and
+  # points at exactly this checkout; anything else is preserved.
+  if [ -e "$HOME_FILE" ] && [ ! -L "$HOME_FILE" ]; then
+    home_file_content="$(cat "$HOME_FILE" 2>/dev/null || true)"
+    if [ "$home_file_content" = "$REPO_DIR" ]; then
+      rm "$HOME_FILE"
+      printf '  removed home file: %q\n' "$HOME_FILE"
+      log_install "REMOVE" "home-file" "$HOME_FILE"
+    else
+      printf '  PRESERVE home file %q (points at %q, not %q)\n' \
+        "$HOME_FILE" "$home_file_content" "$REPO_DIR"
+    fi
+  elif [ -L "$HOME_FILE" ]; then
+    printf '  PRESERVE home file %q (it is a symlink)\n' "$HOME_FILE"
+  fi
+
   echo "Done. Removed $removed symlinks."
   exit 0
 fi
@@ -302,6 +413,67 @@ fi
 if [ "$MODE" = "generate-manifest" ]; then
   generate_manifest
   exit 0
+fi
+
+# ── Harness-only mode ────────────────────────────────────────────
+# For skills.sh users: this checkout is only a proving ground, not a source
+# of skill links. Never touches ~/.claude, ~/.codex, or ~/.agents, and logs to
+# $CONFIG_DIR/install.log instead of ~/.claude/install.log.
+if [ "$MODE" = "harness-only" ]; then
+  require_uv "--harness-only" || exit 1
+
+  if [ -L "$CONFIG_DIR" ]; then
+    echo "Refusing: $CONFIG_DIR is a symlink" >&2
+    exit 1
+  fi
+  mkdir -p "$CONFIG_DIR"
+  LOG_FILE="$CONFIG_DIR/install.log"
+
+  log_install "SESSION_START" "install.sh --harness-only" "$REPO_DIR"
+
+  echo "Syncing the harness environment with uv..."
+  uv sync --locked --project "$REPO_DIR"
+
+  if [ "$SKIP_VERIFY" = true ]; then
+    echo "WARNING: Skipping integrity verification (--no-verify)"
+  else
+    echo "Verifying MANIFEST via uv..."
+    if ! uv run --locked --offline --project "$REPO_DIR" python \
+      "$REPO_DIR/scripts/validate-distribution-parity.py" \
+      --root "$REPO_DIR" --verify-manifest
+    then
+      log_install "INTEGRITY_FAIL" "manifest" "$REPO_DIR (verification failed)"
+      echo ""
+      echo "harness-only setup aborted: MANIFEST verification failed."
+      echo "Use --no-verify to override, or --generate-manifest to update checksums."
+      exit 1
+    fi
+  fi
+
+  write_home_file true
+
+  log_install "SESSION_END" "install.sh --harness-only" "$REPO_DIR"
+
+  echo ""
+  echo "Running the proving ground doctor..."
+  if ! uv run --locked --offline --project "$REPO_DIR" python \
+    "$REPO_DIR/evals/harness/proving_ground.py" --doctor
+  then
+    echo ""
+    echo "WARNING: the doctor reported problems (see above). The home file is already written."
+  fi
+
+  exit 0
+fi
+
+# ── Doctor mode ──────────────────────────────────────────────────
+# Reports what can run here and installs nothing. It probes an empty temporary
+# directory, never the current directory, so no project code runs.
+if [ "$MODE" = "doctor" ]; then
+  require_uv "--doctor" || exit 1
+  uv run --locked --offline --project "$REPO_DIR" python \
+    "$REPO_DIR/evals/harness/proving_ground.py" --doctor
+  exit $?
 fi
 
 # ── Install mode ──────────────────────────────────────────────────
@@ -448,6 +620,16 @@ echo ""
 log_install "SESSION_START" "install.sh" "$REPO_DIR"
 
 install_repo_tree "$REPO_DIR"
+
+echo ""
+if ! write_home_file false; then
+  echo "WARNING: home file was not written; harness-dependent skills will report" >&2
+  echo "'Proving ground: not installed' until it is." >&2
+fi
+
+if [ ! -d "$REPO_DIR/.venv" ]; then
+  echo "Harness commands need this checkout synced: run 'uv sync --locked' here, or './install.sh --harness-only'."
+fi
 
 # Log install session end
 log_install "SESSION_END" "install.sh" "$REPO_DIR (installed=$installed, skipped=$skipped)"

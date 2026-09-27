@@ -9,6 +9,58 @@ The WordPress executor evidence stack has four deterministic layers before any L
 2. Packet materializer: converts materializable packets into generated files.
 3. Generated artifact oracle: validates the files produced from that packet.
 
+## Proving Ground Resolution
+
+The commands below are written as they run inside this checkout
+(`evals/harness/...`, relative to the repository root). An installed skill
+(from `npx skills add` or skills.sh) has no such checkout beside it, so each
+harness-citing skill's "Proving ground first" Hard Gate has the agent resolve
+a `<root>` first — the absolute path in `~/.config/wp-ai-skills/home`, or an
+absolute `$WP_AI_SKILLS_HOME` outside the current directory when no home file
+exists, gated on the marker files `skills.sh.json` and
+`evals/harness/probe_wordpress_environment.py` — and never the current
+directory. See [CONTRIBUTING.md](../../CONTRIBUTING.md#proving-ground-setup)
+for setup and the full resolution rule.
+
+Once `<root>` resolves, a skill runs every harness command it names as:
+
+```bash
+uv run --locked --offline --project <root> python <root>/evals/harness/<file>
+```
+
+`--offline` means the command never fetches anything from the network.
+`--locked` means it never re-resolves the lockfile, so the run fails closed if
+the checkout's dependencies have drifted from what `uv.lock` records. Neither
+flag installs anything: `<root>`'s environment must already be synced, either
+by `install.sh --harness-only` or by running `uv sync --locked` directly in
+`<root>`. Every executor also runs its harness commands against a fresh
+`mktemp -d` directory: every harness input and output it reads or writes,
+other than the probe's own `capability-manifest.json`, lives there, never in
+the user's project.
+
+A skill records what it found as one of four `Proving ground:` forms in its
+saved output. Command skills (the probe and the four executors) run harness
+commands and must record `Proving ground: <root>@<commit>` when a command ran,
+`Proving ground: <root> (unusable: <reason>)` when the root resolved but a
+command could not start, or `Proving ground: not installed` when no root
+resolved at all. Reference skills (the five planners, which only read harness
+files) may also omit the commit and record `Proving ground: <root>`, and may
+record `Proving ground: unresolved (<reason>)` when they could not even check
+whether a root resolves (for example, without a shell) — a form command skills
+may not use, since a command skill either runs the harness or reports why it
+could not. Every `not installed`, `unusable`, or `unresolved` value requires a
+`NOT CHECKED` line naming each harness file the skill could not run or read.
+
+`evals/harness/validate_wordpress_skill_output.py --require-proving-ground`
+enforces this record for the ten skills that cite harness files (the probe,
+four executors, five planners): it requires exactly one `Proving ground:`
+record under the skill's owning heading, in one of the forms above valid for
+that skill's variant, with the required `NOT CHECKED` lines when the value is
+`not installed`, `unusable`, or `unresolved`. The flag is opt-in — existing
+callers that omit it keep prior behavior — and the high-risk saved-output
+runner sets it only for new skill-lane runs, so old runs, baselines, and
+frozen `evidence/` are unaffected.
+
 ## Capability Oracle
 
 Run this before the packet gate, and before any planner or critic spends a token on a WordPress task. It answers what the agent can actually run here, rather than what upstream documentation says exists:

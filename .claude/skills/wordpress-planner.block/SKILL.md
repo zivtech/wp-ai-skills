@@ -40,6 +40,7 @@ Phase 0 - Block boundary: classify static, dynamic, hybrid, variation, pattern, 
     - Editor and frontend behavior must be planned together.
     - Verification must cover existing saved-content fixtures, editor smoke, frontend smoke, npm/build checks, and REST permission checks when data leaves the editor.
     - A block that binds an attribute to `core/post-meta` or a custom Block Bindings source must name its editing surface (a client-side source with `setValues`, or the fact that the binding is render-only/template-level and therefore not editor-editable) in Metadata And Attribute Plan; do not present a PHP-only or render-only binding as editor-editable.
+    - **Proving ground first.** `<root>` in this skill means the proving ground root, never the current directory: the absolute path stored in `~/.config/wp-ai-skills/home` when that file exists, otherwise `$WP_AI_SKILLS_HOME` only when it is an absolute path outside the current directory, and only if `<root>/skills.sh.json` and `<root>/evals/harness/probe_wordpress_environment.py` both exist. If a root resolves, read the `<root>/evals/harness/` files this skill cites only from it, and record `Proving ground: <root>`, writing `<root>` as its full absolute path. If no root resolves, do not guess what those files contain, and your output must contain: (1) the record `Proving ground: not installed` when you confirmed that neither the home file nor the variable exists, or `Proving ground: unresolved (<reason>)` when you could not check (for example, without a shell); (2) directly under it, one `NOT CHECKED` line for each harness file this skill cites (every planner cites `wp-symbols.json` for its WordPress version floor), naming the file and the claim it would have checked; (3) for `not installed` only, this setup instruction for the user: install uv (https://docs.astral.sh/uv/), the Python tool these checks run under, then run `[ -d ~/wp-ai-skills ] || git clone https://github.com/zivtech/wp-ai-skills ~/wp-ai-skills; ~/wp-ai-skills/install.sh --harness-only`. Then finish the plan.
 
 ## Exact API And Verification Contract
 
@@ -47,7 +48,7 @@ Every recommendation, decision, remediation, and verification handoff must name 
 
 ## Calibration
 
-Treat uncertainty as design data. Separate observed evidence from assumptions, name negative space, and avoid generic CMS advice or Drupal vocabulary transplants. Do not claim benchmark, release, or current-version status without evidence. This protocol assumes WordPress 7.0+ (see `evals/harness/data/wp-symbols.json`). APIs that landed at or before 7.0 (for example `core/post-data`/`core/term-data` or `block_bindings_supported_attributes` at 6.9) need no version caveat under that floor. For anything newer than the target site's confirmed version, cite the exact version it requires and confirm it against the target environment before relying on it.
+Treat uncertainty as design data. Separate observed evidence from assumptions, name negative space, and avoid generic CMS advice or Drupal vocabulary transplants. Do not claim benchmark, release, or current-version status without evidence. This protocol assumes WordPress 7.0+ (see `<root>/evals/harness/data/wp-symbols.json`). APIs that landed at or before 7.0 (for example `core/post-data`/`core/term-data` or `block_bindings_supported_attributes` at 6.9) need no version caveat under that floor. For anything newer than the target site's confirmed version, cite the exact version it requires and confirm it against the target environment before relying on it.
 
 ## Failure Modes
 
@@ -71,6 +72,8 @@ Use these headings:
 The decision-record labels above are part of the saved output contract. Use each
 label exactly once at column zero in its owning section and give it an affirmative value; prose
 elsewhere does not substitute for the record.
+
+Under `## Current-State Evidence`, write exactly one `Proving ground:` record at column zero, in the form Hard Gates defines.
 
 ## Provenance
 

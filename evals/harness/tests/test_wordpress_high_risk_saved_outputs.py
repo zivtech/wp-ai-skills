@@ -187,7 +187,7 @@ def test_run_saved_output_reuses_existing_output(tmp_path, monkeypatch):
     monkeypatch.setattr(
         runner,
         "validate_contract",
-        lambda skill_name, output_path, contract_path, security_gate_path=None, capability_manifest_path=None, source_structure_path=None: {
+        lambda skill_name, output_path, contract_path, security_gate_path=None, capability_manifest_path=None, source_structure_path=None, require_proving_ground=False: {
             "pass": False,
             "score": 0.5,
             "skill": skill_name,
@@ -228,7 +228,7 @@ def test_run_saved_output_passes_fixture_security_gate_sidecar(tmp_path, monkeyp
     output.write_text("saved output", encoding="utf-8")
     metadata.write_text("{}", encoding="utf-8")
 
-    def fake_validate(skill_name, output_path, contract_path, security_gate_path=None, capability_manifest_path=None, source_structure_path=None):
+    def fake_validate(skill_name, output_path, contract_path, security_gate_path=None, capability_manifest_path=None, source_structure_path=None, require_proving_ground=False):
         seen["security_gate_path"] = security_gate_path
         return {"pass": True, "score": 1.0, "skill": skill_name}
 
@@ -260,7 +260,7 @@ def test_run_saved_output_records_invocation_failure(tmp_path, monkeypatch):
     monkeypatch.setattr(
         runner,
         "validate_contract",
-        lambda skill_name, output_path, contract_path, security_gate_path=None, capability_manifest_path=None, source_structure_path=None: {
+        lambda skill_name, output_path, contract_path, security_gate_path=None, capability_manifest_path=None, source_structure_path=None, require_proving_ground=False: {
             "pass": False,
             "score": 0.0,
             "skill": skill_name,
@@ -405,7 +405,7 @@ def test_run_saved_output_passes_fixture_capability_manifest_sidecar(tmp_path, m
     output.write_text("saved output", encoding="utf-8")
     metadata.write_text("{}", encoding="utf-8")
 
-    def fake_validate(skill_name, output_path, contract_path, security_gate_path=None, capability_manifest_path=None, source_structure_path=None):
+    def fake_validate(skill_name, output_path, contract_path, security_gate_path=None, capability_manifest_path=None, source_structure_path=None, require_proving_ground=False):
         seen["capability_manifest_path"] = capability_manifest_path
         return {"pass": True, "score": 1.0, "skill": skill_name}
 
@@ -504,6 +504,7 @@ def test_run_saved_output_passes_fixture_source_structure_sidecar(tmp_path, monk
         security_gate_path=None,
         capability_manifest_path=None,
         source_structure_path=None,
+        require_proving_ground=False,
     ):
         seen["source_structure_path"] = source_structure_path
         return {"pass": True, "score": 1.0, "skill": skill_name}
