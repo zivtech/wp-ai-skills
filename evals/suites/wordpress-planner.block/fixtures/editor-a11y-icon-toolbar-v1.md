@@ -1,4 +1,6 @@
-# Fixture: editor-a11y-icon-toolbar-v1
+# Request: plan the editor-accessibility fix for an existing block
+
+Plan this block change now and write the complete saved output. The scenario, the code excerpt, and the expectations below are the brief; treat them as the request, not as a description of a test.
 
 Scenario: extend an existing repository-owned custom block, `acme/callout-card`
 (an invented block, not tied to any real project). The block already ships

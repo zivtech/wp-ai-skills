@@ -1,4 +1,6 @@
-# Fixture: media-credit-attachment-meta-v1
+# Request: plan photographer credit, caption, and alt text for images
+
+Plan this content model now and write the complete saved output. The scenario and the expectations below are the brief; treat them as the request, not as a description of a test.
 
 Scenario: an invented regional newsroom-style publisher wants photographer
 credit alongside every published image. No client, site, or ticket is real;

@@ -1,4 +1,6 @@
-# Fixture: editor-constraint-cues-v1
+# Request: plan the editorial constraints for two content types
+
+Plan this content model now and write the complete saved output. The scenario and the expectations below are the brief; treat them as the request, not as a description of a test.
 
 Scenario: an invented regional civic-trust organization is moving two content
 types onto WordPress. No client, site, or ticket is real; every name below is
