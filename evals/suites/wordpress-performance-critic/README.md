@@ -64,7 +64,7 @@ Answer-key coverage evidence:
 Output contract oracle:
 
 ```bash
-python3 evals/harness/validate_wordpress_skill_output.py \
+uv run python evals/harness/validate_wordpress_skill_output.py \
   --skill wordpress-performance-critic \
   --output <candidate-output.md>
 ```

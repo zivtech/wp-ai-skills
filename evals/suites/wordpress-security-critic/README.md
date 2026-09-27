@@ -40,7 +40,7 @@ or QA review is still required before making a public benchmark claim.
 Output contract oracle:
 
 ```bash
-python3 evals/harness/validate_wordpress_skill_output.py \
+uv run python evals/harness/validate_wordpress_skill_output.py \
   --skill wordpress-security-critic \
   --output <candidate-output.md>
 ```
@@ -48,7 +48,7 @@ python3 evals/harness/validate_wordpress_skill_output.py \
 When a real sidecar is available, require the security critic to consume it:
 
 ```bash
-python3 evals/harness/validate_wordpress_skill_output.py \
+uv run python evals/harness/validate_wordpress_skill_output.py \
   --skill wordpress-security-critic \
   --output <candidate-output.md> \
   --security-gate <security-gate.json>
