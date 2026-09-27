@@ -13,6 +13,15 @@ Security reports are still in scope when they affect:
 - committed secrets, credentials, private endpoints, or real client data;
 - reuse, provenance, or licensing claims that could mislead downstream users.
 
+Harness-citing skills resolve their `evals/harness/` proving ground from
+`~/.config/wp-ai-skills/home` or an absolute `$WP_AI_SKILLS_HOME`, never the
+current directory, so a checkout's own harness code is not used just because
+it sits under an agent's working directory (see
+[CONTRIBUTING.md](CONTRIBUTING.md#proving-ground-setup)). That resolution
+order is a skill-text convention enforced by the agent following instructions,
+not a sandbox: it does not defend against an attacker who controls the
+environment or the agent's own instructions.
+
 ## Reporting
 
 Report vulnerabilities privately through GitHub Security Advisories:

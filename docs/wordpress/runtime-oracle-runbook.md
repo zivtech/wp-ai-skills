@@ -9,6 +9,44 @@ The WordPress executor evidence stack has four deterministic layers before any L
 2. Packet materializer: converts materializable packets into generated files.
 3. Generated artifact oracle: validates the files produced from that packet.
 
+## Proving Ground Resolution
+
+The commands below are written as they run inside this checkout
+(`evals/harness/...`, relative to the repository root). An installed skill
+(from `npx skills add` or skills.sh) has no such checkout beside it, so each
+harness-citing skill's "Proving ground first" Hard Gate has the agent resolve
+a `<root>` first — the absolute path in `~/.config/wp-ai-skills/home`, or an
+absolute `$WP_AI_SKILLS_HOME` outside the current directory when no home file
+exists, gated on the marker files `skills.sh.json` and
+`evals/harness/probe_wordpress_environment.py` — and never the current
+directory. See [CONTRIBUTING.md](../../CONTRIBUTING.md#proving-ground-setup)
+for setup and the full resolution rule.
+
+Once `<root>` resolves, a skill runs every harness command it names as:
+
+```bash
+uv run --locked --offline --project <root> python <root>/evals/harness/<file>
+```
+
+`--locked --offline` means the command runs only against the dependencies
+already synced by `install.sh --harness-only`; it never installs or fetches
+anything while a skill runs. A skill records what it found as one of three
+`Proving ground:` forms in its saved output: `Proving ground: <root>@<commit>`
+when a harness command ran (planners that only read harness files record
+`Proving ground: <root>`), `Proving ground: <root> (unusable: <reason>)` when
+the root resolved but a command could not start, or `Proving ground: not
+installed` when no root resolved at all. The latter two both require a
+`NOT CHECKED` line naming each harness file the skill could not run.
+
+`evals/harness/validate_wordpress_skill_output.py --require-proving-ground`
+enforces this record for the ten skills that cite harness files (the probe,
+four executors, five planners): it requires exactly one `Proving ground:`
+record under the skill's owning heading, in one of the three forms above, with
+the required `NOT CHECKED` lines when the value is `not installed` or
+`unusable`. The flag is opt-in — existing callers that omit it keep prior
+behavior — and the high-risk saved-output runner sets it only for new skill-lane
+runs, so old runs, baselines, and frozen `evidence/` are unaffected.
+
 ## Capability Oracle
 
 Run this before the packet gate, and before any planner or critic spends a token on a WordPress task. It answers what the agent can actually run here, rather than what upstream documentation says exists:

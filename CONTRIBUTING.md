@@ -120,6 +120,62 @@ description** (the `RESULT:` line plus the per-step table from
 `var/ci-local/<timestamp>/summary.txt`) as the validation record — GitHub
 Actions no longer produces one automatically.
 
+## Proving ground setup
+
+Ten of the sixteen skills depend on `evals/harness/`: the probe and the four
+executors run harness scripts (the probe against a project, the executors
+against their own output), and five planners read harness data such as
+`wp-symbols.json`.
+The proving ground is this checkout's `evals/harness/` tree — the thing those
+citations resolve against. A skill installed from `npx skills add` or
+skills.sh has no such checkout beside it, so the skill's own "Proving ground
+first" Hard Gate tells the agent how to find one, or to fail closed and say so
+instead of hand-writing harness output.
+
+Prerequisites: `git` and [`uv`](https://docs.astral.sh/uv/).
+
+If you installed the skills with skills.sh (not this repository directly), set
+up the proving ground with the one-line command the guard itself gives the
+agent:
+
+```bash
+[ -d ~/wp-ai-skills ] || git clone https://github.com/zivtech/wp-ai-skills ~/wp-ai-skills; ~/wp-ai-skills/install.sh --harness-only
+```
+
+`--harness-only` requires `uv`, runs `uv sync --locked` once, verifies
+`MANIFEST.sha256`, writes the home file, and runs the doctor — it never
+touches skill links. Plain `./install.sh` (this checkout) also writes the home
+file, alongside its usual skill-link install. Check what resolves and what can
+run on this machine at any time with:
+
+```bash
+./install.sh --doctor
+```
+
+**Resolution rule.** A skill's `<root>` is: the absolute path in
+`~/.config/wp-ai-skills/home` when that file exists; otherwise an absolute
+`$WP_AI_SKILLS_HOME` whose real path is outside the current working
+directory, only when no home file exists; and only when the candidate root
+contains both marker files, `skills.sh.json` and
+`evals/harness/probe_wordpress_environment.py`. The current directory itself
+is never used, even when it happens to contain its own `evals/harness/`.
+`$XDG_CONFIG_HOME` is not consulted — the home file path is fixed at
+`~/.config/wp-ai-skills/home`.
+
+The home file is global to the machine, not per-checkout. `./install.sh` (no
+flags) will not overwrite a home file that already points somewhere else;
+pass `--force` to replace it. A maintainer who wants skills to run against a
+worktree's harness instead of the main checkout's runs that worktree's
+`./install.sh --harness-only --force`, and repoints back the same way when
+done with it.
+
+**Negative space.** This resolution order keeps a checkout's own
+`evals/harness/` code from being used just because it happens to sit under
+the agent's current directory. It does not defend against an attacker who
+controls the environment (an `.envrc`, a project `env` block, an instruction
+in a README) or the agent's own instructions — the rule is enforced by what
+the skill text tells the model to do, not by a sandbox.
+
 ## Validation
 
 Use Python 3.13.9 and uv 0.9.27. The locked Python environment is canonical;
