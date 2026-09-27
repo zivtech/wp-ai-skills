@@ -150,6 +150,33 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def run_manifest_path(run_id: str) -> Path:
+    return RESULTS_ROOT / run_id / "manifest.json"
+
+
+def resolve_require_proving_ground(run_id: str, *, resume: bool) -> bool:
+    """Whether this run's skill-lane saved outputs must carry a proving-ground record.
+
+    A brand-new run always requires it. ``--resume`` honors
+    whatever the run's own manifest already recorded instead, so re-running an
+    older run directory keeps validating exactly as it did before this flag
+    existed: a missing manifest, an unreadable one, or one that predates this
+    key all mean false, never a silent upgrade to true.
+    """
+    if not resume:
+        return True
+    manifest_path = run_manifest_path(run_id)
+    if not manifest_path.exists():
+        return False
+    try:
+        data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not isinstance(data, dict):
+        return False
+    return bool(data.get("require_proving_ground", False))
+
+
 def validate_contract(
     skill_name: str,
     output_path: Path,
@@ -157,6 +184,7 @@ def validate_contract(
     security_gate_path: Path | None = None,
     capability_manifest_path: Path | None = None,
     source_structure_path: Path | None = None,
+    require_proving_ground: bool = False,
 ) -> dict[str, Any]:
     if not output_path.exists() or not output_path.read_text(encoding="utf-8").strip():
         result = {
@@ -188,6 +216,7 @@ def validate_contract(
                 security_gate=security_gate,
                 capability_manifest=capability_manifest,
                 source_structure=source_structure,
+                require_proving_ground=require_proving_ground,
             )
             if security_gate_path is not None:
                 result["security_gate_path"] = rel(security_gate_path)
@@ -246,6 +275,7 @@ def run_saved_output(
     max_retries: int,
     model: str | None,
     effort: str | None,
+    require_proving_ground: bool = False,
 ) -> SavedOutputEntry:
     result = invoke_or_reuse(
         run_id=run_id,
@@ -271,6 +301,10 @@ def run_saved_output(
         security_gate_path=security_gate_path,
         capability_manifest_path=capability_manifest_path,
         source_structure_path=source_structure_path,
+        # The proving-ground record is required for the skill
+        # lane only. Baseline lanes never emit the record and must not start
+        # failing because of it.
+        require_proving_ground=require_proving_ground and condition == "skill",
     )
     generation_ok = True if result is None else result.ok
     duration = None if result is None else result.total_duration_sec
@@ -297,7 +331,13 @@ def run_saved_output(
     )
 
 
-def summarize(run_id: str, suite: str, skill_name: str, entries: list[SavedOutputEntry]) -> dict[str, Any]:
+def summarize(
+    run_id: str,
+    suite: str,
+    skill_name: str,
+    entries: list[SavedOutputEntry],
+    require_proving_ground: bool = False,
+) -> dict[str, Any]:
     generation_ok_count = sum(1 for entry in entries if entry.generation_ok)
     contract_pass_count = sum(1 for entry in entries if entry.contract_pass)
     by_condition: dict[str, dict[str, Any]] = {}
@@ -327,6 +367,7 @@ def summarize(run_id: str, suite: str, skill_name: str, entries: list[SavedOutpu
         "suite": suite,
         "skill": skill_name,
         "run_dir": rel(RESULTS_ROOT / run_id),
+        "require_proving_ground": require_proving_ground,
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "artifact_counts": {
             "entries": len(entries),
@@ -435,6 +476,21 @@ def main(argv: list[str] | None = None) -> int:
     fixtures = fixture_ids_for_suite(suite, parse_csv(args.fixtures) or None)
     conditions = parse_csv(args.conditions, DEFAULT_CONDITIONS)
     entries: list[SavedOutputEntry] = []
+    require_proving_ground = resolve_require_proving_ground(args.run_id, resume=args.resume)
+
+    if not args.resume:
+        # Write the flag before any generation starts, so an interruption partway
+        # through a new run still leaves a manifest a later `--resume` can read
+        # `require_proving_ground` from. The end-of-run summary below overwrites
+        # this file with the full summary, same as before this early write existed.
+        write_json(
+            run_manifest_path(args.run_id),
+            {
+                "run_id": args.run_id,
+                "require_proving_ground": require_proving_ground,
+                "status": "in-progress",
+            },
+        )
 
     for fixture_id in fixtures:
         for condition in conditions:
@@ -451,10 +507,11 @@ def main(argv: list[str] | None = None) -> int:
                     max_retries=args.max_retries,
                     model=args.model,
                     effort=args.effort,
+                    require_proving_ground=require_proving_ground,
                 )
             )
 
-    summary = summarize(args.run_id, suite, skill_name, entries)
+    summary = summarize(args.run_id, suite, skill_name, entries, require_proving_ground=require_proving_ground)
     run_dir = RESULTS_ROOT / args.run_id
     write_json(run_dir / "manifest.json", summary)
     write_json(run_dir / "contract-summary.json", summary)

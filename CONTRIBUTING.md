@@ -120,6 +120,76 @@ description** (the `RESULT:` line plus the per-step table from
 `var/ci-local/<timestamp>/summary.txt`) as the validation record — GitHub
 Actions no longer produces one automatically.
 
+## Proving ground setup
+
+Ten of the sixteen skills depend on `evals/harness/`: the probe and the four
+executors run harness scripts (the probe against a project, the executors
+against their own output), and five planners read harness data such as
+`wp-symbols.json`.
+The proving ground is this checkout's `evals/harness/` tree — the thing those
+citations resolve against. A skill installed from `npx skills add` or
+skills.sh has no such checkout beside it, so the skill's own "Proving ground
+first" Hard Gate tells the agent how to find one, or to fail closed and say so
+instead of hand-writing harness output.
+
+Prerequisites: `git` and [`uv`](https://docs.astral.sh/uv/).
+
+If you installed the skills with skills.sh (not this repository directly), set
+up the proving ground with the one-line command the guard itself gives the
+agent:
+
+```bash
+[ -d ~/wp-ai-skills ] || git clone https://github.com/zivtech/wp-ai-skills ~/wp-ai-skills; ~/wp-ai-skills/install.sh --harness-only
+```
+
+`--harness-only` requires `uv`, runs `uv sync --locked` once, verifies
+`MANIFEST.sha256`, writes the home file, and runs the doctor — it never
+touches skill links. Plain `./install.sh` (this checkout) also writes the home
+file, alongside its usual skill-link install. Check what resolves and what can
+run on this machine at any time with:
+
+```bash
+./install.sh --doctor
+```
+
+The doctor probes an empty temporary directory, so it reports host tools
+without running any project's code. To probe a specific project, run
+`evals/harness/proving_ground.py --doctor --path <project>` under uv. That
+runs the project's own tooling (WP-CLI loads its `wp-config.php`, plugins,
+theme, and `wp-cli.yml` requires), so only do it for a project you trust. The
+doctor also reports whether the resolved root is synced (`Synced: yes` or
+`Synced: no ...`); when it is not, every gate it can otherwise check reports
+blocked with that reason, since `uv run --locked` against an unsynced
+checkout fails.
+
+**Resolution rule.** A skill's `<root>` is: the absolute path in
+`~/.config/wp-ai-skills/home` when that file exists; otherwise an absolute
+`$WP_AI_SKILLS_HOME` whose real path is outside the current working
+directory, only when no home file exists; and only when the candidate root
+contains both marker files, `skills.sh.json` and
+`evals/harness/probe_wordpress_environment.py`. The current directory itself
+is never used, even when it happens to contain its own `evals/harness/`.
+`$XDG_CONFIG_HOME` is not consulted — the home file path is fixed at
+`~/.config/wp-ai-skills/home`.
+
+The home file is global to the machine, not per-checkout, and it always wins:
+`WP_AI_SKILLS_HOME` is consulted only when no home file exists, so setting it
+in a worktree or a shell does nothing once `./install.sh` has run anywhere.
+`./install.sh` (no flags) will not overwrite a home file that already points
+somewhere else; pass `--force` to replace it. Repointing is global too: running
+a worktree's `./install.sh --harness-only --force` moves every agent session on
+the machine to that worktree's harness until you repoint back the same way.
+When several sessions share one machine, keep the home file on the main
+checkout, and test harness changes in a worktree by running its scripts
+directly with `uv run --locked` from that worktree.
+
+**Negative space.** This resolution order keeps a checkout's own
+`evals/harness/` code from being used just because it happens to sit under
+the agent's current directory. It does not defend against an attacker who
+controls the environment (an `.envrc`, a project `env` block, an instruction
+in a README) or the agent's own instructions — the rule is enforced by what
+the skill text tells the model to do, not by a sandbox.
+
 ## Validation
 
 Use Python 3.13.9 and uv 0.9.27. The locked Python environment is canonical;

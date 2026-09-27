@@ -96,6 +96,50 @@ MANIFEST_RECORD_RE = re.compile(r"^([0-9a-f]{64})  ([^/\r\n][^\r\n]*)$")
 MAX_MANIFEST_BYTES = 1024 * 1024
 MAX_DISTRIBUTED_FILE_BYTES = 1024 * 1024
 
+# The proving-ground guard: the canonical single Hard Gates bullet (COMMAND for
+# skills that run harness commands, REFERENCE for skills that only cite harness
+# files) and the Output Contract record sentence template. Every guarded skill
+# carries these verbatim on all four distribution surfaces.
+PROVING_GROUND_HARNESS_TOKEN = "evals/harness"
+# Any of these on a surface means the skill depends on the proving ground.
+PROVING_GROUND_TRIGGER_TOKENS = (PROVING_GROUND_HARNESS_TOKEN, "wp-symbols.json")
+# `<root>` always means the proving ground, so it may appear only where the guard
+# gives it that meaning: a harness path (`<root>/...`), `--project <root>`,
+# `git -C <root>`, a `<root>@<commit>` or `<root> (unusable: ...)` record, or the
+# end of a code span such as the guard's own "`<root>` in this skill" opener.
+PROVING_GROUND_ROOT_TOKEN = "<root>"
+PROVING_GROUND_ROOT_FOLLOWERS = ("/", "@", "`", " (unusable")
+PROVING_GROUND_ROOT_LEADERS = ("--project ", "-C ")
+PROVING_GROUND_ROOT_PREFIX = "<root>/"
+
+PROVING_GROUND_GUARD_COMMAND = "**Proving ground first.** `<root>` in this skill means the proving ground root, never the current directory: the absolute path stored in `~/.config/wp-ai-skills/home` when that file exists, otherwise `$WP_AI_SKILLS_HOME` only when it is an absolute path outside the current directory, and only if `<root>/skills.sh.json` and `<root>/evals/harness/probe_wordpress_environment.py` both exist. If a root resolves, run every harness command this skill names as `uv run --locked --offline --project <root> python <root>/evals/harness/<file>`, against the input or the output the command names; write every file a harness command reads or writes, except the probe's `capability-manifest.json`, inside a fresh directory from `mktemp -d`, never in the user's project; never pass `--overwrite`; add each exit status to your output after the commands finish; and record `Proving ground: <root>@<commit>`, writing `<root>` as its full absolute path and `<commit>` from `git -C <root> rev-parse --short HEAD`, or `Proving ground: <root> (unusable: <reason>)` plus the `NOT CHECKED` lines below when a command could not start. If no root resolves, do not run, simulate, or hand-write any harness output, including a capability manifest, and your output must contain all three of: (1) the record `Proving ground: not installed`; (2) one `NOT CHECKED` line naming each harness file that did not run; (3) this setup instruction for the user: install uv (https://docs.astral.sh/uv/), the Python tool these checks run under, then run `[ -d ~/wp-ai-skills ] || git clone https://github.com/zivtech/wp-ai-skills ~/wp-ai-skills; ~/wp-ai-skills/install.sh --harness-only`. Then finish the steps that do not need the harness."
+
+PROVING_GROUND_GUARD_REFERENCE = "**Proving ground first.** `<root>` in this skill means the proving ground root, never the current directory: the absolute path stored in `~/.config/wp-ai-skills/home` when that file exists, otherwise `$WP_AI_SKILLS_HOME` only when it is an absolute path outside the current directory, and only if `<root>/skills.sh.json` and `<root>/evals/harness/probe_wordpress_environment.py` both exist. If a root resolves, read the `<root>/evals/harness/` files this skill cites only from it, and record `Proving ground: <root>`, writing `<root>` as its full absolute path. If no root resolves, do not guess what those files contain, and your output must contain: (1) the record `Proving ground: not installed` when you confirmed that neither the home file nor the variable exists, or `Proving ground: unresolved (<reason>)` when you could not check (for example, without a shell); (2) directly under it, one `NOT CHECKED` line for each harness file this skill cites (every planner cites `wp-symbols.json` for its WordPress version floor), naming the file and the claim it would have checked; (3) for `not installed` only, this setup instruction for the user: install uv (https://docs.astral.sh/uv/), the Python tool these checks run under, then run `[ -d ~/wp-ai-skills ] || git clone https://github.com/zivtech/wp-ai-skills ~/wp-ai-skills; ~/wp-ai-skills/install.sh --harness-only`. Then finish the plan."
+
+PROVING_GROUND_GUARD_TEXT = {
+    "command": PROVING_GROUND_GUARD_COMMAND,
+    "reference": PROVING_GROUND_GUARD_REFERENCE,
+}
+
+PROVING_GROUND_RECORD_SENTENCE = (
+    "Under `## {heading}`, write exactly one `Proving ground:` record at column zero, "
+    "in the form Hard Gates defines."
+)
+
+# skill name -> (guard variant, Output Contract / Output_Format heading that owns the record).
+PROVING_GROUND_SKILLS: dict[str, tuple[str, str]] = {
+    "wordpress-environment-probe": ("command", "Evidence"),
+    "wordpress-block-executor": ("command", "Verification Notes"),
+    "wordpress-blueprint-executor": ("command", "Verification Notes"),
+    "wordpress-plugin-executor": ("command", "Verification Notes"),
+    "wordpress-theme-executor": ("command", "Verification Notes"),
+    "wordpress-planner": ("reference", "Current-State Evidence"),
+    "wordpress-planner.block": ("reference", "Current-State Evidence"),
+    "wordpress-planner.content-model": ("reference", "Current-State Evidence"),
+    "wordpress-planner.theme": ("reference", "Current-State Evidence"),
+    "wordpress-planner.migration": ("reference", "Current-State Evidence"),
+}
+
 
 if yaml is not None:
 
@@ -717,6 +761,216 @@ def generate_manifest(root: Path, manifest: Path | None = None) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def _raw_section_value(body_text: str, heading: str) -> str | None:
+    match = re.search(
+        rf"(?ms)^## {re.escape(heading)}\n(.*?)(?=^## |\Z)",
+        body_text,
+    )
+    if not match:
+        return None
+    raw = match.group(1)
+    suffix = "\n" if heading == "Provenance" else "\n\n"
+    if not raw.startswith("\n") or not raw.endswith(suffix):
+        return None
+    return raw[1 : -len(suffix)]
+
+
+def _raw_agent_tag_value(body_text: str, tag: str) -> str | None:
+    match = re.search(
+        rf"(?ms)^  <{re.escape(tag)}>\n(.*?)^  </{re.escape(tag)}>$",
+        body_text,
+    )
+    if not match:
+        return None
+    return match.group(1)
+
+
+def _raw_bullet_records(value: str, skill_side: bool) -> list[str] | None:
+    if value.endswith("\n"):
+        value = value[:-1]
+    lines = value.split("\n")
+    if not lines or any(not line for line in lines):
+        return None
+    records: list[str] = []
+    for index, line in enumerate(lines):
+        prefix = ("" if index == 0 else "    ") if skill_side else "    "
+        marker = f"{prefix}- "
+        if not line.startswith(marker):
+            return None
+        records.append(line[len(marker) :])
+    return records
+
+
+def _root_context_issues(path: Path, text: str) -> list[str]:
+    issues: list[str] = []
+    for match in re.finditer(re.escape(PROVING_GROUND_ROOT_TOKEN), text):
+        before, after = text[: match.start()], text[match.end() :]
+        if after.startswith(PROVING_GROUND_ROOT_FOLLOWERS) or before.endswith(
+            PROVING_GROUND_ROOT_LEADERS
+        ):
+            continue
+        excerpt = text[max(0, match.start() - 30) : match.end() + 20]
+        issues.append(f"{path}: <root> used outside a proving-ground context near {excerpt!r}")
+    return issues
+
+
+def _harness_prefix_issues(path: Path, text: str) -> list[str]:
+    issues: list[str] = []
+    for match in re.finditer(re.escape(PROVING_GROUND_HARNESS_TOKEN), text):
+        start = match.start()
+        prefix_start = start - len(PROVING_GROUND_ROOT_PREFIX)
+        if prefix_start < 0 or text[prefix_start:start] != PROVING_GROUND_ROOT_PREFIX:
+            excerpt_start = max(0, start - 20)
+            excerpt_end = min(len(text), start + len(PROVING_GROUND_HARNESS_TOKEN) + 15)
+            issues.append(
+                f"{path}: evals/harness/ reference missing <root>/ prefix "
+                f"near {text[excerpt_start:excerpt_end]!r}"
+            )
+    return issues
+
+
+def _check_gate_guard(
+    path: Path,
+    text: str,
+    skill_side: bool,
+    guard_text: str,
+    other_text: str,
+) -> list[str]:
+    issues: list[str] = []
+    if skill_side:
+        value = _raw_section_value(text, "Hard Gates")
+    else:
+        value = _raw_agent_tag_value(text, "Hard_Gates")
+    if value is None:
+        issues.append(f"{path}: could not locate Hard Gates for the proving-ground guard check")
+        return issues
+    records = _raw_bullet_records(value, skill_side)
+    if records is None:
+        issues.append(f"{path}: could not parse Hard Gates records for the proving-ground guard check")
+        return issues
+    matches = sum(1 for record in records if record == guard_text)
+    if matches != 1:
+        issues.append(
+            f"{path}: Hard Gates must contain exactly one proving-ground guard record (found {matches})"
+        )
+    elif records[-1] != guard_text:
+        issues.append(f"{path}: the proving-ground guard record must be the last Hard Gates record")
+    if any(record == other_text for record in records):
+        issues.append(f"{path}: Hard Gates contains the wrong proving-ground guard variant")
+    return issues
+
+
+def _check_record_sentence(
+    path: Path,
+    text: str,
+    skill_side: bool,
+    heading: str,
+) -> list[str]:
+    issues: list[str] = []
+    sentence = PROVING_GROUND_RECORD_SENTENCE.format(heading=heading)
+    expected_line = sentence if skill_side else f"    {sentence}"
+    if skill_side:
+        value = _raw_section_value(text, "Output Contract")
+    else:
+        value = _raw_agent_tag_value(text, "Output_Format")
+    if value is None:
+        issues.append(
+            f"{path}: could not locate the Output Contract for the proving-ground record sentence check"
+        )
+        return issues
+    if value.endswith("\n"):
+        value = value[:-1]
+    lines = [line for line in value.split("\n") if line]
+    if not lines or lines[-1] != expected_line:
+        issues.append(
+            f"{path}: Output Contract must end with the proving-ground record sentence for ## {heading}"
+        )
+        return issues
+    matching = sum(1 for line in lines if line == expected_line)
+    if matching != 1:
+        issues.append(
+            f"{path}: Output Contract must contain exactly one proving-ground record sentence line"
+        )
+    return issues
+
+
+def _proving_ground_guard_issues(
+    root: Path,
+    claude_skills: dict[str, Path],
+    agents_skills: dict[str, Path],
+    claude_agents: dict[str, Path],
+    codex_agents: dict[str, Path],
+) -> list[str]:
+    issues: list[str] = []
+
+    for name, agent in SKILL_TO_AGENT.items():
+        if name in PROVING_GROUND_SKILLS:
+            continue
+        for path in (
+            claude_skills.get(name),
+            agents_skills.get(name),
+            claude_agents.get(agent),
+            codex_agents.get(agent),
+        ):
+            if path is None:
+                continue
+            try:
+                text = _read_text(root, path)
+            except ValueError:
+                continue
+            for token in PROVING_GROUND_TRIGGER_TOKENS:
+                if token in text:
+                    issues.append(
+                        f"{path}: references {token} without a proving-ground guard mapping"
+                    )
+
+    all_surface_files = [
+        *claude_skills.values(),
+        *agents_skills.values(),
+        *claude_agents.values(),
+        *codex_agents.values(),
+    ]
+    for path in all_surface_files:
+        try:
+            text = _read_text(root, path)
+        except ValueError:
+            continue
+        issues.extend(_harness_prefix_issues(path, text))
+        issues.extend(_root_context_issues(path, text))
+
+    for name, agent in SKILL_TO_AGENT.items():
+        mapping = PROVING_GROUND_SKILLS.get(name)
+        surfaces: tuple[tuple[Path | None, bool], ...] = (
+            (claude_skills.get(name), True),
+            (agents_skills.get(name), True),
+            (claude_agents.get(agent), False),
+            (codex_agents.get(agent), False),
+        )
+        for path, skill_side in surfaces:
+            if path is None:
+                continue
+            try:
+                text = _read_text(root, path)
+            except ValueError:
+                continue
+            if mapping is None:
+                for guard_text in PROVING_GROUND_GUARD_TEXT.values():
+                    if guard_text in text:
+                        issues.append(
+                            f"{path}: contains a proving-ground guard but {name} is "
+                            "not a guarded skill"
+                        )
+                continue
+            variant, heading = mapping
+            guard_text = PROVING_GROUND_GUARD_TEXT[variant]
+            other_variant = "reference" if variant == "command" else "command"
+            other_text = PROVING_GROUND_GUARD_TEXT[other_variant]
+            issues.extend(_check_gate_guard(path, text, skill_side, guard_text, other_text))
+            issues.extend(_check_record_sentence(path, text, skill_side, heading))
+
+    return issues
+
+
 def validate(root: Path) -> list[str]:
     root = root.resolve()
     expected_skills, expected_agents = set(SKILL_TO_AGENT), set(SKILL_TO_AGENT.values())
@@ -733,6 +987,9 @@ def validate(root: Path) -> list[str]:
         (".codex/agents", set(codex_agents), expected_agents),
     ):
         issues.extend(_inventory_issue(label, actual, expected))
+    issues.extend(
+        _proving_ground_guard_issues(root, claude_skills, agents_skills, claude_agents, codex_agents)
+    )
     skill_fields: dict[str, dict[str, Any]] = {}
     skill_bodies: dict[str, str] = {}
     agent_bodies: dict[str, str] = {}
