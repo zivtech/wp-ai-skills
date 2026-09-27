@@ -34,7 +34,7 @@ invocation:
 
 output_contract_oracle:
   type: deterministic_wordpress_skill_output_contract
-  command: "python3 evals/harness/validate_wordpress_skill_output.py --skill wordpress-plugin-executor --output <candidate-output.md>"
+  command: "uv run python evals/harness/validate_wordpress_skill_output.py --skill wordpress-plugin-executor --output <candidate-output.md>"
   status: available
 
 oracle:

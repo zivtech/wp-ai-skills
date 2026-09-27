@@ -140,13 +140,13 @@ python3 evals/harness/run_wordpress_runtime_smoke.py \
 python3 scripts/validate-wordpress-exact-api-contract.py
 python3 evals/harness/validate_wordpress_executor_packet.py \
   --executor plugin --packet <packet.md>
-python3 evals/harness/validate_wordpress_skill_output.py \
+uv run python evals/harness/validate_wordpress_skill_output.py \
   --skill wordpress-critic --output <output.md>
 
 # Security sidecar and critic consumption.
 python3 evals/harness/wp_security_gate.py \
   --path <generated-plugin-dir> --out security-gate.json
-python3 evals/harness/validate_wordpress_skill_output.py \
+uv run python evals/harness/validate_wordpress_skill_output.py \
   --skill wordpress-security-critic \
   --output <critic-output.md> \
   --security-gate security-gate.json

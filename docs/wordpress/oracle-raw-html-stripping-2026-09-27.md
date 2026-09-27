@@ -115,19 +115,65 @@ pass.
 - It does not touch the separate packet validator
   (`validate_wordpress_executor_packet.py`), which never had this defect and
   scored the same packets `1.0` throughout.
-- It does not make the oracle a CommonMark parser. Two known gaps remain, both
-  in the conservative direction (they blank more, never less): a `<?php` line
-  inside a kind-6 HTML block such as an unfenced `<div>` is still treated as a
-  block start, and a raw-HTML block opened outside a fence whose closing
-  delimiter sits inside a later fence runs to the end of the document instead
-  of stopping at that delimiter. Neither shape occurs in the 65-document
-  corpus.
-- `<code>` remains in the raw-text element list although browsers render its
-  content; an unclosed literal `<code>` tag outside code still blanks to the
-  end of the document. No corpus document has one. Removing it is a separate
-  decision.
-- The 15 other recorded evidence contracts that the current oracle does not
-  reproduce (performance-critic and planner.migration lanes from 2026-06-21,
-  and the two other security-critic lanes) drift for reasons unrelated to this
-  change: those contracts gained checks and headings after the outputs were
-  recorded. This change neither causes nor resolves that drift.
+- The first fix (PR #49) did not make the oracle a CommonMark parser, and
+  the claim in an earlier version of this section that its remaining gaps
+  "blank more, never less" was wrong; see the correction below.
+
+## Correction, later on 2026-09-27: the first fix was unsafe and was replaced
+
+PR #49 fixed the ten real false failures above by masking fenced code and
+code spans before the same whole-document regexes ran. Differential testing
+against a real renderer (markdown-it, CommonMark) and a browser-grade HTML
+parser (html5lib) over 20,000 random adversarial documents, plus an
+independent adversarial review, showed that the mask and the oracle's line
+rules disagreed with CommonMark in both directions:
+
+- Documents where the oracle counted a heading or record the reader cannot
+  see went from 353 to 692 of 20,000. Three shapes made a whole valid
+  planner document pass while a browser shows nothing: `- <!--`, `> <!--`, or
+  `<div><!--` followed by a blank line, then the document. A comment opened
+  inside a list item, blockquote, or kind-6 HTML block reaches the browser
+  raw and stays open to the end of the file, and the masked pass no longer
+  saw it. A backslash-escaped backtick, a code span across a line break, and
+  an autolink containing a backtick each made the mask treat a real `<!--` as
+  code.
+- Runtime became quadratic: 54 KB of `a <!-- ` took 2.9 s, 175 KB about 30 s,
+  against 0.001 s before.
+
+On the 65 real saved outputs PR #49 was exactly right (0 headings hidden, 0
+dropped, against the same parsers). The diagnosis stood; the mechanism did
+not.
+
+The replacement, `evals/harness/markdown_visibility.py`, does no Markdown
+parsing of its own. markdown-it-py supplies block structure (fences, indented
+code, HTML blocks, containers, escapes, reference definitions), and the HTML it
+emits is read in document order by a small model of the browser states that
+display nothing: comments, bogus comments (`<?` and `<!x` end at the first
+`>`), unterminated tags, raw-text elements, `<template>`, and elements that
+are `hidden`, `display: none`, or a closed `<details>`. A hidden piece is
+blanked exactly only when it can be located unambiguously in its source line;
+otherwise its whole line or paragraph is blanked. The oracle's deliberately
+stricter line rules (a line carrying a tag, and every line to the next blank
+one, is not authoritative; an indented line is code) still run on top. Where
+the model and a browser could disagree, the model keeps text hidden: a
+`</template>` inside an element the template contains does not close it, and
+implicit element closes are ignored.
+
+Measured after the replacement:
+
+- 0 hiding vectors in 42,000 random adversarial documents across three seeds
+  (`test_markdown_visibility.py` pins 2,000 of them, every counterexample
+  above, and the reviewer's inputs).
+- All 65 saved outputs score identically to PR #49, so the recorded-result
+  table above is unchanged.
+- The pathological inputs run under 2 s; markdown-it's inline HTML rule is
+  wrapped to reject in O(1) any `<` with no possible closer after it.
+- False failures on random adversarial documents: 1,355 of 20,000 from the
+  parser layer, almost all text inside raw HTML blocks that the oracle
+  refuses by design, and 1,687 more from the stricter line rules. On the
+  saved outputs, none.
+
+This adds `markdown-it-py` as a locked runtime dependency of the harness and
+`html5lib` to the test extra. The oracle's documented invocation is now
+`uv run python evals/harness/validate_wordpress_skill_output.py ...`; the
+proving-ground doctor already required the synced environment.

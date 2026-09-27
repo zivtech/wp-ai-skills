@@ -37,7 +37,7 @@ invocation:
 
 output_contract_oracle:
   type: deterministic_wordpress_skill_output_contract
-  command: "python3 evals/harness/validate_wordpress_skill_output.py --skill wordpress-planner.migration --output <candidate-output.md>"
+  command: "uv run python evals/harness/validate_wordpress_skill_output.py --skill wordpress-planner.migration --output <candidate-output.md>"
   status: available
   capability_manifest_sidecar: "Optional per-fixture <fixture-id>.capability-manifest.json beside the fixture; run_wordpress_high_risk_saved_outputs.py passes it as --capability-manifest so the manifest-gated checks run for that fixture only."
   source_structure_sidecar: "Optional per-fixture <fixture-id>.source-structure.json beside the fixture (contract: zivtech/drupal-meta-skills contracts/source-structure/); run_wordpress_high_risk_saved_outputs.py passes it as --source-structure so the source-structure coverage and non-empty-destination checks run for that fixture only."

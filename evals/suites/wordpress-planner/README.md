@@ -5,7 +5,7 @@ Smoke-tier evaluation scaffold for `wordpress-planner`. This suite provides one 
 Output contract oracle:
 
 ```bash
-python3 evals/harness/validate_wordpress_skill_output.py \
+uv run python evals/harness/validate_wordpress_skill_output.py \
   --skill wordpress-planner \
   --output <candidate-output.md>
 ```

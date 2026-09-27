@@ -10,7 +10,7 @@ Baseline generation defaults to the isolated local Codex CLI lane in `eval.yaml`
 Output contract oracle:
 
 ```bash
-python3 evals/harness/validate_wordpress_skill_output.py \
+uv run python evals/harness/validate_wordpress_skill_output.py \
   --skill wordpress-plugin-executor \
   --output <candidate-output.md>
 ```

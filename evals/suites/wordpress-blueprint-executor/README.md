@@ -56,7 +56,7 @@ QA/test-critic review, or turn the suite into benchmark evidence.
 Output contract oracle:
 
 ```bash
-python3 evals/harness/validate_wordpress_skill_output.py \
+uv run python evals/harness/validate_wordpress_skill_output.py \
   --skill wordpress-blueprint-executor \
   --output <candidate-output.md>
 ```
