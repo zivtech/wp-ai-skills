@@ -93,11 +93,25 @@ def _record_studio_builtin(tmp_path: Path) -> dict:
     return probe.normalize_manifest(probe_tests._run_probe(root, [str(bin_dir)]))
 
 
+def _assert_stable_phar(manifest: dict) -> None:
+    """Both scenarios record the stable 2.12.0 phar, which cannot carry the
+    trunk-only roots; the probe's own rule names why they are absent."""
+    wp_cli = manifest["wp_cli"]
+    assert wp_cli["status"] == "AVAILABLE"
+    assert wp_cli["version"] == "2.12.0"
+    assert wp_cli["is_stable_release"] is True
+    for command in sorted(probe.TRUNK_ONLY_WP_CLI_COMMANDS):
+        assert wp_cli["commands"][command] == {
+            "status": "UNAVAILABLE",
+            "reason": "command_documented_but_not_in_stable_phar",
+        }, command
+
+
 def _assert_ddev_pressable(manifest: dict) -> None:
     environment = manifest["environment"]
     assert environment["kind"] == "ddev"
     assert environment["invocation_prefix"] == ["ddev", "wp"]
-    assert manifest["wp_cli"]["status"] == "AVAILABLE"
+    _assert_stable_phar(manifest)
     runtime = manifest["runtime_tools"]
     assert runtime["status"] == "AVAILABLE"
     assert [server["kind"] for server in runtime["servers"]] == ["ddev-pressable"]
@@ -115,7 +129,7 @@ def _assert_studio_builtin(manifest: dict) -> None:
     environment = manifest["environment"]
     assert environment["kind"] == "studio"
     assert environment["invocation_prefix"] == ["studio", "wp"]
-    assert manifest["wp_cli"]["status"] == "AVAILABLE"
+    _assert_stable_phar(manifest)
     runtime = manifest["runtime_tools"]
     assert runtime["status"] == "AVAILABLE"
     assert [server["kind"] for server in runtime["servers"]] == ["studio-mcp-builtin"]

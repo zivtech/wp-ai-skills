@@ -2,7 +2,9 @@
   "abilities": {
     "api_present": null,
     "api_source": null,
-    "notes": [],
+    "notes": [
+      "abilities_api_inferred_from_core_version"
+    ],
     "publicly_exposed_count": null,
     "reason": "ability_command_absent_and_eval_disabled",
     "registered": [],
@@ -234,7 +236,7 @@
       "duration_ms": 0,
       "exit_code": 0,
       "stderr_excerpt": "",
-      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+      "stdout_excerpt": "OS:\tDarwin\nPHP version:\t8.3.7\nWP-CLI version:\t2.12.0"
     },
     {
       "argv": [
@@ -247,7 +249,7 @@
       "duration_ms": 0,
       "exit_code": 0,
       "stderr_excerpt": "",
-      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+      "stdout_excerpt": "WP-CLI 2.12.0"
     },
     {
       "argv": [
@@ -271,9 +273,9 @@
       ],
       "claim": "wp_cli.commands.ability",
       "duration_ms": 0,
-      "exit_code": 0,
-      "stderr_excerpt": "",
-      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+      "exit_code": 1,
+      "stderr_excerpt": "'help ability' is not a registered wp command.",
+      "stdout_excerpt": ""
     },
     {
       "argv": [
@@ -284,9 +286,9 @@
       ],
       "claim": "wp_cli.commands.block",
       "duration_ms": 0,
-      "exit_code": 0,
-      "stderr_excerpt": "",
-      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+      "exit_code": 1,
+      "stderr_excerpt": "'help block' is not a registered wp command.",
+      "stdout_excerpt": ""
     },
     {
       "argv": [
@@ -297,9 +299,9 @@
       ],
       "claim": "wp_cli.commands.doctor",
       "duration_ms": 0,
-      "exit_code": 0,
-      "stderr_excerpt": "",
-      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+      "exit_code": 1,
+      "stderr_excerpt": "'help doctor' is not a registered wp command.",
+      "stdout_excerpt": ""
     },
     {
       "argv": [
@@ -310,9 +312,9 @@
       ],
       "claim": "wp_cli.commands.profile",
       "duration_ms": 0,
-      "exit_code": 0,
-      "stderr_excerpt": "",
-      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+      "exit_code": 1,
+      "stderr_excerpt": "'help profile' is not a registered wp command.",
+      "stdout_excerpt": ""
     },
     {
       "argv": [
@@ -324,7 +326,7 @@
       "claim": "wp_cli.commands.login",
       "duration_ms": 0,
       "exit_code": 1,
-      "stderr_excerpt": "Error: 'login' is not a registered wp command.",
+      "stderr_excerpt": "'help login' is not a registered wp command.",
       "stdout_excerpt": ""
     },
     {
@@ -338,7 +340,7 @@
       "duration_ms": 0,
       "exit_code": 0,
       "stderr_excerpt": "",
-      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+      "stdout_excerpt": ""
     },
     {
       "argv": [
@@ -351,7 +353,7 @@
       "duration_ms": 0,
       "exit_code": 0,
       "stderr_excerpt": "",
-      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+      "stdout_excerpt": ""
     },
     {
       "argv": [
@@ -364,7 +366,7 @@
       "duration_ms": 0,
       "exit_code": 0,
       "stderr_excerpt": "",
-      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+      "stdout_excerpt": ""
     },
     {
       "argv": [
@@ -377,7 +379,7 @@
       "duration_ms": 0,
       "exit_code": 0,
       "stderr_excerpt": "",
-      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+      "stdout_excerpt": ""
     },
     {
       "argv": [
@@ -390,7 +392,7 @@
       "duration_ms": 0,
       "exit_code": 0,
       "stderr_excerpt": "",
-      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+      "stdout_excerpt": ""
     },
     {
       "argv": [
@@ -404,7 +406,7 @@
       "duration_ms": 0,
       "exit_code": 0,
       "stderr_excerpt": "",
-      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+      "stdout_excerpt": "7.0.3"
     },
     {
       "argv": [
@@ -417,7 +419,19 @@
       "duration_ms": 0,
       "exit_code": 0,
       "stderr_excerpt": "",
-      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+      "stdout_excerpt": ""
+    },
+    {
+      "argv": [
+        "studio",
+        "wp",
+        "--info"
+      ],
+      "claim": "wordpress.php_version",
+      "duration_ms": 0,
+      "exit_code": 0,
+      "stderr_excerpt": "",
+      "stdout_excerpt": "PHP version:\t8.3.7"
     },
     {
       "argv": [
@@ -429,9 +443,9 @@
       ],
       "claim": "wordpress.is_multisite",
       "duration_ms": 0,
-      "exit_code": 0,
-      "stderr_excerpt": "",
-      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+      "exit_code": 1,
+      "stderr_excerpt": "Error: The constant or variable 'MULTISITE' is not defined.",
+      "stdout_excerpt": ""
     },
     {
       "argv": [
@@ -445,7 +459,7 @@
       "duration_ms": 0,
       "exit_code": 0,
       "stderr_excerpt": "",
-      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+      "stdout_excerpt": "http://localhost:8888"
     },
     {
       "argv": [
@@ -459,7 +473,7 @@
       "duration_ms": 0,
       "exit_code": 0,
       "stderr_excerpt": "",
-      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+      "stdout_excerpt": "http://localhost:8888"
     },
     {
       "argv": [
@@ -474,7 +488,7 @@
       "duration_ms": 0,
       "exit_code": 0,
       "stderr_excerpt": "",
-      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+      "stdout_excerpt": "[{\"name\": \"plugin-check\", \"status\": \"active\", \"version\": \"2.0.0\"}]"
     },
     {
       "argv": [
@@ -489,21 +503,7 @@
       "duration_ms": 0,
       "exit_code": 0,
       "stderr_excerpt": "",
-      "stdout_excerpt": "WP-CLI version:\t2.12.0"
-    },
-    {
-      "argv": [
-        "studio",
-        "wp",
-        "ability",
-        "list",
-        "--format=json"
-      ],
-      "claim": "abilities.registered",
-      "duration_ms": 0,
-      "exit_code": 0,
-      "stderr_excerpt": "",
-      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+      "stdout_excerpt": "[]"
     },
     {
       "argv": [
@@ -515,7 +515,7 @@
       "duration_ms": 0,
       "exit_code": 0,
       "stderr_excerpt": "",
-      "stdout_excerpt": "no plugin inventory available"
+      "stdout_excerpt": "plugin-check"
     },
     {
       "argv": [
@@ -551,7 +551,7 @@
       "duration_ms": 0,
       "exit_code": 0,
       "stderr_excerpt": "",
-      "stdout_excerpt": "WP-CLI version:\t2.12.0"
+      "stdout_excerpt": ""
     },
     {
       "argv": [
@@ -693,7 +693,7 @@
     },
     "deprecated_detected": [],
     "notes": [],
-    "reason": "plugin_inventory_unavailable",
+    "reason": "mcp_adapter_absent",
     "servers": [],
     "status": "UNAVAILABLE",
     "tools": [],
@@ -946,37 +946,43 @@
     }
   },
   "wordpress": {
-    "active_plugins": [],
+    "active_plugins": [
+      {
+        "activation_state": "active",
+        "name": "plugin-check",
+        "version": "2.0.0"
+      }
+    ],
     "active_themes": [],
-    "core_version": "2.12.0",
-    "home": "WP-CLI version:\t2.12.0",
+    "core_version": "7.0.3",
+    "home": "http://localhost:8888",
     "is_installed": true,
     "is_multisite": false,
     "notes": [
       "facts_from_wp_cli_read_probes"
     ],
-    "php_version": null,
+    "php_version": "8.3.7",
     "reason": null,
-    "siteurl": "WP-CLI version:\t2.12.0",
+    "siteurl": "http://localhost:8888",
     "status": "AVAILABLE"
   },
   "wp_cli": {
     "commands": {
       "ability": {
-        "reason": null,
-        "status": "AVAILABLE"
+        "reason": "command_documented_but_not_in_stable_phar",
+        "status": "UNAVAILABLE"
       },
       "block": {
-        "reason": null,
-        "status": "AVAILABLE"
+        "reason": "command_documented_but_not_in_stable_phar",
+        "status": "UNAVAILABLE"
       },
       "core": {
         "reason": null,
         "status": "AVAILABLE"
       },
       "doctor": {
-        "reason": null,
-        "status": "AVAILABLE"
+        "reason": "package_not_installed",
+        "status": "UNAVAILABLE"
       },
       "login": {
         "reason": "package_not_installed",
@@ -995,8 +1001,8 @@
         "status": "AVAILABLE"
       },
       "profile": {
-        "reason": null,
-        "status": "AVAILABLE"
+        "reason": "package_not_installed",
+        "status": "UNAVAILABLE"
       },
       "theme": {
         "reason": null,

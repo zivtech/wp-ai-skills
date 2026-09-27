@@ -74,6 +74,7 @@ raise SystemExit(0)
 """
 
 DEFAULT_BANNER = "OS:\tDarwin\nPHP version:\t8.3.7\nWP-CLI version:\t2.12.0\n"
+DEFAULT_FAILING = ("help ability", "help block", "help doctor", "help profile", "help login")
 DEFAULT_PLUGINS: tuple[dict[str, str], ...] = (
     {"name": "plugin-check", "status": "active", "version": "2.0.0"},
 )
@@ -84,9 +85,7 @@ def _install_fake_wp(
     *,
     cli_version: str = "2.12.0",
     banner: str = DEFAULT_BANNER,
-    failing: tuple[str, ...] = (
-        "help ability", "help block", "help doctor", "help profile", "help login",
-    ),
+    failing: tuple[str, ...] = DEFAULT_FAILING,
     plugins: tuple[dict[str, str], ...] = DEFAULT_PLUGINS,
     plugin_list_mode: str = "json",
 ) -> Path:
@@ -1370,22 +1369,25 @@ def test_studio_invocation_prefix_is_studio_wp(tmp_path: Path) -> None:
 # the probe must never execute a runtime tool (no push/pull, no starting an
 # MCP server).
 
+# Studio's `wp` command turns off yargs' help and version handling and hands
+# the rest of argv, minus Studio's own flags, to its bundled WP-CLI phar
+# (Automattic/studio trunk 673311d: apps/cli/index.ts, apps/cli/commands/wp.ts).
+# The live wp-studio 1.21.0 recording agrees: `studio wp plugin check --help`
+# exited 1 with WP-CLI's "not a registered subcommand" error, in
+# docs/wordpress/studio-verification-2026-09-15/capability-manifest.after-marker-fix.json.
+# So `--help` and `--version` are Studio's only before `wp`.
 FAKE_STUDIO_TEMPLATE = """#!{interpreter}
+import os
 import sys
+
 args = sys.argv[1:]
+if args[:1] == ["wp"]:
+    os.execv({wp_cli!r}, ["wp", *args[1:]])
 if "--help" in args:
     sys.stdout.write({help_text!r})
     raise SystemExit(0)
 if "--version" in args:
     sys.stdout.write({version!r} + "\\n")
-    raise SystemExit(0)
-if args[:3] == ["wp", "help", "login"]:
-    # The one-time-login package is not installed. Every other `wp` call
-    # still succeeds, so this fake is not a clean site in general.
-    sys.stderr.write("Error: 'login' is not a registered wp command.\\n")
-    raise SystemExit(1)
-if args and args[0] == "wp":
-    sys.stdout.write("WP-CLI version:\\t2.12.0\\n")
     raise SystemExit(0)
 raise SystemExit(1)
 """
@@ -1400,18 +1402,28 @@ def _install_fake_studio(
     *,
     help_text: str = DEFAULT_STUDIO_HELP,
     version: str = "1.21.0",
+    **fake_wp: object,
 ) -> Path:
     """Write a fake `studio` onto a private PATH directory and return that dir.
+
+    `studio wp ...` runs a fake `wp` built by `_install_fake_wp(**fake_wp)`.
+    That `wp` stays off PATH, as Studio's bundled WP-CLI phar does, so a probe
+    that called a bare `wp` on a Studio site would still find nothing.
 
     The fake never handles `mcp` as a real subcommand: a probe bug that
     actually invoked `studio mcp` would hang against this fake exactly as it
     would against the real stdio server, which is the point.
     """
+    bundled = tmp_path / "studio-bundled"
+    bundled.mkdir(exist_ok=True)
+    wp_cli = _install_fake_wp(bundled, **fake_wp) / "wp"
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
     script = bin_dir / "studio"
     script.write_text(
-        FAKE_STUDIO_TEMPLATE.format(interpreter=sys.executable, help_text=help_text, version=version),
+        FAKE_STUDIO_TEMPLATE.format(
+            interpreter=sys.executable, help_text=help_text, version=version, wp_cli=str(wp_cli)
+        ),
         encoding="utf-8",
     )
     script.chmod(script.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
@@ -1424,6 +1436,66 @@ def _studio_project(tmp_path: Path) -> Path:
     (root / "wp-config.php").write_text("<?php\n", encoding="utf-8")
     (root / "STUDIO.md").write_text("## IMPORTANT: WP-CLI in WordPress Studio\n", encoding="utf-8")
     return root
+
+
+def test_studio_wp_is_answered_by_wp_cli_not_by_studio(tmp_path: Path) -> None:
+    """The Studio fake once answered every `studio wp` call itself with exit 0,
+    so a stable 2.12.0 phar reported the trunk-only roots as available and the
+    CLI version as the WordPress core version."""
+    root = _studio_project(tmp_path)
+    bin_dir = _install_fake_studio(tmp_path)
+
+    manifest = _run_probe(root, [str(bin_dir)])
+
+    assert manifest["environment"]["invocation_prefix"] == ["studio", "wp"]
+    commands = manifest["wp_cli"]["commands"]
+    for command in sorted(probe.TRUNK_ONLY_WP_CLI_COMMANDS):
+        assert commands[command] == {
+            "status": "UNAVAILABLE",
+            "reason": "command_documented_but_not_in_stable_phar",
+        }, command
+    for command in ("doctor", "profile", "login"):
+        assert commands[command] == {"status": "UNAVAILABLE", "reason": "package_not_installed"}, command
+    assert manifest["wordpress"]["core_version"] == "7.0.3"
+
+
+@pytest.mark.parametrize("registered", [False, True], ids=["absent", "registered"])
+def test_studio_plugin_check_follows_wp_cli(tmp_path: Path, registered: bool) -> None:
+    """Only WP-CLI's answer can make a Studio site report Plugin Check absent."""
+    failing = DEFAULT_FAILING if registered else (*DEFAULT_FAILING, "help plugin check")
+    root = _studio_project(tmp_path)
+    bin_dir = _install_fake_studio(tmp_path, failing=failing)
+
+    manifest = _run_probe(root, [str(bin_dir)])
+
+    plugin_check = manifest["verification_tools"]["plugin_check"]
+    assert manifest["capabilities"]["can_run_plugin_check"] is registered
+    blocked = "plugin_check_unavailable" in {entry["code"] for entry in manifest["blockers"]}
+    assert blocked == (not registered)
+    if registered:
+        assert plugin_check["status"] == "AVAILABLE"
+        assert plugin_check["invocation"] == ["studio", "wp", "plugin", "check"]
+    else:
+        assert plugin_check["status"] == "UNAVAILABLE"
+        assert plugin_check["reason"] == "plugin_check_command_absent"
+
+
+def test_studio_hands_help_after_wp_to_wp_cli(tmp_path: Path) -> None:
+    """Mirrors the live 1.21.0 row: on a site without Plugin Check, `studio wp
+    plugin check --help` failed with WP-CLI's error, not Studio's usage."""
+    bin_dir = _install_fake_studio(tmp_path, failing=(*DEFAULT_FAILING, "plugin check"))
+
+    completed = subprocess.run(
+        [str(bin_dir / "studio"), "wp", "plugin", "check", "--help"],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+
+    assert completed.returncode == 1
+    assert "not a registered wp command" in completed.stderr
+    assert completed.stdout == ""
 
 
 def test_runtime_tools_detects_studio_builtin_mcp_from_help_text(tmp_path: Path) -> None:
