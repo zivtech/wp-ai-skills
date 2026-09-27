@@ -4,7 +4,7 @@ fe808408af76277690ea5201ecacbea2b47b2bd5b0dbd14f356ace548d2f8c2f  .agents/skills
 f71607cc5aaa68926aab2bade8856e9e519829a439f45b3a73ed41cd33c8853d  .agents/skills/wordpress-environment-probe/SKILL.md
 d6b264efd4b94efaf03272e907db221b7bfa6395ae4695de9ece9923e595bca9  .agents/skills/wordpress-performance-critic/SKILL.md
 ea763036e086866ba6f3968a4b2b2cd1dbf4ee19e994206ad9ef6bbe37b1df7a  .agents/skills/wordpress-planner.block/SKILL.md
-3404d528202a2fca9c7fa0cba947fb4e824486d24e13546552002ed8954615c9  .agents/skills/wordpress-planner.content-model/SKILL.md
+bc182093c773d53f9000aea59a2b4e4d95130893d4f17f2adb9625a499c65c7d  .agents/skills/wordpress-planner.content-model/SKILL.md
 ce9f7bc99f576da341ad04077c1138ebd2e2fe2de71912c2917a0e8881ffee24  .agents/skills/wordpress-planner.migration/SKILL.md
 e361f5127dda315b48dc12718c34b019989f8ec8c74cc9046b284526effe8baf  .agents/skills/wordpress-planner.plugin/SKILL.md
 17430637c47e3ec477a0697c334b287d37ed44ef08c2388484f9ecbc5f25da76  .agents/skills/wordpress-planner.theme/SKILL.md
@@ -17,7 +17,7 @@ e629fa475f0ff9f276426980d8b10fef5fc6df0ea73f654cd838d6e83c83532d  .agents/skills
 89240ee4e0f82d48e76837689e03f7f6c54e62817758bca79c2754d889c82537  .claude/agents/wordpress-block-executor.md
 94662e0b15fb024d191a068883d501e7491e38def72b04cd96a3a03392ecee61  .claude/agents/wordpress-block-planner.md
 80b61c5c4ed9389b20af33c06a58d1bf543cb38af8e88b4e37785e43de07541e  .claude/agents/wordpress-blueprint-executor.md
-b49818ed6f5a0fe84d42b995a1746d9dbac15aba995e6c7fc48a988aa2156f6b  .claude/agents/wordpress-content-model-planner.md
+fb00dda645e2c4f93858937bc1a290a584b0c60633a24ec955f6332a0cbfc1a4  .claude/agents/wordpress-content-model-planner.md
 1311fa5cc633f0d9d6615d81f479810a6638d62d5bddcb8aa3d5c9b3e157b674  .claude/agents/wordpress-critic.md
 b2093eaa6f8781a9caa26827ec56dcb08334654bf5dac4886315bdd2c7a3dfc0  .claude/agents/wordpress-environment-probe.md
 a915764c991f4f1fc47c415cedecbf23c5bc4c4dba1737ab71061d204f273c1d  .claude/agents/wordpress-migration-planner.md
@@ -36,7 +36,7 @@ ca0866ca92821a3093d4b30caadf0e3f1373c529cb202f7b88a467439aefac2b  .claude/skills
 ae41862b10684a27c13681090002e4a28a14ed3b865b4535174b95a105d2ef8e  .claude/skills/wordpress-environment-probe/SKILL.md
 dd9c440382ed7b0be4bd2d6402d2ab540ff92d70ed559acc57f2cc7b80d38f5f  .claude/skills/wordpress-performance-critic/SKILL.md
 ac7275b6d58d3744bd22021b5362ff4108f686e72db0fb097777d3eb10dffc91  .claude/skills/wordpress-planner.block/SKILL.md
-46a284f54f2f6d05abb88323b08a4b5475aeeae0f504ca81fac785ed8b22b429  .claude/skills/wordpress-planner.content-model/SKILL.md
+c951fc1b266422ff96b3d50a02abb1598af6288f3238e0a85781ff15e28dce80  .claude/skills/wordpress-planner.content-model/SKILL.md
 50894daa6e0cee0d39c82cd0de139293a69ab74c7243ce72fc8c7bd109f5412f  .claude/skills/wordpress-planner.migration/SKILL.md
 82963467aba5aea3c84cc15b0b52e2c3cf0d6a3edc86163a9c9f661d575aa532  .claude/skills/wordpress-planner.plugin/SKILL.md
 b109d31ef6175dea94f9239f097f46ca1a723f49282ff13d20186cce307f48e5  .claude/skills/wordpress-planner.theme/SKILL.md
@@ -49,7 +49,7 @@ d95a9f8ddc84b6e2be55e4a926d4373e6ba2e1f329a5bef07acd2c88f58939d8  .claude/skills
 71ce7f5309547ebc275ac8e2cf035c49608089064cd39e5cad7622b0d0d68c43  .codex/agents/wordpress-block-executor.toml
 bfb9fa858cdedd55d337abb8d302b3a9f03587fdec0cf94a60db47daed8f3a1f  .codex/agents/wordpress-block-planner.toml
 43b5c53440f5718e46fd835c740fa39f00327822d342734dfc6f53ff80f871b2  .codex/agents/wordpress-blueprint-executor.toml
-bcded36dbb4cf9e56103b3a3a6e0023a9e3f896333af706bc4dfeae8fce79840  .codex/agents/wordpress-content-model-planner.toml
+05a2a817386ba1312e78e2a02178c6d50f6137388b5190408b3484750955115d  .codex/agents/wordpress-content-model-planner.toml
 9cc7faa9389f0d359e58e089a835484494cb5a8d2d39d36b60129ac619d6cbb8  .codex/agents/wordpress-critic.toml
 50ec11e9a4ecf9653e268950461775c9294459b5b1d808a4e8e080fd916b2e23  .codex/agents/wordpress-environment-probe.toml
 18a538939e3967611945ad718d4a3ac5213f2886439db69208d3f1933689f383  .codex/agents/wordpress-migration-planner.toml
