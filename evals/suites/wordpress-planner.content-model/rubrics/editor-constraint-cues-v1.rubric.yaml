@@ -1,0 +1,38 @@
+fixture: editor-constraint-cues-v1
+skill_under_test: wordpress-planner.content-model
+max_score: 10
+criteria:
+  - id: keyed_lock_level_decisions
+    weight: 2
+    description: Both case_study and field_note are declared as content types with their own keyed lock-level decision, and field_note's false decision carries its own rationale rather than silence or a shared rationale.
+  - id: constraint_cue_naming
+    weight: 2
+    description: Every locked constraint names the concrete editor-facing cue and where its rationale is recorded, not only the underlying lock mechanism.
+  - id: role_scoped_editor_settings
+    weight: 2
+    description: canLockBlocks and the block_editor_settings_all switches are decided per role (staff_editor versus contributor), not once for the whole content type.
+  - id: heading_level_curation
+    weight: 1
+    description: case_study's constrained heading level is curated with levelOptions.
+  - id: manual_walk_confirmation
+    weight: 2
+    description: "Every named constraint cue is confirmed as the role that encounters it, tagged runtime: manual-walk."
+  - id: calibration_and_handoff
+    weight: 1
+    description: Calibrates uncertainty and does not claim benchmark, release, or current-version status without evidence.
+domain_signals:
+  expected_wordpress_apis:
+    - "templateLock"
+    - "canLockBlocks"
+    - "block_editor_settings_all"
+    - "levelOptions"
+    - "allowed_block_types_all"
+  must_detect:
+    - "case_study gets contentOnly with a rationale tied to the cited page-builder friction, and field_note gets its own keyed false rationale rather than silence or a shared rationale"
+    - "each locked constraint names the concrete editor-facing cue and where its rationale is recorded, not just the underlying lock mechanism"
+    - "canLockBlocks and the block_editor_settings_all switches are decided per role (staff_editor versus contributor), not once for the whole content type"
+    - "case_study's constrained heading level is curated with levelOptions"
+    - "every named constraint cue is confirmed as the role that encounters it, tagged runtime: manual-walk"
+  must_not_claim:
+    - "field_note's lock level can default to false without its own stated rationale"
+    - "a block's absence from the inserter is self-explanatory without naming the cue and rationale location"

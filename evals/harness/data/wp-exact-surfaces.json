@@ -9,6 +9,8 @@
   "categories": {
     "hooks": [
       "allowed_block_types_all",
+      "block_editor_settings_all",
+      "block_type_metadata",
       "mcp_adapter_init",
       "wp_abilities_api_categories_init",
       "wp_abilities_api_init",
@@ -48,6 +50,8 @@
     ],
     "packages": [
       "@wordpress/abilities",
+      "@wordpress/components",
+      "@wordpress/compose",
       "@wordpress/core-abilities",
       "@wordpress/hooks",
       "@wordpress/plugins",
@@ -79,12 +83,14 @@
       "$wpdb->prepare",
       "AiClient::defaultRegistry",
       "blocks.registerBlockType",
+      "canLockBlocks",
       "core/navigation",
       "deprecated block versions",
       "editor.BlockEdit",
       "fontFace",
       "fontFamilies",
       "generate_text",
+      "levelOptions",
       "mcp-adapter-discover-abilities",
       "mcp-adapter-execute-ability",
       "ModelMetadataDirectoryInterface",

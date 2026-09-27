@@ -1,0 +1,31 @@
+fixture_id: theme-frontend-only-block-css-v1
+tranche: J
+provenance: authored
+license: GPL-2.0-or-later
+source: hand-authored
+expected_verdict: REVISE
+status: active
+tool_invisibility:
+  phpcs_wordpress: clean
+  phpstan: clean
+  plugin_check: pending
+  verified_on: 2026-09-27
+  notes: >-
+    phpcs (WordPress standard, installed_paths wpcs/phpcsutils/phpcsextra) was run directly
+    against the functions.php excerpt: it reports one Squiz.Commenting.FileComment.Missing
+    style finding and nothing else -- none of the disqualifying
+    WordPress.Security.*/WordPress.DB.PreparedSQL/WordPress.WP.Capabilities/
+    WordPress.WP.PostsPerPage/WordPress.DB.SlowDBQuery sniffs fire, so it is clean by the
+    tranche-J entry criterion. phpstan (level max, WordPress stubs scanned) reports one
+    missingType.return finding on the allowlisted benign identifier (no return type on the
+    excerpted callback), so it is clean by the same criterion. Neither tool checks whether a
+    stylesheet enqueued on wp_enqueue_scripts styling core block selectors has a matching
+    add_editor_style() or wp_enqueue_block_style() call -- that editor/frontend parity
+    judgment is exactly what no linter here performs. plugin_check requires a full
+    WordPress runtime and is recorded as pending until run in a provisioned environment.
+grounding:
+  - description: "functions.php enqueues assets/css/blocks.css, which styles .wp-block-button__link and .wp-block-quote, only through the wp_enqueue_scripts hook, with no add_editor_style() or wp_enqueue_block_style() call, so the styling never loads in the block editor and the editor preview differs from the front end"
+    sniff: wordpress.theme.editor-frontend-block-style-parity
+    file: functions.php
+    line: 13
+    severity: MAJOR
