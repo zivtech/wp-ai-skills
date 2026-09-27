@@ -595,6 +595,110 @@ def test_plain_install_refuses_symlinked_config_dir(tmp_path: Path) -> None:
     assert (real_config / "home").read_text(encoding="utf-8") == f"{repo}\n"
 
 
+def test_plain_install_refuses_directory_at_home_file_path(tmp_path: Path) -> None:
+    repo, home = _make_repo(tmp_path)
+    home_file = _home_file(home)
+    home_file.mkdir(parents=True)
+
+    result = _run(repo, home)
+
+    assert result.returncode == 0  # plain install still succeeds overall (write is `if !`)
+    assert home_file.is_dir()
+    assert "is not a regular file" in result.stderr
+    assert "WARNING: home file was not written" in result.stderr
+
+
+def test_plain_install_refuses_directory_at_home_file_path_even_with_force(tmp_path: Path) -> None:
+    """--force overrides a conflicting *value*, never a non-regular-file HOME_FILE."""
+    repo, home = _make_repo(tmp_path)
+    home_file = _home_file(home)
+    home_file.mkdir(parents=True)
+
+    result = _run(repo, home, "--force")
+
+    assert home_file.is_dir()
+    assert "is not a regular file" in result.stderr
+
+
+def test_harness_only_refuses_directory_at_home_file_path(tmp_path: Path) -> None:
+    repo, home = _make_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    _make_fake_uv(bin_dir, tmp_path / "uv-calls.log")
+    home_file = _home_file(home)
+    home_file.mkdir(parents=True)
+
+    result = _run_direct(
+        repo,
+        home,
+        "--harness-only",
+        "--no-verify",
+        extra_env={"PATH": f"{bin_dir}:{_env(home)['PATH']}"},
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert home_file.is_dir()
+    assert "is not a regular file" in result.stderr
+
+
+def test_plain_install_preserves_empty_home_file_with_clear_message(tmp_path: Path) -> None:
+    repo, home = _make_repo(tmp_path)
+    home_file = _home_file(home)
+    home_file.parent.mkdir(parents=True)
+    home_file.write_text("", encoding="utf-8")
+
+    result = _run(repo, home)
+
+    assert home_file.read_text(encoding="utf-8") == ""
+    assert "PRESERVE" in result.stdout
+    assert "it is empty" in result.stdout
+
+
+def _make_fake_mv_that_fails(bin_dir: Path) -> Path:
+    """A stand-in `mv` that always exits 1, so the home-file `mv` fails cheaply
+    without needing real filesystem permission tricks. install.sh's only `mv`
+    call is the home-file rename, so shadowing it on PATH is safe here."""
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    script = bin_dir / "mv"
+    script.write_text("#!/bin/bash\nexit 1\n", encoding="utf-8")
+    script.chmod(0o755)
+    return script
+
+
+def test_plain_install_mv_failure_reports_error_and_does_not_write(tmp_path: Path) -> None:
+    repo, home = _make_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    _make_fake_mv_that_fails(bin_dir)
+
+    result = _run(repo, home, extra_env={"PATH": f"{bin_dir}:{_env(home)['PATH']}"})
+
+    assert result.returncode == 0  # plain install still succeeds overall (write is `if !`)
+    assert not _home_file(home).exists()
+    assert "Could not move temp file" in result.stderr
+    assert "WARNING: home file was not written" in result.stderr
+    assert "Wrote home file" not in result.stdout
+
+
+def test_harness_only_mv_failure_exits_1(tmp_path: Path) -> None:
+    repo, home = _make_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    _make_fake_uv(bin_dir, tmp_path / "uv-calls.log")
+    _make_fake_mv_that_fails(bin_dir)
+
+    result = _run_direct(
+        repo,
+        home,
+        "--harness-only",
+        "--no-verify",
+        extra_env={"PATH": f"{bin_dir}:{_env(home)['PATH']}"},
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert not _home_file(home).exists()
+    assert "Could not move temp file" in result.stderr
+
+
 def test_install_runs_from_another_cwd(tmp_path: Path) -> None:
     repo, home = _make_repo(tmp_path)
     other_cwd = tmp_path / "elsewhere"
@@ -605,6 +709,25 @@ def test_install_runs_from_another_cwd(tmp_path: Path) -> None:
     assert result.returncode == 0
     _assert_current_links(repo, home)
     assert _home_file(home).read_text(encoding="utf-8").strip() == str(repo)
+
+
+def test_plain_install_without_venv_prints_sync_hint(tmp_path: Path) -> None:
+    repo, home = _make_repo(tmp_path)
+    assert not (repo / ".venv").exists()
+
+    result = _run(repo, home)
+
+    assert "uv sync --locked" in result.stdout
+    assert "--harness-only" in result.stdout
+
+
+def test_plain_install_with_venv_does_not_print_sync_hint(tmp_path: Path) -> None:
+    repo, home = _make_repo(tmp_path)
+    (repo / ".venv").mkdir()
+
+    result = _run(repo, home)
+
+    assert "uv sync --locked" not in result.stdout
 
 
 # ── Home file: --remove ──────────────────────────────────────────────────

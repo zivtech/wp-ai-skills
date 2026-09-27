@@ -211,14 +211,22 @@ def _unavailable_optional_tools(manifest: dict[str, Any]) -> list[str]:
 
 
 def _gate_rows(
-    resolution: Resolution, manifest: dict[str, Any] | None
+    resolution: Resolution, manifest: dict[str, Any] | None, synced: bool
 ) -> list[tuple[str, str, str | None]]:
     rows: list[tuple[str, str, str | None]] = []
     root_ok = resolution.root is not None
+    not_synced_reason = (
+        f"proving ground not synced (run uv sync --locked in {resolution.root})"
+        if root_ok and not synced
+        else None
+    )
 
     for name, _script in STDLIB_GATES:
         if not root_ok:
             rows.append((name, "blocked", "proving ground not installed"))
+            continue
+        if not_synced_reason is not None:
+            rows.append((name, "blocked", not_synced_reason))
             continue
         reason = None
         if name == "static_artifact_validation" and isinstance(manifest, dict):
@@ -230,11 +238,15 @@ def _gate_rows(
     docker_present = shutil.which("docker") is not None
     if not root_ok:
         rows.append(("runtime_smoke", "blocked", "proving ground not installed"))
+    elif not_synced_reason is not None:
+        rows.append(("runtime_smoke", "blocked", not_synced_reason))
     elif not docker_present:
         rows.append(("runtime_smoke", "blocked", "docker not found"))
     else:
         rows.append(("runtime_smoke", "can-run", None))
 
+    # Linux-only gates are gated on platform, independent of sync state: they
+    # are never runnable from this doctor regardless of whether the root is synced.
     is_darwin = platform.system() == "Darwin"
     for name in LINUX_ONLY_GATES:
         if is_darwin:
@@ -274,6 +286,13 @@ def run_doctor(
     commit = _git_commit(resolution.root) if resolution.root is not None else "unknown"
     lines.append(f"Commit: {commit}")
 
+    synced = resolution.root is not None and (resolution.root / ".venv").is_dir()
+    if resolution.root is not None:
+        if synced:
+            lines.append("Synced: yes")
+        else:
+            lines.append(f"Synced: no (run uv sync --locked in {resolution.root})")
+
     uv_version = _uv_version()
     lines.append(f"uv: {uv_version if uv_version is not None else 'missing'}")
     lines.append(f"Platform: {platform.platform()}")
@@ -298,7 +317,7 @@ def run_doctor(
 
     lines.append("")
     lines.append("Gates:")
-    for name, status, reason in _gate_rows(resolution, manifest):
+    for name, status, reason in _gate_rows(resolution, manifest, synced):
         suffix = f" ({reason})" if reason else ""
         lines.append(f"  {name}: {status}{suffix}")
 

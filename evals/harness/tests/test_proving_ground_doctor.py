@@ -31,11 +31,26 @@ MARKER_FILES = proving_ground.MARKER_FILES
 
 
 def _make_root(tmp_path: Path, name: str = "root") -> Path:
+    """A marker-valid root that is also synced (has ``.venv``).
+
+    Every pre-existing doctor test in this file predates the sync-state gate
+    and asserts on docker/probe-driven blocking, not sync-driven blocking; a
+    synced-by-default root keeps those assertions meaningful. Tests that
+    specifically exercise the unsynced state build their own root without
+    ``.venv`` (see ``_make_unsynced_root``).
+    """
     root = tmp_path / name
     for marker in MARKER_FILES:
         marker_path = root / marker
         marker_path.parent.mkdir(parents=True, exist_ok=True)
         marker_path.write_text("{}\n", encoding="utf-8")
+    (root / ".venv").mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def _make_unsynced_root(tmp_path: Path, name: str = "root") -> Path:
+    root = _make_root(tmp_path, name)
+    (root / ".venv").rmdir()
     return root
 
 
@@ -387,6 +402,74 @@ def test_doctor_blocks_runtime_smoke_when_docker_missing(
     assert exit_code == 0
     assert "runtime_smoke: blocked" in report
     assert "docker" in report.lower()
+
+
+def test_doctor_reports_synced_yes_when_venv_present(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _make_root(tmp_path)  # synced by default
+    home = tmp_path / "home"
+    _write_home_file(home, f"{root}\n")
+
+    def fake_invoke_probe(probe_path: Path, path: Path) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(args=["probe"], returncode=0, stdout="{}", stderr="")
+
+    monkeypatch.setattr(proving_ground, "_invoke_probe", fake_invoke_probe)
+
+    exit_code, report = proving_ground.run_doctor(
+        tmp_path / "target", env={}, home=home, cwd=tmp_path / "cwd"
+    )
+
+    assert exit_code == 0
+    assert "Synced: yes" in report
+    for gate_name in (
+        "executor_packet_validation",
+        "packet_materialization",
+        "static_artifact_validation",
+        "skill_output_contract",
+    ):
+        assert f"{gate_name}: can-run" in report
+
+
+def test_doctor_reports_synced_no_and_blocks_gates_when_venv_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """RED before the sync-state gate existed: an unsynced checkout still
+
+    reported every stdlib/runtime gate as `can-run`, which is wrong -- `uv run
+    --locked` against an unsynced `.venv` fails, so nothing here can actually run.
+    """
+    root = _make_unsynced_root(tmp_path)
+    home = tmp_path / "home"
+    _write_home_file(home, f"{root}\n")
+
+    # docker present, probe would succeed -- neither should matter once unsynced.
+    monkeypatch.setattr(proving_ground.shutil, "which", lambda name: "/usr/bin/docker")
+
+    def fake_invoke_probe(probe_path: Path, path: Path) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(args=["probe"], returncode=0, stdout="{}", stderr="")
+
+    monkeypatch.setattr(proving_ground, "_invoke_probe", fake_invoke_probe)
+
+    exit_code, report = proving_ground.run_doctor(
+        tmp_path / "target", env={}, home=home, cwd=tmp_path / "cwd"
+    )
+
+    assert f"Synced: no (run uv sync --locked in {root})" in report
+    for gate_name in (
+        "executor_packet_validation",
+        "packet_materialization",
+        "static_artifact_validation",
+        "skill_output_contract",
+        "runtime_smoke",
+    ):
+        assert f"{gate_name}: blocked" in report
+    assert "not synced" in report
+    # Linux-only gates are unaffected by sync state; they report their own reason.
+    for gate_name in ("wp_cli_activation", "plugin_check", "container_browser"):
+        assert "not synced" not in [
+            line for line in report.splitlines() if line.strip().startswith(gate_name)
+        ][0]
 
 
 def test_doctor_exit_code_1_when_probe_fails(

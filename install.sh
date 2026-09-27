@@ -264,6 +264,11 @@ write_home_file() {
     return 1
   fi
 
+  if [ -e "$HOME_FILE" ] && [ ! -f "$HOME_FILE" ]; then
+    printf 'Refusing to write home file: %q exists and is not a regular file\n' "$HOME_FILE" >&2
+    return 1
+  fi
+
   if [ -e "$HOME_FILE" ]; then
     existing="$(cat "$HOME_FILE" 2>/dev/null || true)"
     if [ "$existing" = "$REPO_DIR" ]; then
@@ -272,12 +277,21 @@ write_home_file() {
     fi
     if [ "$FORCE" != true ]; then
       if [ "$hard_fail_on_conflict" = true ]; then
-        printf 'Home file %q points at %q, not %q; refusing to overwrite without --force\n' \
-          "$HOME_FILE" "$existing" "$REPO_DIR" >&2
+        if [ -z "$existing" ]; then
+          printf 'Home file %q is empty, not %q; refusing to overwrite without --force\n' \
+            "$HOME_FILE" "$REPO_DIR" >&2
+        else
+          printf 'Home file %q points at %q, not %q; refusing to overwrite without --force\n' \
+            "$HOME_FILE" "$existing" "$REPO_DIR" >&2
+        fi
         return 1
       fi
-      printf '  PRESERVE home file %q (points at %q, not %q); use --force to replace\n' \
-        "$HOME_FILE" "$existing" "$REPO_DIR"
+      if [ -z "$existing" ]; then
+        printf '  PRESERVE home file %q (it is empty); use --force to replace\n' "$HOME_FILE"
+      else
+        printf '  PRESERVE home file %q (points at %q, not %q); use --force to replace\n' \
+          "$HOME_FILE" "$existing" "$REPO_DIR"
+      fi
       return 0
     fi
   fi
@@ -287,7 +301,11 @@ write_home_file() {
     return 1
   }
   printf '%s\n' "$REPO_DIR" > "$tmp_file"
-  mv "$tmp_file" "$HOME_FILE"
+  if ! mv "$tmp_file" "$HOME_FILE"; then
+    echo "Could not move temp file into place at $HOME_FILE" >&2
+    rm -f "$tmp_file"
+    return 1
+  fi
   printf '  Wrote home file %q -> %q\n' "$HOME_FILE" "$REPO_DIR"
   return 0
 }
@@ -607,6 +625,10 @@ echo ""
 if ! write_home_file false; then
   echo "WARNING: home file was not written; harness-dependent skills will report" >&2
   echo "'Proving ground: not installed' until it is." >&2
+fi
+
+if [ ! -d "$REPO_DIR/.venv" ]; then
+  echo "Harness commands need this checkout synced: run 'uv sync --locked' here, or './install.sh --harness-only'."
 fi
 
 # Log install session end
