@@ -449,3 +449,28 @@ def test_doctor_runs_real_probe_against_empty_directory(tmp_path: Path) -> None:
     assert exit_code == 0
     assert "Probe exit code: 0" in report
     assert "executor_packet_validation: can-run" in report
+
+
+def test_home_file_empty_is_invalid_and_does_not_fall_back(tmp_path: Path) -> None:
+    root = _make_root(tmp_path)
+    home = tmp_path / "home"
+    _write_home_file(home, "")
+
+    resolution = proving_ground.resolve_root(
+        {proving_ground.ENV_VAR_NAME: str(root)}, home, tmp_path / "cwd"
+    )
+
+    assert resolution.root is None
+    assert any("empty" in problem for problem in resolution.problems)
+
+
+def test_home_file_relative_path_is_invalid_even_when_it_exists_under_cwd(tmp_path: Path) -> None:
+    cwd = tmp_path / "cwd"
+    _make_root(cwd, "harness")
+    home = tmp_path / "home"
+    _write_home_file(home, "harness\n")
+
+    resolution = proving_ground.resolve_root({}, home, cwd)
+
+    assert resolution.root is None
+    assert any("not an absolute path" in problem for problem in resolution.problems)

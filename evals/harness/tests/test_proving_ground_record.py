@@ -483,3 +483,67 @@ def test_main_resume_honors_manifest_without_key(tmp_path, monkeypatch):
     assert captured_flags == [False]
     manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["require_proving_ground"] is False
+
+
+# ---------------------------------------------------------------------------
+# Cross-checks and decoys.
+# ---------------------------------------------------------------------------
+
+
+def _load_parity_validator():
+    import importlib.util
+
+    path = Path(__file__).resolve().parents[3] / "scripts" / "validate-distribution-parity.py"
+    spec = importlib.util.spec_from_file_location("distribution_parity_for_records", path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_record_skills_match_the_guarded_skills():
+    """The skills whose guard promises a record are exactly the skills this check covers."""
+    parity = _load_parity_validator()
+    guarded = {
+        parity.SKILL_TO_AGENT[skill]: heading
+        for skill, (_variant, heading) in parity.PROVING_GROUND_SKILLS.items()
+    }
+    covered = {skill: heading for skill, (heading, _files) in oracle.PROVING_GROUND_RECORDS.items()}
+    assert covered == guarded
+
+
+def test_record_inside_a_fence_does_not_count_twice():
+    fence = "```text\nProving ground: /elsewhere@abc1234\n```\n\n"
+    text = _plugin_executor_text(fence + "Proving ground: /opt/wp-ai-skills@abc1234\n\n")
+    result = oracle.validate_output("wordpress-plugin-executor", text, require_proving_ground=True)
+    assert _find_check(result, "proving_ground_record")["passed"] is True
+
+
+def test_record_only_inside_a_fence_fails():
+    fence = "```text\nProving ground: /opt/wp-ai-skills@abc1234\n```\n\n"
+    text = _plugin_executor_text(fence)
+    result = oracle.validate_output("wordpress-plugin-executor", text, require_proving_ground=True)
+    assert _find_check(result, "proving_ground_record")["passed"] is False
+
+
+def test_not_checked_lines_inside_a_fence_do_not_count():
+    hidden = "```text\n" + "".join(
+        f"NOT CHECKED: {name}\n" for name in PLUGIN_EXECUTOR_REQUIRED_FILES
+    ) + "```\n\n"
+    text = _plugin_executor_text("Proving ground: not installed\n\n" + hidden)
+    check = _find_check(
+        oracle.validate_output("wordpress-plugin-executor", text, require_proving_ground=True),
+        "proving_ground_record",
+    )
+    assert check["passed"] is False
+    for name in PLUGIN_EXECUTOR_REQUIRED_FILES:
+        assert name in check["detail"]
+
+
+def test_record_under_a_repeated_heading_fails_closed():
+    """Only the first `## Verification Notes` section owns the record."""
+    text = _plugin_executor_text("") + (
+        "## Verification Notes\n\nProving ground: /opt/wp-ai-skills@abc1234\n"
+    )
+    result = oracle.validate_output("wordpress-plugin-executor", text, require_proving_ground=True)
+    assert _find_check(result, "proving_ground_record")["passed"] is False

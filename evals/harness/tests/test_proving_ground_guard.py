@@ -47,7 +47,16 @@ def _copy_surfaces(tmp_path: Path) -> Path:
         for path in (root / relative).rglob("*"):
             if path.is_file():
                 _strip_guard(path)
+                _assert_guard_free(path)
     return root
+
+
+def _assert_guard_free(path: Path) -> None:
+    text = path.read_text(encoding="utf-8")
+    for guard in _MODULE.PROVING_GROUND_GUARD_TEXT.values():
+        assert guard not in text, path
+    assert "Proving ground:` record at column zero" not in text, path
+    assert "<root>/" not in text, path
 
 
 def _strip_guard(path: Path) -> None:
@@ -285,6 +294,7 @@ def _copy_surfaces_single(root: Path, name: str, surface: str) -> None:
         raise AssertionError("unsupported surface for this helper")
     shutil.copy2(source, destination)
     _strip_guard(destination)
+    _assert_guard_free(destination)
 
 
 def test_wrong_guard_variant_fails(tmp_path: Path) -> None:
