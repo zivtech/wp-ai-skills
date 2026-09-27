@@ -45,8 +45,8 @@ npx skills add zivtech/wp-ai-skills
 ```
 
 Skills that run or read files under `evals/harness/` need a proving ground,
-set up separately; without one they report `Proving ground: not installed` and
-mark those checks `NOT CHECKED`. See
+set up separately; without one they are instructed to report
+`Proving ground: not installed` and mark those checks `NOT CHECKED`. See
 [Proving ground setup](CONTRIBUTING.md#proving-ground-setup).
 
 The local installer can also link the shipped skills and agents into supported

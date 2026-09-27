@@ -156,7 +156,11 @@ The doctor probes an empty temporary directory, so it reports host tools
 without running any project's code. To probe a specific project, run
 `evals/harness/proving_ground.py --doctor --path <project>` under uv. That
 runs the project's own tooling (WP-CLI loads its `wp-config.php`, plugins,
-theme, and `wp-cli.yml` requires), so only do it for a project you trust.
+theme, and `wp-cli.yml` requires), so only do it for a project you trust. The
+doctor also reports whether the resolved root is synced (`Synced: yes` or
+`Synced: no ...`); when it is not, every gate it can otherwise check reports
+blocked with that reason, since `uv run --locked` against an unsynced
+checkout fails.
 
 **Resolution rule.** A skill's `<root>` is: the absolute path in
 `~/.config/wp-ai-skills/home` when that file exists; otherwise an absolute
@@ -168,12 +172,16 @@ is never used, even when it happens to contain its own `evals/harness/`.
 `$XDG_CONFIG_HOME` is not consulted — the home file path is fixed at
 `~/.config/wp-ai-skills/home`.
 
-The home file is global to the machine, not per-checkout. `./install.sh` (no
-flags) will not overwrite a home file that already points somewhere else;
-pass `--force` to replace it. A maintainer who wants skills to run against a
-worktree's harness instead of the main checkout's runs that worktree's
-`./install.sh --harness-only --force`, and repoints back the same way when
-done with it.
+The home file is global to the machine, not per-checkout, and it always wins:
+`WP_AI_SKILLS_HOME` is consulted only when no home file exists, so setting it
+in a worktree or a shell does nothing once `./install.sh` has run anywhere.
+`./install.sh` (no flags) will not overwrite a home file that already points
+somewhere else; pass `--force` to replace it. Repointing is global too: running
+a worktree's `./install.sh --harness-only --force` moves every agent session on
+the machine to that worktree's harness until you repoint back the same way.
+When several sessions share one machine, keep the home file on the main
+checkout, and test harness changes in a worktree by running its scripts
+directly with `uv run --locked` from that worktree.
 
 **Negative space.** This resolution order keeps a checkout's own
 `evals/harness/` code from being used just because it happens to sit under
