@@ -2,6 +2,8 @@
 
 Plan this content model now and write the complete saved output. The scenario and the expectations below are the brief; treat them as the request, not as a description of a test.
 
+The only content type in scope is the existing `post`. Attachments are media that carry meta; they are not a content type to declare or lock.
+
 Scenario: an invented regional newsroom-style publisher wants photographer
 credit alongside every published image. No client, site, or ticket is real;
 every name below is invented for this fixture.
