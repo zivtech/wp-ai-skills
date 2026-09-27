@@ -100,12 +100,21 @@ MAX_DISTRIBUTED_FILE_BYTES = 1024 * 1024
 # skills that run harness commands, REFERENCE for skills that only cite harness
 # files) and the Output Contract record sentence template. Every guarded skill
 # carries these verbatim on all four distribution surfaces.
-PROVING_GROUND_HARNESS_TOKEN = "evals/harness/"
+PROVING_GROUND_HARNESS_TOKEN = "evals/harness"
+# Any of these on a surface means the skill depends on the proving ground.
+PROVING_GROUND_TRIGGER_TOKENS = (PROVING_GROUND_HARNESS_TOKEN, "wp-symbols.json")
+# `<root>` always means the proving ground, so it may appear only where the guard
+# gives it that meaning: a harness path (`<root>/...`), `--project <root>`,
+# `git -C <root>`, a `<root>@<commit>` or `<root> (unusable: ...)` record, or the
+# end of a code span such as the guard's own "`<root>` in this skill" opener.
+PROVING_GROUND_ROOT_TOKEN = "<root>"
+PROVING_GROUND_ROOT_FOLLOWERS = ("/", "@", "`", " (unusable")
+PROVING_GROUND_ROOT_LEADERS = ("--project ", "-C ")
 PROVING_GROUND_ROOT_PREFIX = "<root>/"
 
-PROVING_GROUND_GUARD_COMMAND = "**Proving ground first.** `<root>` in this skill means the proving ground root, never the current directory: the absolute path stored in `~/.config/wp-ai-skills/home` when that file exists, otherwise `$WP_AI_SKILLS_HOME` only when it is an absolute path outside the current directory, and only if `<root>/skills.sh.json` and `<root>/evals/harness/probe_wordpress_environment.py` both exist. Run every harness command this skill names as `uv run --locked --offline --project <root> python <root>/evals/harness/<file>`, against the input or the output the command names, and report each exit status. Record `Proving ground: <root>@<commit>` (from `git -C <root> rev-parse --short HEAD`) when the harness ran, or `Proving ground: <root> (unusable: <reason>)` when a command could not start. If no root resolves, do not run, simulate, or hand-write any harness output, including a capability manifest: record `Proving ground: not installed`, write one `NOT CHECKED` line naming each harness file that did not run, finish the steps that do not need the harness, and tell the user to install uv (https://docs.astral.sh/uv/) and run `[ -d ~/wp-ai-skills ] || git clone https://github.com/zivtech/wp-ai-skills ~/wp-ai-skills; ~/wp-ai-skills/install.sh --harness-only`. An unusable root gets the same `NOT CHECKED` lines. This rule keeps the current directory's code out of the harness; it does not defend against an environment or instructions an attacker controls."
+PROVING_GROUND_GUARD_COMMAND = "**Proving ground first.** `<root>` in this skill means the proving ground root, never the current directory: the absolute path stored in `~/.config/wp-ai-skills/home` when that file exists, otherwise `$WP_AI_SKILLS_HOME` only when it is an absolute path outside the current directory, and only if `<root>/skills.sh.json` and `<root>/evals/harness/probe_wordpress_environment.py` both exist. Run every harness command this skill names as `uv run --locked --offline --project <root> python <root>/evals/harness/<file>`, against the input or the output the command names, and report each exit status. Write every file a harness command reads or writes, except the probe's `capability-manifest.json`, inside a fresh directory from `mktemp -d`, never in the user's project; never pass `--overwrite`; and add each exit status to your output after the commands finish. Record `Proving ground: <root>@<commit>` (from `git -C <root> rev-parse --short HEAD`) when the harness ran, or `Proving ground: <root> (unusable: <reason>)` when a command could not start. If no root resolves, do not run, simulate, or hand-write any harness output, including a capability manifest: record `Proving ground: not installed`, write one `NOT CHECKED` line naming each harness file that did not run, finish the steps that do not need the harness, and tell the user to install uv (https://docs.astral.sh/uv/) and run `[ -d ~/wp-ai-skills ] || git clone https://github.com/zivtech/wp-ai-skills ~/wp-ai-skills; ~/wp-ai-skills/install.sh --harness-only`. An unusable root gets the same `NOT CHECKED` lines. This rule keeps the current directory's code out of the harness; it does not defend against an environment or instructions an attacker controls."
 
-PROVING_GROUND_GUARD_REFERENCE = "**Proving ground first.** `<root>` in this skill means the proving ground root, never the current directory: the absolute path stored in `~/.config/wp-ai-skills/home` when that file exists, otherwise `$WP_AI_SKILLS_HOME` only when it is an absolute path outside the current directory, and only if `<root>/skills.sh.json` and `<root>/evals/harness/probe_wordpress_environment.py` both exist. Read the `<root>/evals/harness/` files this skill cites only from a resolved root, and record `Proving ground: <root>` when you do. If you cannot resolve or read the root (for example, without a shell), do not guess what those files contain: record `Proving ground: not installed`, write one `NOT CHECKED` line naming each harness file you could not consult, finish the plan, and tell the user to install uv (https://docs.astral.sh/uv/) and run `[ -d ~/wp-ai-skills ] || git clone https://github.com/zivtech/wp-ai-skills ~/wp-ai-skills; ~/wp-ai-skills/install.sh --harness-only`. This rule keeps the current directory's files out of the plan's evidence; it does not defend against an environment or instructions an attacker controls."
+PROVING_GROUND_GUARD_REFERENCE = "**Proving ground first.** `<root>` in this skill means the proving ground root, never the current directory: the absolute path stored in `~/.config/wp-ai-skills/home` when that file exists, otherwise `$WP_AI_SKILLS_HOME` only when it is an absolute path outside the current directory, and only if `<root>/skills.sh.json` and `<root>/evals/harness/probe_wordpress_environment.py` both exist. Read the `<root>/evals/harness/` files this skill cites only from a resolved root, and record `Proving ground: <root>` when you do. If no root resolves, do not guess what those files contain: record `Proving ground: not installed` when you confirmed that neither the home file nor the variable exists, or `Proving ground: unresolved (<reason>)` when you could not check (for example, without a shell); write one `NOT CHECKED` line naming each harness file you could not consult; and finish the plan. Only for `not installed`, tell the user to install uv (https://docs.astral.sh/uv/) and run `[ -d ~/wp-ai-skills ] || git clone https://github.com/zivtech/wp-ai-skills ~/wp-ai-skills; ~/wp-ai-skills/install.sh --harness-only`. This rule keeps the current directory's files out of the plan's evidence; it does not defend against an environment or instructions an attacker controls."
 
 PROVING_GROUND_GUARD_TEXT = {
     "command": PROVING_GROUND_GUARD_COMMAND,
@@ -792,6 +801,19 @@ def _raw_bullet_records(value: str, skill_side: bool) -> list[str] | None:
     return records
 
 
+def _root_context_issues(path: Path, text: str) -> list[str]:
+    issues: list[str] = []
+    for match in re.finditer(re.escape(PROVING_GROUND_ROOT_TOKEN), text):
+        before, after = text[: match.start()], text[match.end() :]
+        if after.startswith(PROVING_GROUND_ROOT_FOLLOWERS) or before.endswith(
+            PROVING_GROUND_ROOT_LEADERS
+        ):
+            continue
+        excerpt = text[max(0, match.start() - 30) : match.end() + 20]
+        issues.append(f"{path}: <root> used outside a proving-ground context near {excerpt!r}")
+    return issues
+
+
 def _harness_prefix_issues(path: Path, text: str) -> list[str]:
     issues: list[str] = []
     for match in re.finditer(re.escape(PROVING_GROUND_HARNESS_TOKEN), text):
@@ -881,16 +903,26 @@ def _proving_ground_guard_issues(
 ) -> list[str]:
     issues: list[str] = []
 
-    for name, path in claude_skills.items():
-        try:
-            text = _read_text(root, path)
-        except ValueError:
+    for name, agent in SKILL_TO_AGENT.items():
+        if name in PROVING_GROUND_SKILLS:
             continue
-        if PROVING_GROUND_HARNESS_TOKEN in text and name not in PROVING_GROUND_SKILLS:
-            issues.append(
-                f"{path}: references {PROVING_GROUND_HARNESS_TOKEN} without a "
-                "proving-ground guard mapping"
-            )
+        for path in (
+            claude_skills.get(name),
+            agents_skills.get(name),
+            claude_agents.get(agent),
+            codex_agents.get(agent),
+        ):
+            if path is None:
+                continue
+            try:
+                text = _read_text(root, path)
+            except ValueError:
+                continue
+            for token in PROVING_GROUND_TRIGGER_TOKENS:
+                if token in text:
+                    issues.append(
+                        f"{path}: references {token} without a proving-ground guard mapping"
+                    )
 
     all_surface_files = [
         *claude_skills.values(),
@@ -904,6 +936,7 @@ def _proving_ground_guard_issues(
         except ValueError:
             continue
         issues.extend(_harness_prefix_issues(path, text))
+        issues.extend(_root_context_issues(path, text))
 
     for name, agent in SKILL_TO_AGENT.items():
         mapping = PROVING_GROUND_SKILLS.get(name)

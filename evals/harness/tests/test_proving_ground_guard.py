@@ -436,3 +436,50 @@ def test_fully_compliant_proving_ground_guard_passes(tmp_path: Path) -> None:
     result = _run(root)
 
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+# ---------------------------------------------------------------------------
+# `<root>` context and the wider trigger.
+# ---------------------------------------------------------------------------
+
+
+def test_root_used_as_a_project_path_fails(tmp_path: Path) -> None:
+    """`<root>` means the proving ground; reusing it for the user's project is drift."""
+    root = _copy_surfaces(tmp_path)
+    _apply_full_guard_everywhere(root)
+    path = root / ".claude/skills/wordpress-environment-probe/SKILL.md"
+    text = path.read_text(encoding="utf-8")
+    assert "--path <project> --out" in text
+    path.write_text(text.replace("--path <project> --out", "--path <root> --out"), encoding="utf-8")
+
+    _assert_failure(root, str(path), "<root> used outside a proving-ground context")
+
+
+def test_root_in_every_guard_context_passes(tmp_path: Path) -> None:
+    root = _copy_surfaces(tmp_path)
+    _apply_full_guard_everywhere(root)
+
+    output = _run(root).stdout + _run(root).stderr
+    assert "<root> used outside a proving-ground context" not in output
+
+
+def test_unguarded_skill_citing_wp_symbols_fails(tmp_path: Path) -> None:
+    root = _copy_surfaces(tmp_path)
+    _apply_full_guard_everywhere(root)
+    path = root / ".claude/skills/wordpress-critic/SKILL.md"
+    text = path.read_text(encoding="utf-8")
+    path.write_text(text.replace("## Provenance\n", "## Provenance\n\nSee wp-symbols.json.\n", 1), encoding="utf-8")
+
+    _assert_failure(root, str(path), "references wp-symbols.json without a proving-ground guard mapping")
+
+
+def test_unguarded_agent_file_citing_the_harness_fails(tmp_path: Path) -> None:
+    """The trigger covers agent-only sections, not just SKILL.md."""
+    root = _copy_surfaces(tmp_path)
+    _apply_full_guard_everywhere(root)
+    agent = _MODULE.SKILL_TO_AGENT["wordpress-critic"]
+    path = root / ".claude/agents" / f"{agent}.md"
+    text = path.read_text(encoding="utf-8")
+    path.write_text(text.replace("</Agent_Prompt>", "  evals/harness is local.\n</Agent_Prompt>", 1), encoding="utf-8")
+
+    _assert_failure(root, str(path), "references evals/harness without a proving-ground guard mapping")
