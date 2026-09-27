@@ -71,3 +71,5 @@ When an external application or design baseline is in scope, include the referen
 Original Zivtech protocol. Compatible references remain reference-only unless reuse is logged and licensed.
 
 The block-editor and theme extension surfaces named in the Exact API contract were added 2026-08-28 after a contract audit found them absent. The names are public WordPress and Gutenberg core APIs documented at developer.wordpress.org — facts, not third-party expression — so no reuse-ledger entry applies to them.
+
+The editor-UX additions (Styles surfaces, the settings-to-control map, theme-support precedence, and editor style parity) were added 2026-09-27 from the 2026-09-25 editor-UX discovery. They are clean-room text. Compatible references, all reference-only: WordPress/agent-skills `wp-block-themes`, ComeOnOliver/skillshub, jasenwyatt/wordpress-gutenberg-designer, and teamchrisfromthelc/wp-preset. The named APIs are public WordPress and Gutenberg documentation facts.

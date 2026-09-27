@@ -61,3 +61,5 @@ Use these headings:
 ## Provenance
 
 Original Zivtech critic protocol. Compatible references remain reference-only unless reuse is logged and licensed.
+
+The editor-UX review checks (lock cues, preset output forms, theme-support precedence, editor style parity, and the editor-surface accessibility lens) were added 2026-09-27 from the 2026-09-25 editor-UX discovery. They are clean-room text. Compatible references, reference-only unless a ledger row says otherwise: WordPress/agent-skills `wp-block-themes`, WordPress/gutenberg `design-system-ui-review` (ADAPT-ELIGIBLE, no text adapted), and teamchrisfromthelc/wp-preset.

@@ -65,3 +65,5 @@ The decision-record labels above are part of the saved output contract. Use each
 ## Provenance
 
 Original Zivtech protocol. Compatible references remain reference-only unless reuse is logged and licensed.
+
+The admin-screen additions (persona and role per surface, menu placement and capabilities, list tables, and settings grouping) were added 2026-09-27 from the 2026-09-25 editor-UX discovery. They are clean-room text. Compatible references, all reference-only: BigOrangeLab/skills `wp-admin-ui` and Lonsdale201/wp-agent-skills `wp-admin-list-table`. The named APIs are public WordPress documentation facts.

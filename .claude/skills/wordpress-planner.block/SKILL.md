@@ -77,3 +77,5 @@ elsewhere does not substitute for the record.
 Original Zivtech protocol. Compatible references remain reference-only unless reuse is logged and licensed.
 
 The block-editor and theme extension surfaces named in the Exact API contract were added 2026-08-28 after a contract audit found them absent. The names are public WordPress and Gutenberg core APIs documented at developer.wordpress.org — facts, not third-party expression — so no reuse-ledger entry applies to them.
+
+The editor-UX additions (inserter cues, editor accessibility, and editor style handles) were added 2026-09-27 from the 2026-09-25 editor-UX discovery. They are clean-room text. Compatible references, reference-only unless a ledger row says otherwise: WordPress/gutenberg `design-system-ui-review` (ADAPT-ELIGIBLE in the reuse ledger, but no text was adapted) and adityaarsharma/orbit. The named APIs are public WordPress and Gutenberg documentation facts.
