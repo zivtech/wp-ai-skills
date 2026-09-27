@@ -8,7 +8,7 @@ theme planning coverage. Both remain scaffolds, not benchmark evidence.
 Output contract oracle:
 
 ```bash
-python3 evals/harness/validate_wordpress_skill_output.py \
+uv run python evals/harness/validate_wordpress_skill_output.py \
   --skill wordpress-planner.theme \
   --output <candidate-output.md>
 ```

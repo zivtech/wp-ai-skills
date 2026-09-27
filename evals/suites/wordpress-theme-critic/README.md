@@ -5,7 +5,7 @@ Smoke-tier evaluation scaffold for `wordpress-theme-critic`. This suite provides
 Output contract oracle:
 
 ```bash
-python3 evals/harness/validate_wordpress_skill_output.py \
+uv run python evals/harness/validate_wordpress_skill_output.py \
   --skill wordpress-theme-critic \
   --output <candidate-output.md>
 ```

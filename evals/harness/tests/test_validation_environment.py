@@ -38,7 +38,7 @@ OPTIONAL_IMPORTS = {
         "GEPA optimization CLI",
     ),
 }
-REQUIRED_EXTERNAL_IMPORTS = {"pytest", "yaml"}
+REQUIRED_EXTERNAL_IMPORTS = {"markdown_it", "pytest", "yaml"}
 REQUIRED_VALIDATORS = {
     "measure-plan010-artifact-path.py",
     "validate-agent-frontmatter.py",
@@ -248,8 +248,8 @@ def test_python_pin_and_direct_dependencies_match_green_baseline():
     project = _project()["project"]
     assert (ROOT / ".python-version").read_text(encoding="utf-8").strip() == "3.13.9"
     assert project["requires-python"] == "==3.13.*"
-    assert project["dependencies"] == ["pyyaml==6.0.3"]
-    assert project["optional-dependencies"]["test"] == ["pytest==9.1.0"]
+    assert project["dependencies"] == ["markdown-it-py==4.0.0", "pyyaml==6.0.3"]
+    assert project["optional-dependencies"]["test"] == ["html5lib==1.1", "pytest==9.1.0"]
     assert _project()["tool"]["uv"]["package"] is False
 
 
@@ -260,6 +260,8 @@ def test_lock_contains_project_and_resolved_direct_dependencies():
     assert packages["wp-ai-skills-validation"]
     assert packages["pytest"]["version"] == "9.1.0"
     assert packages["pyyaml"]["version"] == "6.0.3"
+    assert packages["markdown-it-py"]["version"] == "4.0.0"
+    assert packages["html5lib"]["version"] == "1.1"
 
 
 def test_required_and_optional_import_inventories_are_complete():
@@ -267,7 +269,7 @@ def test_required_and_optional_import_inventories_are_complete():
     assert set(inventory) == REQUIRED_EXTERNAL_IMPORTS | set(OPTIONAL_IMPORTS)
     for module, (owner, _purpose) in OPTIONAL_IMPORTS.items():
         assert inventory[module] == {owner}
-    declared = {"yaml": "pyyaml", "pytest": "pytest"}
+    declared = {"yaml": "pyyaml", "pytest": "pytest", "markdown_it": "markdown-it-py"}
     project_text = (ROOT / "pyproject.toml").read_text(encoding="utf-8").lower()
     assert all(declared[module] in project_text for module in REQUIRED_EXTERNAL_IMPORTS)
 

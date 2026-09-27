@@ -62,8 +62,8 @@ This command runs the packet gate, materialization gate, and artifact gate toget
 For saved planner, executor, or critic responses, run the output-contract oracle:
 
 ```bash
-python3 evals/harness/validate_wordpress_skill_output.py --skill wordpress-planner.plugin --output <candidate-output.md>
-python3 evals/harness/validate_wordpress_skill_output.py --skill wordpress-critic --output <candidate-output.md>
+uv run python evals/harness/validate_wordpress_skill_output.py --skill wordpress-planner.plugin --output <candidate-output.md>
+uv run python evals/harness/validate_wordpress_skill_output.py --skill wordpress-critic --output <candidate-output.md>
 ```
 
 This gate checks required headings, valid critic verdicts, exact WordPress surfaces, concrete verification terms, negative-space language, placeholder markers, and generic WordPress labels. It measures output contract discipline; it does not prove the underlying plan or review is correct.

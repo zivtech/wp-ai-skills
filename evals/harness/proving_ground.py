@@ -50,6 +50,10 @@ PROBE_RELATIVE = Path("evals") / "harness" / "probe_wordpress_environment.py"
 # content is trusted, matching install.sh's has_control_chars.
 _CONTROL_CHARS = frozenset(chr(code) for code in range(0x00, 0x20)) | {chr(0x7F)}
 
+# Named when every gate here ran on the standard library alone. Since
+# 2026-09-27 the skill-output contract oracle imports markdown-it-py from the
+# locked environment; the doctor already reports these gates as blocked until
+# that environment is synced, so the runtime contract is unchanged.
 STDLIB_GATES: tuple[tuple[str, str], ...] = (
     ("executor_packet_validation", "validate_wordpress_executor_packet.py"),
     ("packet_materialization", "materialize_wordpress_executor_packet.py"),

@@ -71,5 +71,5 @@ statistical_design:
 alternate_measurement_targets:
   output_contract_adherence:
     status: available
-    oracle: "python3 evals/harness/validate_wordpress_skill_output.py --skill <wordpress-skill> --output <candidate-output.md>"
+    oracle: "uv run python evals/harness/validate_wordpress_skill_output.py --skill <wordpress-skill> --output <candidate-output.md>"
     notes: "Use when measuring contract conformance, variance reduction, or skill discipline. Baselines may fail this oracle; that is meaningful only for contract-adherence claims, not frontier-model review-quality superiority claims."
