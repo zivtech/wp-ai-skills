@@ -50,6 +50,13 @@ VERIFICATION_TERMS = (
     "suppressed_annotations",
 )
 
+# A line or list item carrying this tag records a manual role walk: supporting
+# evidence, never an oracle (docs/wordpress/coverage-matrix.md, lifecycle.md), so
+# verification terms on it do not count. Bold or code markup around the key or
+# value (`runtime: manual-walk`, **runtime:** manual-walk) is tolerated.
+MANUAL_WALK_TAG_RE = re.compile(r"(?i)\bruntime[*_`\s]*:[*_`\s]*manual-walk\b")
+LIST_ITEM_RE = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+")
+
 NEGATIVE_SPACE_TERMS = (
     "does not prove", "does not claim", "is not claimed", "not claimed", "not claiming",
     "not proven", "outside scope", "out of scope", "negative space", "cannot verify",
@@ -1163,6 +1170,140 @@ def _usable_content_model_decision(value: str | None) -> bool:
     return not HEDGE_PLACEHOLDER_RE.search(value or "")
 
 
+# Content-model records as models actually write them. Saved sonnet outputs
+# for the editor-constraint and media-credit fixtures wrapped every record in
+# Markdown emphasis despite the column-zero instruction: `**Content type:
+# case_study**`, `**Lock level (`post`):** contentOnly`, `` `Binding source
+# (k):` value ``, and annotated values such as `Content type: attachment (the
+# only content type ...)`. The strict regex read the trailing `**` or the
+# annotation into the key, so no lock record could ever match its content type.
+# These helpers strip one emphasis wrapper (`**` or a backtick) and backticks
+# around a key, and read a decision's head term. They do not accept list
+# markers, table cells, or indented lines, and they change no counting rule:
+# every declared content type still needs exactly one keyed lock record.
+_RECORD_WRAPPERS = ("**", "`")
+POST_TYPE_SLUG_RE = re.compile(r"[a-z0-9_-]{1,20}")
+_DASH_TAIL_RE = re.compile(r"\s+[—–-]+\s+(?P<tail>\S.*)$")
+_ALTERNATIVE_RE = re.compile(r"\bor\b", re.IGNORECASE)
+
+
+def _markup_tolerant_records(section: str, label: str, *, keyed: bool) -> list[tuple[str, str]]:
+    """Every column-zero ``label`` record as (key, value), emphasis removed.
+
+    ``key`` is ``""`` for unkeyed records. A wrapper that opens before the
+    label may close before the colon, right after it, or after the value;
+    when it closes after the value, text past the closer is kept as a dash
+    tail (``inside — prose``) so hedge checks still see it.
+    """
+    section = _strip_non_authoritative_markdown(section)
+    key_part = r"\s*\(\s*(?P<key>[^()]+?)\s*\)" if keyed else ""
+    pattern = re.compile(
+        rf"(?im)^(?P<wrap>\*\*|`)?{re.escape(label)}{key_part}\s*"
+        rf"(?P<pre>(?P=wrap)\s*)?:\s*(?P<post>(?P=wrap)\s*)?(?P<value>\S.*?)\s*$"
+    )
+    records: list[tuple[str, str]] = []
+    for match in pattern.finditer(section):
+        value = match.group("value")
+        wrap = match.group("wrap")
+        closed_early = match.group("pre") or match.group("post")
+        if wrap and not closed_early and wrap in value:
+            inside, _, prose = value.partition(wrap)
+            prose = prose.strip().lstrip("—–-").strip()
+            value = f"{inside.strip()} — {prose}" if prose else inside
+        key = match.group("key") if keyed else ""
+        records.append((_strip_record_emphasis(key), value.strip()))
+    return records
+
+
+def _strip_record_emphasis(text: str) -> str:
+    text = text.strip()
+    changed = True
+    while changed and text:
+        changed = False
+        for wrapper in _RECORD_WRAPPERS:
+            if len(text) > 2 * len(wrapper) and text.startswith(wrapper) and text.endswith(wrapper):
+                text = text[len(wrapper):-len(wrapper)].strip()
+                changed = True
+    return text.rstrip("*`").lstrip("*`").strip()
+
+
+def _record_head(value: str) -> tuple[str, str]:
+    """Split a record value into its decision head and any annotation.
+
+    The head is the first term, backticks removed, when the rest of the value
+    is only a trailing period, one parenthetical annotation, or prose after a
+    spaced dash (``contentOnly — rationale: ...``). Anything else (``yes and
+    no``, ``contentOnly or false``) returns the whole value as the head, so it
+    cannot match an allowed term.
+    """
+    value = value.strip()
+    match = re.match(
+        r"^`?(?P<head>[^`\s()]+?)`?(?:\s*\((?P<note>[^()]*(?:\([^()]*\)[^()]*)*)\))?\.?"
+        r"(?:" + _DASH_TAIL_RE.pattern + r")?$",
+        value,
+    )
+    if not match:
+        return value, ""
+    note = " ".join(part for part in (match.group("note"), match.group("tail")) if part)
+    return match.group("head").rstrip("."), note
+
+
+def _markup_tolerant_decision(section: str, label: str) -> str | None:
+    """The single unkeyed record's value, or None when absent or duplicated."""
+    records = _markup_tolerant_records(section, label, keyed=False)
+    return records[0][1] if len(records) == 1 else None
+
+
+def _markup_tolerant_exact(section: str, label: str, allowed: set[str]) -> bool:
+    value = _markup_tolerant_decision(section, label)
+    if value is None:
+        return False
+    head, note = _record_head(value)
+    return head.lower() in allowed and not HEDGE_PLACEHOLDER_RE.search(note)
+
+
+def _markup_tolerant_keyed_map(section: str, label: str) -> tuple[dict[str, str], list[str]]:
+    """``_keyed_decision_map`` over emphasis-tolerant records."""
+    records = _markup_tolerant_records(section, label, keyed=True)
+    counts: dict[str, int] = {}
+    for key, _ in records:
+        counts[key] = counts.get(key, 0) + 1
+    duplicates = sorted(key for key, count in counts.items() if count > 1)
+    mapping = {key: value for key, value in records if counts[key] == 1}
+    return mapping, duplicates
+
+
+def _declared_content_types(section: str) -> tuple[list[str], list[str]]:
+    """(content type keys in order, problems) from ``Content type:`` records.
+
+    The key is the post type slug when the value is a slug plus at most an
+    annotation. An annotation that offers an alternative (``post (or whichever
+    CPT hosts photos)``) or negates the declaration is a hedge, not a
+    declaration, and is reported rather than silently keyed.
+    """
+    keys: list[str] = []
+    problems: list[str] = []
+    for _, value in _markup_tolerant_records(section, "Content type", keyed=False):
+        head, note = _record_head(value)
+        if not POST_TYPE_SLUG_RE.fullmatch(head):
+            keys.append(value)
+            continue
+        if note and (_ALTERNATIVE_RE.search(note) or not _usable_content_model_decision(note)):
+            problems.append(f"hedged `Content type: {head}` record (annotation: {note[:80]})")
+        keys.append(head)
+    return keys, problems
+
+
+def _lock_level_value(value: str) -> str | None:
+    """The lock level a ``Lock level (<type>):`` value decides, or None."""
+    head, note = _record_head(value)
+    if head.lower() not in CONTENT_MODEL_LOCK_LEVELS or HEDGE_PLACEHOLDER_RE.search(value):
+        return None
+    if re.search(r"\bor\s+`?(?:contentonly|insert|all|false)\b", note, re.IGNORECASE):
+        return None
+    return head.lower()
+
+
 def check_content_model_plan_contract(text: str) -> list[Check]:
     """Require the editorial-guardrails phase and the storage decision rule as
     keyed, paired records, not counted prose.
@@ -1180,28 +1321,28 @@ def check_content_model_plan_contract(text: str) -> list[Check]:
     editorial = sections.get("Editorial Workflow", "")
     matrix = sections.get("Post Type Taxonomy And Field Matrix", "")
 
-    content_types = _decision_values(editorial, "Content type")
+    content_types, content_type_problems = _declared_content_types(editorial)
     duplicate_types = sorted({t for t in content_types if content_types.count(t) > 1})
     unique_types = list(dict.fromkeys(content_types))
-    lock_records, lock_duplicate_keys = _keyed_decision_map(editorial, "Lock level")
-    rationale_records, rationale_duplicate_keys = _keyed_decision_map(editorial, "Lock level rationale")
-    guardrails_ok = _decision_exact(editorial, "Editorial guardrails phase", {"completed"})
+    lock_records, lock_duplicate_keys = _markup_tolerant_keyed_map(editorial, "Lock level")
+    rationale_records, rationale_duplicate_keys = _markup_tolerant_keyed_map(editorial, "Lock level rationale")
+    guardrails_ok = _markup_tolerant_exact(editorial, "Editorial guardrails phase", {"completed"})
 
     guardrail_problems: list[str] = []
+    if not guardrails_ok:
+        guardrail_problems.append("no single `Editorial guardrails phase: completed` record")
     if not content_types:
         guardrail_problems.append("no `Content type:` records declared")
+    guardrail_problems.extend(content_type_problems)
     if duplicate_types:
         guardrail_problems.append(f"duplicate `Content type:` records: {', '.join(duplicate_types)}")
     for content_type in unique_types:
         value = lock_records.get(content_type)
-        if (
-            value is None
-            or not _usable_content_model_decision(value)
-            or value.strip().lower() not in CONTENT_MODEL_LOCK_LEVELS
-        ):
+        lock_level = _lock_level_value(value) if value is not None else None
+        if lock_level is None or not _usable_content_model_decision(value):
             guardrail_problems.append(f"missing/invalid `Lock level ({content_type}):` record")
             continue
-        if value.strip().lower() == "false":
+        if lock_level == "false":
             rationale = rationale_records.get(content_type)
             if rationale is None or not _usable_content_model_decision(rationale):
                 guardrail_problems.append(f"missing `Lock level rationale ({content_type}):` record")
@@ -1228,10 +1369,12 @@ def check_content_model_plan_contract(text: str) -> list[Check]:
         + ("; " + "; ".join(guardrail_problems) if guardrail_problems else ""),
     )]
 
-    storage_ok = _decision_exact(matrix, "Storage decision rule applied", {"yes"})
-    binding_records, binding_duplicate_keys = _keyed_decision_map(matrix, "Binding source")
-    surface_records, surface_duplicate_keys = _keyed_decision_map(matrix, "Editing surface")
+    storage_ok = _markup_tolerant_exact(matrix, "Storage decision rule applied", {"yes"})
+    binding_records, binding_duplicate_keys = _markup_tolerant_keyed_map(matrix, "Binding source")
+    surface_records, surface_duplicate_keys = _markup_tolerant_keyed_map(matrix, "Editing surface")
     storage_problems: list[str] = []
+    if not storage_ok:
+        storage_problems.append("no single `Storage decision rule applied: yes` record")
     for meta_key, value in binding_records.items():
         if not _usable_content_model_decision(value):
             storage_problems.append(f"hedged/negated/placeholder `Binding source ({meta_key}):`")
@@ -1691,15 +1834,50 @@ def check_exact_surfaces(text: str, contract: dict[str, Any]) -> Check:
     return Check("exact_wordpress_surfaces", passed, 3, detail)
 
 
+def _line_units(text: str) -> list[str]:
+    """Split text into lines, keeping a list item's indented continuation lines with it."""
+    units: list[str] = []
+    in_list_item = False
+    for line in text.splitlines():
+        if LIST_ITEM_RE.match(line):
+            units.append(line)
+            in_list_item = True
+        elif in_list_item and line.strip() and line[:1].isspace():
+            units[-1] += "\n" + line
+        else:
+            units.append(line)
+            in_list_item = False
+    return units
+
+
+def _oracle_segments(text: str) -> tuple[list[str], int]:
+    """Split text at `runtime: manual-walk` units; a manual walk is never an oracle.
+
+    Returns the untagged runs of text and the number of tagged units dropped. The
+    runs are matched separately so that removing a tagged unit cannot join the
+    text on either side of it into a term that was never written.
+    """
+    segments: list[list[str]] = [[]]
+    dropped = 0
+    for unit in _line_units(text):
+        if MANUAL_WALK_TAG_RE.search(unit):
+            dropped += 1
+            segments.append([])
+        else:
+            segments[-1].append(unit)
+    return ["\n".join(segment) for segment in segments if segment], dropped
+
+
 def check_verification_specificity(text: str) -> Check:
-    normalized = _norm(text)
-    matched = sorted({term for term in VERIFICATION_TERMS if _norm(term) in normalized})
-    return Check(
-        "verification_specificity",
-        bool(matched),
-        3,
-        f"verification terms present: {', '.join(matched)}" if matched else "no concrete verification oracle named",
+    segments, dropped = _oracle_segments(text)
+    normalized = [_norm(segment) for segment in segments]
+    matched = sorted(
+        {term for term in VERIFICATION_TERMS if any(_norm(term) in segment for segment in normalized)}
     )
+    detail = f"verification terms present: {', '.join(matched)}" if matched else "no concrete verification oracle named"
+    if dropped:
+        detail += f"; ignored {dropped} `runtime: manual-walk` line(s) (a manual walk is not an oracle)"
+    return Check("verification_specificity", bool(matched), 3, detail)
 
 
 def check_negative_space(text: str) -> Check:
