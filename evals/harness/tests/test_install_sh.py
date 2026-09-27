@@ -63,6 +63,48 @@ def _run(
     )
 
 
+def _run_direct(
+    repo: Path,
+    home: Path,
+    *args: str,
+    check: bool = True,
+    extra_env: dict[str, str] | None = None,
+    cwd: Path | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Like `_run`, but never auto-appends `--no-verify`: callers exercising
+    `--harness-only` / `--doctor` need full control over the verify step."""
+    run_env = _env(home)
+    run_env.update(extra_env or {})
+    return subprocess.run(
+        ["/bin/bash", str(repo / "install.sh"), *args],
+        cwd=cwd or repo,
+        env=run_env,
+        text=True,
+        capture_output=True,
+        check=check,
+    )
+
+
+def _make_fake_uv(bin_dir: Path, log_path: Path, *, fail_on: str | None = None) -> Path:
+    """A stand-in `uv` that logs its argv (one line per call) and exits 0,
+    unless the argv line contains `fail_on`, matching the doctor call so
+    tests can exercise 'doctor failed, home file already written'."""
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    script = bin_dir / "uv"
+    failure_case = (
+        f'case "$*" in\n  *{fail_on}*) exit 1 ;;\nesac\n' if fail_on else ""
+    )
+    script.write_text(
+        "#!/bin/bash\n"
+        f'printf "%s\\n" "$*" >> "{log_path}"\n'
+        f"{failure_case}"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+    return script
+
+
 def _skill_link(home: Path, host: str, name: str = "current-skill") -> Path:
     return home / host / "skills" / name
 
@@ -474,3 +516,292 @@ def test_subprocess_environment_is_minimal_and_synthetic(tmp_path: Path) -> None
         "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
         "LC_ALL": "C",
     }
+
+
+# ── Home file: plain install ─────────────────────────────────────────────
+
+
+def _home_file(home: Path) -> Path:
+    return home / ".config" / "wp-ai-skills" / "home"
+
+
+def test_plain_install_writes_home_file(tmp_path: Path) -> None:
+    repo, home = _make_repo(tmp_path)
+
+    result = _run(repo, home)
+
+    assert _home_file(home).read_text(encoding="utf-8").strip() == str(repo)
+    assert "home file" in result.stdout.lower()
+
+
+def test_plain_install_is_idempotent_for_home_file(tmp_path: Path) -> None:
+    repo, home = _make_repo(tmp_path)
+    _run(repo, home)
+
+    result = _run(repo, home)
+
+    assert result.returncode == 0
+    assert _home_file(home).read_text(encoding="utf-8").strip() == str(repo)
+
+
+def test_plain_install_preserves_home_file_pointing_elsewhere_without_force(
+    tmp_path: Path,
+) -> None:
+    repo, home = _make_repo(tmp_path)
+    home_file = _home_file(home)
+    home_file.parent.mkdir(parents=True)
+    home_file.write_text("/somewhere/else\n", encoding="utf-8")
+
+    result = _run(repo, home)
+
+    assert home_file.read_text(encoding="utf-8").strip() == "/somewhere/else"
+    assert "PRESERVE" in result.stdout
+
+
+def test_plain_install_replaces_home_file_with_force(tmp_path: Path) -> None:
+    repo, home = _make_repo(tmp_path)
+    home_file = _home_file(home)
+    home_file.parent.mkdir(parents=True)
+    home_file.write_text("/somewhere/else\n", encoding="utf-8")
+
+    _run(repo, home, "--force")
+
+    assert home_file.read_text(encoding="utf-8").strip() == str(repo)
+
+
+def test_plain_install_refuses_symlinked_home_file(tmp_path: Path) -> None:
+    repo, home = _make_repo(tmp_path)
+    target = _write(tmp_path / "outside/home-target", f"{repo}\n")
+    home_file_parent = home / ".config" / "wp-ai-skills"
+    home_file_parent.mkdir(parents=True)
+    (home_file_parent / "home").symlink_to(target)
+
+    _run(repo, home)
+
+    assert (home_file_parent / "home").is_symlink()
+    assert os.readlink(home_file_parent / "home") == str(target)
+
+
+def test_plain_install_refuses_symlinked_config_dir(tmp_path: Path) -> None:
+    repo, home = _make_repo(tmp_path)
+    real_config = _write(tmp_path / "real-config/home", f"{repo}\n").parent
+    home.mkdir(exist_ok=True)
+    (home / ".config").mkdir()
+    (home / ".config" / "wp-ai-skills").symlink_to(real_config, target_is_directory=True)
+
+    _run(repo, home)
+
+    assert (home / ".config" / "wp-ai-skills").is_symlink()
+    assert (real_config / "home").read_text(encoding="utf-8") == f"{repo}\n"
+
+
+def test_install_runs_from_another_cwd(tmp_path: Path) -> None:
+    repo, home = _make_repo(tmp_path)
+    other_cwd = tmp_path / "elsewhere"
+    other_cwd.mkdir()
+
+    result = _run_direct(repo, home, "--no-verify", cwd=other_cwd)
+
+    assert result.returncode == 0
+    _assert_current_links(repo, home)
+    assert _home_file(home).read_text(encoding="utf-8").strip() == str(repo)
+
+
+# ── Home file: --remove ──────────────────────────────────────────────────
+
+
+def test_remove_deletes_home_file_pointing_here(tmp_path: Path) -> None:
+    repo, home = _make_repo(tmp_path)
+    _run(repo, home)
+    assert _home_file(home).exists()
+
+    _run(repo, home, "--remove")
+
+    assert not _home_file(home).exists()
+
+
+def test_remove_preserves_home_file_pointing_elsewhere(tmp_path: Path) -> None:
+    repo, home = _make_repo(tmp_path)
+    home_file = _home_file(home)
+    home_file.parent.mkdir(parents=True)
+    home_file.write_text("/somewhere/else\n", encoding="utf-8")
+
+    _run(repo, home, "--remove")
+
+    assert home_file.read_text(encoding="utf-8").strip() == "/somewhere/else"
+
+
+def test_remove_preserves_symlinked_home_file(tmp_path: Path) -> None:
+    repo, home = _make_repo(tmp_path)
+    target = _write(tmp_path / "outside/home-target", f"{repo}\n")
+    home_file_parent = home / ".config" / "wp-ai-skills"
+    home_file_parent.mkdir(parents=True)
+    (home_file_parent / "home").symlink_to(target)
+
+    _run(repo, home, "--remove")
+
+    assert (home_file_parent / "home").is_symlink()
+
+
+# ── --harness-only ────────────────────────────────────────────────────────
+
+
+def test_harness_only_runs_uv_sync_verify_and_writes_home_file(tmp_path: Path) -> None:
+    repo, home = _make_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    log_path = tmp_path / "uv-calls.log"
+    _make_fake_uv(bin_dir, log_path)
+
+    result = _run_direct(
+        repo,
+        home,
+        "--harness-only",
+        extra_env={"PATH": f"{bin_dir}:{_env(home)['PATH']}"},
+    )
+
+    assert result.returncode == 0
+    calls = log_path.read_text(encoding="utf-8")
+    assert "sync --locked" in calls and "--project" in calls
+    assert "--verify-manifest" in calls
+    assert "proving_ground.py --doctor" in calls
+    assert _home_file(home).read_text(encoding="utf-8").strip() == str(repo)
+    assert not (home / ".claude").exists()
+    assert not (home / ".codex").exists()
+    assert not (home / ".agents").exists()
+    assert (home / ".config" / "wp-ai-skills" / "install.log").exists()
+
+
+def test_harness_only_accepts_force_and_no_verify(tmp_path: Path) -> None:
+    repo, home = _make_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    log_path = tmp_path / "uv-calls.log"
+    _make_fake_uv(bin_dir, log_path)
+
+    result = _run_direct(
+        repo,
+        home,
+        "--harness-only",
+        "--force",
+        "--no-verify",
+        extra_env={"PATH": f"{bin_dir}:{_env(home)['PATH']}"},
+    )
+
+    assert result.returncode == 0
+    assert "--verify-manifest" not in log_path.read_text(encoding="utf-8")
+    assert _home_file(home).read_text(encoding="utf-8").strip() == str(repo)
+
+
+def test_harness_only_doctor_failure_is_warning_not_abort(tmp_path: Path) -> None:
+    repo, home = _make_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    log_path = tmp_path / "uv-calls.log"
+    _make_fake_uv(bin_dir, log_path, fail_on="proving_ground.py")
+
+    result = _run_direct(
+        repo,
+        home,
+        "--harness-only",
+        extra_env={"PATH": f"{bin_dir}:{_env(home)['PATH']}"},
+    )
+
+    assert result.returncode == 0
+    assert _home_file(home).read_text(encoding="utf-8").strip() == str(repo)
+
+
+def test_harness_only_requires_force_to_overwrite_conflicting_home_file(
+    tmp_path: Path,
+) -> None:
+    repo, home = _make_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    log_path = tmp_path / "uv-calls.log"
+    _make_fake_uv(bin_dir, log_path)
+    home_file = _home_file(home)
+    home_file.parent.mkdir(parents=True)
+    home_file.write_text("/somewhere/else\n", encoding="utf-8")
+
+    result = _run_direct(
+        repo,
+        home,
+        "--harness-only",
+        extra_env={"PATH": f"{bin_dir}:{_env(home)['PATH']}"},
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert home_file.read_text(encoding="utf-8").strip() == "/somewhere/else"
+
+
+def test_harness_only_without_uv_exits_1(tmp_path: Path) -> None:
+    repo, home = _make_repo(tmp_path)
+
+    result = _run_direct(
+        repo, home, "--harness-only", extra_env={"PATH": "/usr/bin:/bin"}, check=False
+    )
+
+    assert result.returncode == 1
+    assert "uv" in result.stderr.lower()
+    assert not _home_file(home).exists()
+
+
+def test_harness_only_and_verify_are_mutually_exclusive(tmp_path: Path) -> None:
+    repo, home = _make_repo(tmp_path)
+
+    result = _run_direct(repo, home, "--harness-only", "--verify", check=False)
+
+    assert result.returncode == 2
+
+
+# ── --doctor ──────────────────────────────────────────────────────────────
+
+
+def test_doctor_mode_runs_via_uv(tmp_path: Path) -> None:
+    repo, home = _make_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    log_path = tmp_path / "uv-calls.log"
+    _make_fake_uv(bin_dir, log_path)
+
+    result = _run_direct(
+        repo,
+        home,
+        "--doctor",
+        extra_env={"PATH": f"{bin_dir}:{_env(home)['PATH']}"},
+    )
+
+    assert result.returncode == 0
+    assert "proving_ground.py --doctor" in log_path.read_text(encoding="utf-8")
+
+
+def test_doctor_mode_without_uv_exits_1(tmp_path: Path) -> None:
+    repo, home = _make_repo(tmp_path)
+
+    result = _run_direct(
+        repo, home, "--doctor", extra_env={"PATH": "/usr/bin:/bin"}, check=False
+    )
+
+    assert result.returncode == 1
+    assert "uv" in result.stderr.lower()
+
+
+def test_doctor_and_remove_are_mutually_exclusive(tmp_path: Path) -> None:
+    repo, home = _make_repo(tmp_path)
+
+    result = _run_direct(repo, home, "--doctor", "--remove", check=False)
+
+    assert result.returncode == 2
+
+
+def test_force_is_rejected_for_doctor_mode(tmp_path: Path) -> None:
+    repo, home = _make_repo(tmp_path)
+
+    result = _run_direct(repo, home, "--doctor", "--force", check=False)
+
+    assert result.returncode == 2
+    assert "--force" in result.stderr
+
+
+def test_no_verify_is_rejected_for_doctor_mode(tmp_path: Path) -> None:
+    repo, home = _make_repo(tmp_path)
+
+    result = _run_direct(repo, home, "--doctor", "--no-verify", check=False)
+
+    assert result.returncode == 2
