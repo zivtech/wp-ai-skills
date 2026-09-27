@@ -152,6 +152,12 @@ run on this machine at any time with:
 ./install.sh --doctor
 ```
 
+The doctor probes an empty temporary directory, so it reports host tools
+without running any project's code. To probe a specific project, run
+`evals/harness/proving_ground.py --doctor --path <project>` under uv. That
+runs the project's own tooling (WP-CLI loads its `wp-config.php`, plugins,
+theme, and `wp-cli.yml` requires), so only do it for a project you trust.
+
 **Resolution rule.** A skill's `<root>` is: the absolute path in
 `~/.config/wp-ai-skills/home` when that file exists; otherwise an absolute
 `$WP_AI_SKILLS_HOME` whose real path is outside the current working

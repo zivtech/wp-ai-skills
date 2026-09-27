@@ -449,7 +449,8 @@ if [ "$MODE" = "harness-only" ]; then
 fi
 
 # ── Doctor mode ──────────────────────────────────────────────────
-# Read-only: reports what can run here, installs nothing, writes nothing.
+# Reports what can run here and installs nothing. It probes an empty temporary
+# directory, never the current directory, so no project code runs.
 if [ "$MODE" = "doctor" ]; then
   require_uv "--doctor" || exit 1
   uv run --locked --offline --project "$REPO_DIR" python \

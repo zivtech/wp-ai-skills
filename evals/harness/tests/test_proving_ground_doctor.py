@@ -474,3 +474,56 @@ def test_home_file_relative_path_is_invalid_even_when_it_exists_under_cwd(tmp_pa
 
     assert resolution.root is None
     assert any("not an absolute path" in problem for problem in resolution.problems)
+
+
+def _capture_probed_paths(
+    monkeypatch: pytest.MonkeyPatch, contents: list[list[str]] | None = None
+) -> list[Path]:
+    probed: list[Path] = []
+    contents = contents if contents is not None else []
+
+    def fake_invoke_probe(probe_path: Path, path: Path) -> subprocess.CompletedProcess[str]:
+        probed.append(path)
+        contents.append(sorted(child.name for child in path.iterdir()))
+        return subprocess.CompletedProcess(args=[], returncode=0, stdout="{}", stderr="")
+
+    monkeypatch.setattr(proving_ground, "_invoke_probe", fake_invoke_probe)
+    return probed
+
+
+def test_doctor_without_path_probes_an_empty_temp_dir_not_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _make_root(tmp_path)
+    home = tmp_path / "home"
+    _write_home_file(home, f"{root}\n")
+    cwd = tmp_path / "hostile"
+    cwd.mkdir()
+    (cwd / "wp-config.php").write_text("<?php // must never be probed by default\n")
+    contents: list[list[str]] = []
+    probed = _capture_probed_paths(monkeypatch, contents)
+
+    exit_code = proving_ground.main(["--doctor"], env={}, home=home, cwd=cwd)
+
+    assert exit_code == 0
+    assert len(probed) == 1
+    assert probed[0].resolve() != cwd.resolve()
+    assert contents == [[]]  # probed while empty
+    assert not probed[0].exists()  # the temporary directory is cleaned up
+    assert "empty temporary directory" in capsys.readouterr().out
+
+
+def test_doctor_with_explicit_path_probes_that_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _make_root(tmp_path)
+    home = tmp_path / "home"
+    _write_home_file(home, f"{root}\n")
+    project = tmp_path / "project"
+    project.mkdir()
+    probed = _capture_probed_paths(monkeypatch)
+
+    proving_ground.main(["--doctor", "--path", str(project)], env={}, home=home, cwd=tmp_path)
+
+    assert probed == [project.resolve()]
+    assert f"Probed project: {project.resolve()}" in capsys.readouterr().out

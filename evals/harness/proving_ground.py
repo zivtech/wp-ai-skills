@@ -4,7 +4,8 @@
 This is the code-side implementation of the resolution rule that the skills'
 "Proving ground first" Hard Gate (COMMAND and REFERENCE variants, canonical
 text in ``scripts/validate-distribution-parity.py``) describes to the model.
-It never installs anything and never writes a file.
+It never installs anything. By default the doctor probes an empty temporary
+directory, so it runs no project code; ``--path`` opts in to probing a project.
 
 Resolution order, both gated on marker files that prove the candidate is
 really a wp-ai-skills checkout:
@@ -32,6 +33,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
@@ -324,8 +326,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--path",
-        default=".",
-        help="WordPress project directory to probe in --doctor mode (default: cwd).",
+        default=None,
+        help=(
+            "WordPress project directory to probe in --doctor mode. Probing a project runs "
+            "that project's own tooling (WP-CLI, which loads its wp-config.php, plugins, "
+            "theme, and wp-cli.yml requires; or its DDEV, Lando, or wp-env commands), so "
+            "only pass a project you trust. Default: an empty temporary directory, which "
+            "reports host tools without running any project code."
+        ),
     )
     return parser
 
@@ -352,8 +360,16 @@ def main(
         print(json.dumps(payload, indent=2, sort_keys=True))
         return 0
 
-    exit_code, report = run_doctor(Path(args.path).resolve(), env=env, home=home, cwd=cwd)
-    sys.stdout.write(report)
+    if args.path is not None:
+        exit_code, report = run_doctor(Path(args.path).resolve(), env=env, home=home, cwd=cwd)
+        sys.stdout.write(f"Probed project: {Path(args.path).resolve()}\n" + report)
+        return exit_code
+    with tempfile.TemporaryDirectory(prefix="wp-ai-skills-doctor-") as empty:
+        exit_code, report = run_doctor(Path(empty), env=env, home=home, cwd=cwd)
+    sys.stdout.write(
+        "Probed: an empty temporary directory (host tools only; pass --path to probe a project)\n"
+        + report
+    )
     return exit_code
 
 
