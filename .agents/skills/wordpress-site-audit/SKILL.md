@@ -1,7 +1,6 @@
 ---
 name: wordpress-site-audit
 type: auditor
-model: Codex-sonnet-4-6
 description: Audit a running WordPress site from its public surfaces alone and report evidence-backed findings with an explicit ledger of what was never checked.
 ---
 

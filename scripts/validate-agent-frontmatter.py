@@ -17,6 +17,8 @@ except ImportError:
 ROOT = Path(__file__).resolve().parent.parent
 REQUIRED_AGENT_FIELDS = ("name", "description", "model")
 REQUIRED_SKILL_FIELDS = ("name", "description", "model", "type")
+# The .agents surface omits `model:`; see validate-distribution-parity.py.
+REQUIRED_AGENTS_SKILL_FIELDS = ("name", "description", "type")
 EXCLUDED_PARTS = (
     (".git",),
     (".claude", "worktrees"),
@@ -150,7 +152,12 @@ def main() -> int:
             seen_agent_names[name] = path
 
     for path in skill_paths():
-        errors.extend(validate_file(path, path.parent.name, REQUIRED_SKILL_FIELDS, "skill"))
+        required = (
+            REQUIRED_AGENTS_SKILL_FIELDS
+            if path.relative_to(ROOT).parts[0] == ".agents"
+            else REQUIRED_SKILL_FIELDS
+        )
+        errors.extend(validate_file(path, path.parent.name, required, "skill"))
         fields, _ = parse_frontmatter(path)
         name = fields.get("name", "")
         if name:

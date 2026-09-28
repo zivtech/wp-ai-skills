@@ -1,7 +1,6 @@
 ---
 name: wordpress-planner.migration
 type: planner
-model: Codex-fable-5
 description: Plan WordPress migrations, page-builder conversions, media moves, redirects, validation, rollback, and editorial cutovers.
 ---
 

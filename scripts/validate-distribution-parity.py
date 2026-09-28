@@ -50,7 +50,10 @@ EXECUTOR_SKILLS = frozenset(
     }
 )
 EXECUTOR_AGENTS = frozenset(SKILL_TO_AGENT[name] for name in EXECUTOR_SKILLS)
-SKILL_FIELDS = frozenset({"name", "type", "model", "description"})
+CLAUDE_SKILL_FIELDS = frozenset({"name", "type", "model", "description"})
+# `npx skills add` installs .agents into Claude Code, which honors `model:` and
+# stops on an ID it doesn't know; Codex ignores the field. So .agents omits it.
+AGENTS_SKILL_FIELDS = frozenset({"name", "type", "description"})
 CODEX_AGENT_FIELDS = frozenset({"name", "description", "developer_instructions"})
 SKILL_SECTIONS = (
     "When to Use",
@@ -496,15 +499,15 @@ def _validate_skill_pair(
         agents_fields, agents_body = _parse_markdown(root, agents_path)
     except ValueError as exc:
         return None, None, [f"{agents_path}: parse failed: {exc}"]
-    issues.extend(_check_string_fields(claude_path, claude_fields, SKILL_FIELDS))
-    issues.extend(_check_string_fields(agents_path, agents_fields, SKILL_FIELDS))
+    issues.extend(_check_string_fields(claude_path, claude_fields, CLAUDE_SKILL_FIELDS))
+    issues.extend(_check_string_fields(agents_path, agents_fields, AGENTS_SKILL_FIELDS))
     for field in ("name", "type", "description"):
         if claude_fields.get(field) != agents_fields.get(field):
             issues.append(f"{agents_path}: field {field} differs from {claude_path}")
-    left_model = _normalized_model(claude_fields.get("model"), "claude-")
-    right_model = _normalized_model(agents_fields.get("model"), "Codex-")
-    if left_model is None or left_model != right_model:
-        issues.append(f"{agents_path}: field model differs from {claude_path}")
+    if _normalized_model(claude_fields.get("model"), "claude-") is None:
+        issues.append(f"{claude_path}: field model must be a claude- model ID")
+    if "model" in agents_fields:
+        issues.append(f"{agents_path}: field model must be absent")
     if claude_fields.get("name") != name:
         issues.append(f"{claude_path}: field name does not match inventory")
     if claude_body != agents_body:

@@ -1,7 +1,6 @@
 ---
 name: wordpress-theme-critic
 type: critic
-model: Codex-fable-5
 description: Review WordPress themes for theme.json correctness, templates, patterns, accessibility, performance, and editor/frontend parity.
 ---
 

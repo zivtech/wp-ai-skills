@@ -1,7 +1,6 @@
 ---
 name: wordpress-theme-executor
 type: executor
-model: Codex-sonnet-4-6
 description: Generate WordPress theme and block theme artifacts from approved wordpress-theme-planner specs.
 ---
 

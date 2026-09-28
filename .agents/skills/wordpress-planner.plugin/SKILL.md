@@ -1,7 +1,6 @@
 ---
 name: wordpress-planner.plugin
 type: planner
-model: Codex-fable-5
 description: Plan WordPress plugin architecture, hooks, lifecycle behavior, settings/admin UI, data storage, REST, cron, and release packaging.
 ---
 

@@ -1,7 +1,6 @@
 ---
 name: wordpress-plugin-executor
 type: executor
-model: Codex-sonnet-4-6
 description: Generate WordPress plugin implementation packets from approved wordpress-plugin-planner specs.
 ---
 
