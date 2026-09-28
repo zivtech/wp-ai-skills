@@ -1,7 +1,6 @@
 ---
 name: wordpress-critic
 type: critic
-model: Codex-fable-5
 description: Review WordPress plans and implementations for architecture, security, performance, migrations, operations, and release readiness.
 ---
 

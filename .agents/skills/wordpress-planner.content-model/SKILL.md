@@ -1,7 +1,6 @@
 ---
 name: wordpress-planner.content-model
 type: planner
-model: Codex-fable-5
 description: Plan WordPress content models using CPTs, taxonomies, registered post meta, Block Bindings, editorial guardrails, migration disposition, and REST/headless exposure; ACF/meta boxes only when native meta cannot express the field.
 ---
 

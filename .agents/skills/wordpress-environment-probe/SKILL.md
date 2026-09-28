@@ -1,7 +1,6 @@
 ---
 name: wordpress-environment-probe
 type: prober
-model: Codex-sonnet-4-6
 description: Probe a WordPress environment and emit a machine-readable capability manifest so downstream skills act on measured capability rather than documentation.
 ---
 

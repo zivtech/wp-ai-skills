@@ -1,7 +1,6 @@
 ---
 name: wordpress-security-critic
 type: critic
-model: Codex-fable-5
 description: "Review WordPress security boundaries: capabilities, nonces, sanitization, escaping, SQL, REST permissions, files, secrets, and supply chain."
 ---
 

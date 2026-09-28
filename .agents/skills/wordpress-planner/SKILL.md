@@ -1,7 +1,6 @@
 ---
 name: wordpress-planner
 type: planner
-model: Codex-fable-5
 description: Plan WordPress implementations across plugins, themes, blocks, content models, migrations, operations, and review checkpoints.
 ---
 

@@ -1,7 +1,6 @@
 ---
 name: wordpress-performance-critic
 type: critic
-model: Codex-fable-5
 description: Review WordPress performance risks in queries, object cache, autoloaded options, cron, HTTP calls, REST, block rendering, assets, and measurement plans.
 ---
 

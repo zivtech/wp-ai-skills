@@ -181,12 +181,32 @@ def test_inner_blank_shared_record_fails(tmp_path: Path) -> None:
     _assert_failure(root, "wordpress-planner", "Protocol")
 
 
-def test_model_family_drift_fails(tmp_path: Path) -> None:
+def test_claude_skill_model_must_be_a_claude_id(tmp_path: Path) -> None:
     root = _copy_surfaces(tmp_path)
-    path = root / ".agents/skills/wordpress-planner/SKILL.md"
-    _replace(path, "Codex-fable-5", "Codex-sonnet-4-6")
+    path = root / ".claude/skills/wordpress-planner/SKILL.md"
+    _replace(path, "model: claude-fable-5", "model: Codex-fable-5")
 
     _assert_failure(root, str(path.relative_to(root)), "model")
+
+
+@pytest.mark.parametrize("model", ["Codex-fable-5", "claude-fable-5"])
+def test_agents_skill_must_not_declare_a_model(tmp_path: Path, model: str) -> None:
+    # `npx skills add` installs the .agents surface into Claude Code, which
+    # honors a skill's `model:` and stops on an ID it doesn't recognize.
+    # Codex reads only name, description, and metadata, so .agents omits it.
+    root = _copy_surfaces(tmp_path)
+    path = root / ".agents/skills/wordpress-planner/SKILL.md"
+    _replace(path, "\ndescription:", f"\nmodel: {model}\ndescription:")
+
+    _assert_failure(root, str(path.relative_to(root)), "model")
+
+
+def test_live_agents_skills_declare_no_model() -> None:
+    for path in sorted((PROJECT_ROOT / ".agents/skills").glob("*/SKILL.md")):
+        frontmatter = path.read_text(encoding="utf-8").split("---", 2)[1]
+        assert not any(
+            line.startswith("model:") for line in frontmatter.splitlines()
+        ), path
 
 
 @pytest.mark.parametrize("field", ["description", "developer_instructions"])

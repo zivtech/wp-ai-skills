@@ -1,7 +1,6 @@
 ---
 name: wordpress-blueprint-executor
 type: executor
-model: Codex-sonnet-4-6
 description: Generate WordPress Playground Blueprint JSON and reproducible demo/test environment packets from approved specs.
 ---
 

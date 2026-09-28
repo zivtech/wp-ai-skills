@@ -1,7 +1,6 @@
 ---
 name: wordpress-planner.theme
 type: planner
-model: Codex-fable-5
 description: Plan WordPress theme and block theme architecture including theme.json, templates, parts, patterns, style variations, and editor/frontend parity.
 ---
 

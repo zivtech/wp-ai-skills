@@ -1,7 +1,6 @@
 ---
 name: wordpress-block-executor
 type: executor
-model: Codex-sonnet-4-6
 description: Generate WordPress block implementation packets from approved wordpress-block-planner specs.
 ---
 

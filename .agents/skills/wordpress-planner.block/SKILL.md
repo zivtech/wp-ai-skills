@@ -1,7 +1,6 @@
 ---
 name: wordpress-planner.block
 type: planner
-model: Codex-fable-5
 description: Plan Block Editor blocks, block.json metadata, attributes, serialization, dynamic rendering, Interactivity API, and deprecations.
 ---
 
