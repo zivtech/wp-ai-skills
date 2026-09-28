@@ -143,6 +143,36 @@ PROVING_GROUND_SKILLS: dict[str, tuple[str, str]] = {
     "wordpress-planner.migration": ("reference", "Current-State Evidence"),
 }
 
+# Three single-line Hard Gates bullets placed directly before the
+# proving-ground guard on the four executors, kept as constants like the guard
+# itself so drift or misplacement on any surface fails parity. "Fix and rerun"
+# and "Honest fixes" are scoped to the plugin, block, and blueprint executors
+# (R5); "Nothing unchecked called done" is on all four, including the theme
+# executor, which has no materializer or certifier to fix-and-rerun against.
+HARD_GATES_FIX_AND_RERUN = "**Fix and rerun.** When the harness commands this skill names have run, treat every check whose status is `fail` as unfinished, even when a command exits 2 because another check is `blocked`. Fix the packet in place, never a copy a command produced and never by regenerating it, then rerun every named command from the first, materializing into a new `mktemp -d` directory: that is one round. Stop after three rounds or when a round fixes nothing, never deliver a version that fails a check an earlier round passed, and rewrite any copy in the user's project from the final packet. Write `Check round <n>: <file> exit <status>` lines, one per command per round with round 0 as the first run, only for commands you ran in this session, and after the final round change nothing but those lines."
+
+HARD_GATES_HONEST_FIXES = "**Honest fixes.** Fix the defect a failing check describes, in the code it concerns. Never make a check pass by deleting, stubbing, or skipping requested behavior or files; changing a version header the spec set; moving code into `build/`, `vendor/`, `dist/`, or `tests/`; splitting a string or putting a required name in a comment or readme; adding `phpcs:ignore` or `@phpstan-ignore`; or editing anything under `<root>`. If a check can pass only that way, record `conflict: <check id>: <reason>`. Record each blocked check as `NOT CHECKED: <check id> (blocked: <the remediation it prints>)` and never run that remediation. Log behavior-changing fixes in `## Deviation Log` and name each fixed check in `## Critic Handoff`."
+
+HARD_GATES_NOTHING_UNCHECKED = "**Nothing unchecked called done.** While any check fails, is blocked, or is `NOT CHECKED`, do not call the work ready, done, or production-ready: list what is left."
+
+HARD_GATES_EXECUTOR_BULLET_LABELS: dict[str, str] = {
+    HARD_GATES_FIX_AND_RERUN: "Fix and rerun",
+    HARD_GATES_HONEST_FIXES: "Honest fixes",
+    HARD_GATES_NOTHING_UNCHECKED: "Nothing unchecked called done",
+}
+HARD_GATES_ALL_EXECUTOR_BULLETS = (
+    HARD_GATES_FIX_AND_RERUN,
+    HARD_GATES_HONEST_FIXES,
+    HARD_GATES_NOTHING_UNCHECKED,
+)
+# skill name -> the pre-guard bullets it must carry, directly before the guard, in this order.
+HARD_GATES_EXECUTOR_BULLETS: dict[str, tuple[str, ...]] = {
+    "wordpress-plugin-executor": HARD_GATES_ALL_EXECUTOR_BULLETS,
+    "wordpress-block-executor": HARD_GATES_ALL_EXECUTOR_BULLETS,
+    "wordpress-blueprint-executor": HARD_GATES_ALL_EXECUTOR_BULLETS,
+    "wordpress-theme-executor": (HARD_GATES_NOTHING_UNCHECKED,),
+}
+
 
 if yaml is not None:
 
@@ -863,6 +893,62 @@ def _check_gate_guard(
     return issues
 
 
+def _executor_bullet_issues(
+    path: Path,
+    text: str,
+    skill_side: bool,
+    name: str,
+    guard_text: str,
+) -> list[str]:
+    """Check the pre-guard executor bullets on one surface of ``name``.
+
+    Mirrors ``_check_gate_guard``: each bullet ``name`` must carry
+    (``HARD_GATES_EXECUTOR_BULLETS``) must appear exactly once, as the records
+    directly preceding the guard, in the declared order; and no bullet outside
+    that skill's set (for example, the plugin executor's "Fix and rerun" on the
+    theme executor) may appear at all.
+    """
+    issues: list[str] = []
+    expected = HARD_GATES_EXECUTOR_BULLETS.get(name)
+    if expected is None:
+        return issues
+    if skill_side:
+        value = _raw_section_value(text, "Hard Gates")
+    else:
+        value = _raw_agent_tag_value(text, "Hard_Gates")
+    if value is None:
+        issues.append(f"{path}: could not locate Hard Gates for the executor bullet check")
+        return issues
+    records = _raw_bullet_records(value, skill_side)
+    if records is None:
+        issues.append(f"{path}: could not parse Hard Gates records for the executor bullet check")
+        return issues
+    window_size = len(expected) + 1
+    window = tuple(records[-window_size:]) if len(records) >= window_size else ()
+    if window != (*expected, guard_text):
+        labels = ", ".join(HARD_GATES_EXECUTOR_BULLET_LABELS[bullet] for bullet in expected)
+        issues.append(
+            f"{path}: Hard Gates must carry {labels}, in that order, directly before the "
+            "proving-ground guard"
+        )
+    for bullet in expected:
+        matches = sum(1 for record in records if record == bullet)
+        if matches != 1:
+            issues.append(
+                f"{path}: Hard Gates must contain exactly one "
+                f"{HARD_GATES_EXECUTOR_BULLET_LABELS[bullet]!r} record (found {matches})"
+            )
+    for bullet in HARD_GATES_ALL_EXECUTOR_BULLETS:
+        if bullet in expected:
+            continue
+        if any(record == bullet for record in records):
+            issues.append(
+                f"{path}: Hard Gates contains "
+                f"{HARD_GATES_EXECUTOR_BULLET_LABELS[bullet]!r}, which {name} must not carry"
+            )
+    return issues
+
+
 def _check_record_sentence(
     path: Path,
     text: str,
@@ -970,6 +1056,7 @@ def _proving_ground_guard_issues(
             other_text = PROVING_GROUND_GUARD_TEXT[other_variant]
             issues.extend(_check_gate_guard(path, text, skill_side, guard_text, other_text))
             issues.extend(_check_record_sentence(path, text, skill_side, heading))
+            issues.extend(_executor_bullet_issues(path, text, skill_side, name, guard_text))
 
     return issues
 

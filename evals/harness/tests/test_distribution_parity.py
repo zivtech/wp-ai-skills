@@ -664,3 +664,96 @@ def test_manifest_mode_does_not_require_pyyaml(tmp_path: Path) -> None:
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+# The three pre-guard Hard Gates bullets ("Fix and rerun", "Honest
+# fixes", "Nothing unchecked called done") on the plugin, block, and blueprint
+# executors, and the single "Nothing unchecked called done" bullet on the
+# theme executor. Each is a parity constant like the proving-ground guard
+# itself, with a "directly precedes the guard, in this order" placement check.
+
+
+def _insert_executor_bullets(root: Path, name: str, bullets: tuple[str, ...]) -> None:
+    """Insert ``bullets`` directly before the proving-ground guard bullet, on
+    all four surfaces of executor ``name``. Mirrors the real insertion: each
+    bullet becomes its own ``    - `` Hard Gates record."""
+    module = _load_validator()
+    guard = module.PROVING_GROUND_GUARD_COMMAND
+    needle = f"    - {guard}"
+    insertion = "".join(f"    - {bullet}\n" for bullet in bullets)
+    for path in (*_skill_paths(root, name), *_agent_paths(root, name)):
+        text = path.read_text(encoding="utf-8")
+        assert needle in text, path
+        path.write_text(text.replace(needle, insertion + needle, 1), encoding="utf-8")
+
+
+def test_executor_bullets_missing_from_one_surface_fails(tmp_path: Path) -> None:
+    root = _copy_surfaces(tmp_path)
+    module = _load_validator()
+    bullets = module.HARD_GATES_EXECUTOR_BULLETS["wordpress-plugin-executor"]
+    _insert_executor_bullets(root, "wordpress-plugin-executor", bullets)
+    path = root / ".agents/skills/wordpress-plugin-executor/SKILL.md"
+    text = path.read_text(encoding="utf-8")
+    for bullet in bullets:
+        text = text.replace(f"    - {bullet}\n", "", 1)
+    path.write_text(text, encoding="utf-8")
+
+    _assert_failure(root, "wordpress-plugin-executor", "Fix and rerun")
+
+
+def test_executor_bullet_text_drift_on_one_surface_fails(tmp_path: Path) -> None:
+    root = _copy_surfaces(tmp_path)
+    module = _load_validator()
+    bullets = module.HARD_GATES_EXECUTOR_BULLETS["wordpress-block-executor"]
+    _insert_executor_bullets(root, "wordpress-block-executor", bullets)
+    path = root / ".codex/agents/wordpress-block-executor.toml"
+    _replace(path, "**Honest fixes.**", "**Honest fixes (drifted).**")
+
+    _assert_failure(root, "wordpress-block-executor", "Honest fixes")
+
+
+def test_executor_bullet_out_of_order_fails(tmp_path: Path) -> None:
+    root = _copy_surfaces(tmp_path)
+    module = _load_validator()
+    bullets = module.HARD_GATES_EXECUTOR_BULLETS["wordpress-blueprint-executor"]
+    reordered = (bullets[1], bullets[0], bullets[2])
+    _insert_executor_bullets(root, "wordpress-blueprint-executor", reordered)
+
+    _assert_failure(root, "wordpress-blueprint-executor", "in that order")
+
+
+def test_executor_bullet_not_directly_before_guard_fails(tmp_path: Path) -> None:
+    root = _copy_surfaces(tmp_path)
+    module = _load_validator()
+    bullets = module.HARD_GATES_EXECUTOR_BULLETS["wordpress-plugin-executor"]
+    _insert_executor_bullets(root, "wordpress-plugin-executor", bullets)
+    for path in (*_skill_paths(root, "wordpress-plugin-executor"), *_agent_paths(root, "wordpress-plugin-executor")):
+        _replace(
+            path,
+            f"    - {module.HARD_GATES_NOTHING_UNCHECKED}\n    - {module.PROVING_GROUND_GUARD_COMMAND}",
+            f"    - {module.PROVING_GROUND_GUARD_COMMAND}\n    - {module.HARD_GATES_NOTHING_UNCHECKED}",
+        )
+
+    _assert_failure(root, "wordpress-plugin-executor", "directly before")
+
+
+def test_r1_bullets_on_theme_executor_fails(tmp_path: Path) -> None:
+    root = _copy_surfaces(tmp_path)
+    module = _load_validator()
+    _insert_executor_bullets(
+        root,
+        "wordpress-theme-executor",
+        (
+            module.HARD_GATES_FIX_AND_RERUN,
+            module.HARD_GATES_HONEST_FIXES,
+            module.HARD_GATES_NOTHING_UNCHECKED,
+        ),
+    )
+
+    _assert_failure(root, "wordpress-theme-executor", "must not carry")
+
+
+def test_live_distribution_carries_the_executor_bullets() -> None:
+    result = _run(PROJECT_ROOT)
+
+    assert result.returncode == 0, result.stdout + result.stderr
