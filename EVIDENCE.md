@@ -17,7 +17,7 @@ inputs are not bundled.
 ## Evidence Log — Including What Failed
 
 `docs/wordpress/negative-results.md` is the full record of what this project
-measured, nulls included: eight null or negative results and five positive
+measured, nulls included: eleven null or negative results and five positive
 deterministic proofs, each with what its result does *and does not* license, and
 each pointing at a committed artifact. It is gated by
 `scripts/validate-evidence-log.py`, which rejects a row whose cited path does not
@@ -25,8 +25,8 @@ exist and a claim that states only what it supports.
 
 Read it before the table below. The table records what was proven; the log
 records what was tested, which is the wider and more honest set — and it names
-the asymmetry that every positive archive is bundled here while no null archive
-is.
+the asymmetry: four of the five positive archives are bundled here, but only two
+of the eleven null archives are, and neither of those two is about skill quality.
 
 ## Current Proof Surfaces
 
@@ -51,6 +51,20 @@ is.
 | Blueprint static certification | `evidence/wordpress-high-risk-evals/wordpress-blueprint-executor-static-cert-20260621/scorecard.md` | Three recorded packets passed packet contract, materialization, and static `blueprint.json` certification. | Playground launch, activation, editor/frontend behavior, or external services. |
 | Blueprint launch-readiness preflight | `evidence/wordpress-high-risk-evals/wordpress-blueprint-executor-launch-preflight-20260621/scorecard.md` | The preflight recorded exact missing VFS payloads and a blocked result. | Browser launch, activation, editor/frontend behavior, or runtime success. |
 | Self-contained Blueprint smoke | `evidence/wordpress-high-risk-evals/wordpress-blueprint-executor-self-contained-static-cert-20260621/scorecard.md`; `evidence/wordpress-high-risk-evals/wordpress-blueprint-executor-self-contained-launch-preflight-20260621/scorecard.md`; `evidence/wordpress-high-risk-evals/wordpress-blueprint-executor-self-contained-playground-smoke-20260621/scorecard.md`; `evidence/wordpress-high-risk-evals/wordpress-blueprint-executor-self-contained-playground-smoke-20260621/playground-smoke.json`; `evidence/wordpress-high-risk-evals/wordpress-blueprint-executor-self-contained-playground-smoke-20260621/qa-review.md` | One disposable self-contained Blueprint passed static certification, preflight, and a browser-observed admin-page text smoke recorded by the bundled review. | VFS-backed packet behavior, broader editor/frontend behavior, external services, independent review, or release/benchmark approval. |
+
+Five of the runtime rows above rest on oracles that are not reachable through
+the isolated runtime path as of 2026-08-29: block build, editor, and frontend
+(editor smoke); Block Interactivity API; block deprecation; MCP Adapter
+(Abilities and MCP Adapter smoke); and the AI Client provider. Their scorecards
+record what those fixtures did in June 2026. The commands that produced them now
+return `status: blocked`, so these are recorded proofs, not currently
+reproducible ones. A `blocked` result means the tooling is missing, not that the
+artifact failed. See the Evidence Semantics section of
+`docs/wordpress/runtime-oracle-runbook.md`. The same five scorecards stay as
+recorded; where one reads against its row (the MCP Adapter scorecard's "not
+Abilities API execution proof"), the reconciliation is in
+`docs/wordpress/negative-results.md` under "Recorded discrepancy: the P3
+scorecard".
 
 ## Bundled Evidence Files
 
