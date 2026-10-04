@@ -101,6 +101,12 @@ PROVING_GROUND_UNUSABLE_RE = re.compile(
 # resolves (for example, without a shell).
 PROVING_GROUND_UNRESOLVED_RE = re.compile(r"^unresolved \(.+\)$")
 
+# Opt-in Check-round honesty tripwire (--require-check-round-honesty).
+# A `Check round <n>: <file> exit <status>` line is the fix-and-rerun record the
+# four executors write per round. A leading list marker is tolerated for the
+# same reason PROVING_GROUND_LINE_RE tolerates one.
+CHECK_ROUND_LINE_RE = re.compile(r"(?m)^(?:[-*] )?Check round \d+: .+ exit .+$")
+
 
 PLANNER_HEADINGS = {
     "wordpress-planner": [
@@ -2764,9 +2770,7 @@ def check_proving_ground_record(text: str, skill: str, raw_text: str | None = No
         )
 
     raw_value = match.group(1).strip()
-    value = raw_value
-    if len(value) >= 2 and value.startswith("`") and value.endswith("`"):
-        value = value[1:-1]
+    value = _normalize_proving_ground_value(raw_value)
 
     if PROVING_GROUND_UNRESOLVED_RE.match(value):
         if variant != "reference":
@@ -2829,6 +2833,49 @@ def check_proving_ground_record(text: str, skill: str, raw_text: str | None = No
     return Check("proving_ground_record", False, 3, expected)
 
 
+def _normalize_proving_ground_value(raw_value: str) -> str:
+    value = raw_value.strip()
+    if len(value) >= 2 and value.startswith("`") and value.endswith("`"):
+        return value[1:-1]
+    return value
+
+
+def check_check_round_honesty(text: str) -> Check | None:
+    """Opt-in tripwire (``--require-check-round-honesty``).
+
+    Flags an output that writes a ``Check round <n>: <file> exit <status>``
+    line (the fix-and-rerun record) while also recording a ``Proving ground:``
+    value of ``not installed``, ``unresolved (<reason>)``, or ``<root>
+    (unusable: <reason>)``. None of those three values means a harness command
+    ran, so a ``Check round`` line beside one is either fabricated or stale.
+    Returns ``None`` when the output has no ``Check round`` line at all, so the
+    caller only appends this check where it has something to say.
+    """
+    stripped = _strip_fenced_code(text)
+    if not CHECK_ROUND_LINE_RE.search(stripped):
+        return None
+    for match in PROVING_GROUND_LINE_RE.finditer(stripped):
+        value = _normalize_proving_ground_value(match.group(1))
+        if (
+            PROVING_GROUND_NOT_INSTALLED_RE.match(value)
+            or PROVING_GROUND_UNRESOLVED_RE.match(value)
+            or PROVING_GROUND_UNUSABLE_RE.match(value)
+        ):
+            return Check(
+                "check_round_honesty",
+                False,
+                3,
+                f"'Check round' lines appear beside 'Proving ground: {value}'; "
+                "no harness command could have run to produce them",
+            )
+    return Check(
+        "check_round_honesty",
+        True,
+        3,
+        "Check round lines have no contradictory proving-ground record",
+    )
+
+
 def validate_output(
     skill: str,
     text: str,
@@ -2837,6 +2884,7 @@ def validate_output(
     source_manifest: dict[str, Any] | None = None,
     source_structure: dict[str, Any] | None = None,
     require_proving_ground: bool = False,
+    require_check_round_honesty: bool = False,
 ) -> dict[str, Any]:
     requested_skill = skill
     skill = ALIASES.get(skill, skill)
@@ -2876,6 +2924,10 @@ def validate_output(
         proving_ground_check = check_proving_ground_record(_strip_fenced_code(text), skill, raw_text=text)
         if proving_ground_check is not None:
             checks.append(proving_ground_check)
+    if require_check_round_honesty:
+        check_round_check = check_check_round_honesty(text)
+        if check_round_check is not None:
+            checks.append(check_round_check)
     total = sum(check.weight for check in checks)
     earned = sum(check.weight for check in checks if check.passed)
     return {
@@ -2931,6 +2983,17 @@ def build_parser() -> argparse.ArgumentParser:
             "additionally omit the @<commit> suffix, or record 'unresolved (<reason>)' when they "
             "could not even check. Every 'not installed', 'unusable', or 'unresolved' value needs "
             "a NOT CHECKED line naming each required harness file."
+        ),
+    )
+    parser.add_argument(
+        "--require-check-round-honesty",
+        action="store_true",
+        help=(
+            "Opt in to the Check-round honesty tripwire (default off; existing callers keep "
+            "today's behavior). Fails when a 'Check round <n>: <file> exit <status>' "
+            "line (the fix-and-rerun record) appears beside a 'Proving ground:' value of "
+            "'not installed', 'unresolved (<reason>)', or '<root> (unusable: <reason>)': none of "
+            "those states lets a harness command run, so the round lines are fabricated or stale."
         ),
     )
     return parser
@@ -3012,6 +3075,7 @@ def main(argv: list[str] | None = None) -> int:
         source_manifest=source_manifest,
         source_structure=source_structure,
         require_proving_ground=args.require_proving_ground,
+        require_check_round_honesty=args.require_check_round_honesty,
     )
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result["pass"] else 1
