@@ -41,6 +41,8 @@ def _copy_surfaces(tmp_path: Path) -> Path:
     for relative in SURFACES:
         shutil.copytree(PROJECT_ROOT / relative, root / relative)
     shutil.copy2(PROJECT_ROOT / "skills.sh.json", root / "skills.sh.json")
+    baseline = _run(root)
+    assert baseline.returncode == 0, baseline.stdout + baseline.stderr
     return root
 
 
@@ -683,6 +685,10 @@ def _insert_executor_bullets(root: Path, name: str, bullets: tuple[str, ...]) ->
     insertion = "".join(f"    - {bullet}\n" for bullet in bullets)
     for path in (*_skill_paths(root, name), *_agent_paths(root, name)):
         text = path.read_text(encoding="utf-8")
+        for existing in module.HARD_GATES_EXECUTOR_BULLETS[name]:
+            line = f"    - {existing}\n"
+            assert text.count(line) == 1, path
+            text = text.replace(line, "", 1)
         assert needle in text, path
         path.write_text(text.replace(needle, insertion + needle, 1), encoding="utf-8")
 
@@ -698,7 +704,7 @@ def test_executor_bullets_missing_from_one_surface_fails(tmp_path: Path) -> None
         text = text.replace(f"    - {bullet}\n", "", 1)
     path.write_text(text, encoding="utf-8")
 
-    _assert_failure(root, "wordpress-plugin-executor", "Fix and rerun")
+    _assert_failure(root, ".agents/skills/wordpress-plugin-executor/SKILL.md", "Fix and rerun")
 
 
 def test_executor_bullet_text_drift_on_one_surface_fails(tmp_path: Path) -> None:
@@ -709,7 +715,7 @@ def test_executor_bullet_text_drift_on_one_surface_fails(tmp_path: Path) -> None
     path = root / ".codex/agents/wordpress-block-executor.toml"
     _replace(path, "**Honest fixes.**", "**Honest fixes (drifted).**")
 
-    _assert_failure(root, "wordpress-block-executor", "Honest fixes")
+    _assert_failure(root, ".codex/agents/wordpress-block-executor.toml", "Honest fixes")
 
 
 def test_executor_bullet_out_of_order_fails(tmp_path: Path) -> None:

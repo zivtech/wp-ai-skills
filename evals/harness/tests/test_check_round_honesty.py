@@ -19,6 +19,7 @@ with the number of commands actually named.
 from __future__ import annotations
 
 import validate_wordpress_skill_output as oracle
+import pytest
 
 
 def _find_check(result: dict, check_id: str) -> dict | None:
@@ -130,6 +131,35 @@ def test_check_round_lines_with_resolved_root_passes() -> None:
     check = _find_check(result, "check_round_honesty")
     assert check is not None
     assert check["passed"] is True
+
+
+@pytest.mark.parametrize("value", [
+    "not installed",
+    "unresolved (no shell available)",
+    "/tmp/wp-ai-skills (unusable: uv missing)",
+])
+@pytest.mark.parametrize("backticks", [False, True])
+def test_no_root_presentation_cannot_hide_contradictory_rounds(value, backticks):
+    record = f"`{value}`" if backticks else value
+    text = _plugin_text(
+        f"{CHECK_ROUND_LINES}\nProving ground: {record}\n\n"
+        f"{NOT_CHECKED_LINES}\n{SETUP_LINE}"
+    )
+    result = oracle.validate_output(
+        "wordpress-plugin-executor", text, require_check_round_honesty=True
+    )
+    check = _find_check(result, "check_round_honesty")
+    assert check is not None and check["passed"] is False
+
+
+def test_round_tripwire_does_not_claim_a_missing_record_was_resolved():
+    result = oracle.validate_output(
+        "wordpress-plugin-executor", _plugin_text(CHECK_ROUND_LINES),
+        require_check_round_honesty=True,
+    )
+    check = _find_check(result, "check_round_honesty")
+    assert check["passed"] is True
+    assert "no contradictory" in check["detail"]
 
 
 def test_no_check_round_lines_is_not_flagged() -> None:

@@ -2770,9 +2770,7 @@ def check_proving_ground_record(text: str, skill: str, raw_text: str | None = No
         )
 
     raw_value = match.group(1).strip()
-    value = raw_value
-    if len(value) >= 2 and value.startswith("`") and value.endswith("`"):
-        value = value[1:-1]
+    value = _normalize_proving_ground_value(raw_value)
 
     if PROVING_GROUND_UNRESOLVED_RE.match(value):
         if variant != "reference":
@@ -2835,6 +2833,13 @@ def check_proving_ground_record(text: str, skill: str, raw_text: str | None = No
     return Check("proving_ground_record", False, 3, expected)
 
 
+def _normalize_proving_ground_value(raw_value: str) -> str:
+    value = raw_value.strip()
+    if len(value) >= 2 and value.startswith("`") and value.endswith("`"):
+        return value[1:-1]
+    return value
+
+
 def check_check_round_honesty(text: str) -> Check | None:
     """Opt-in tripwire (``--require-check-round-honesty``).
 
@@ -2850,7 +2855,7 @@ def check_check_round_honesty(text: str) -> Check | None:
     if not CHECK_ROUND_LINE_RE.search(stripped):
         return None
     for match in PROVING_GROUND_LINE_RE.finditer(stripped):
-        value = match.group(1).strip()
+        value = _normalize_proving_ground_value(match.group(1))
         if (
             PROVING_GROUND_NOT_INSTALLED_RE.match(value)
             or PROVING_GROUND_UNRESOLVED_RE.match(value)
@@ -2867,7 +2872,7 @@ def check_check_round_honesty(text: str) -> Check | None:
         "check_round_honesty",
         True,
         3,
-        "Check round lines are consistent with a resolved proving-ground record",
+        "Check round lines have no contradictory proving-ground record",
     )
 
 
