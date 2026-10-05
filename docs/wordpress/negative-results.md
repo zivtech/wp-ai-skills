@@ -1,13 +1,14 @@
 # Evidence Log — What We Tested, and What It Licensed Us To Say
 
-Compiled 2026-08-28. Gated by `scripts/validate-evidence-log.py`.
+Compiled 2026-08-28; counts and tenses reconciled against the tables
+2026-09-28. Gated by `scripts/validate-evidence-log.py`.
 
 ## How to read this log
 
 This is the record of what this project measured, including — especially — the
 measurements that came back null. It is not a highlight reel with a modesty
-section bolted on. Roughly half of what follows is a result that did not go our
-way, and those rows are here for the same reason the positive ones are: they
+section bolted on. Eleven of the sixteen rows that follow are results that did
+not go our way, and those rows are here for the same reason the positive ones are: they
 were measured, and the measurement is what makes the rest of the numbers in this
 repository worth anything.
 
@@ -43,13 +44,19 @@ distinction is a required column, not a footnote, and the gate enforces it.
 
 **The split is uncomfortable and is stated here rather than left to be
 discovered.** Four of the five positive rows bundle their raw archive in this
-repository. Not one of the nine null rows does. That is not a decision anyone
-made on the record — it fell out of which runs were packaged for the public
-release — but the shape it produces is a repository whose wins are
-independently checkable and whose nulls have to be taken on our word. It is
-tracked as open work in `v1-completion-todo.md` under "Publish or re-point the
-evidence archives", and until it closes, the nulls below are the weaker half of
-this log in exactly the way that most flatters us.
+repository. Two of the eleven null rows do — N10 and N11, both added
+2026-09-27 — and the exception is narrower than the count makes it look. Both
+are findings about this project's own output-contract oracle, not about skill
+quality, and N11's in-repo cell names a regression test that re-runs 2,000 of
+its seeded documents, not the full run record. The nine nulls from the
+June–August arc, including every row that tested whether the skills beat a
+baseline, have no archive here. That is not a decision anyone made on the record — it
+fell out of which runs were packaged for the public release — but the shape it
+produces is a repository whose wins are independently checkable and whose
+skill-quality nulls have to be taken on our word. It is tracked as open work in
+`v1-completion-todo.md` under "Publish or re-point the evidence archives", and
+until it closes, those nulls are the weaker half of this log in exactly the way
+that most flatters us.
 
 The fifth positive row is weaker than any null. P5's archive is `local-only`: it
 sits under gitignored `evals/results/` on one laptop. That was found by this
@@ -85,13 +92,53 @@ same document deliberately: a log that collected only nulls would be as
 misleading as one that collected only wins, and the reader needs both to judge
 whether the measurement culture is real.
 
+**P1–P4 are recorded proofs, not currently reproducible ones.** Each ran in June
+2026 and its archive is committed here, so what it recorded can be re-read. The
+oracles they rest on — Interactivity, block deprecation, the editor, Abilities,
+the MCP Adapter, and the AI Client — are not reachable through the isolated
+runtime path as of 2026-08-29: requesting them returns `status: blocked`, and
+the CI Docker generated-runtime job does not exercise them either. The commands that produced
+these rows are historical records, not commands that reproduce the proofs
+today. The boundary and its reasons are in the Evidence Semantics section of
+`docs/wordpress/runtime-oracle-runbook.md`. A `blocked` result there says the
+tooling is missing, not that the artifact failed, so it does not reverse what
+these rows recorded.
+
 | # | What was proven | How it was proven | What it licenses — and what it does not | Analysis | Archive |
 |---|---|---|---|---|---|
-| P1 | A generated block's Interactivity API behavior actually works in a real browser | Playwright clicked the built block's button in WordPress `7.0` and asserted `context.count` moved `0` → `1`, with no page or console errors, after passing block build, static certification, WPCS/PHPCS, Plugin Check, editor insertion, and frontend render | Licenses: "generated Interactivity blocks are verified by execution, not by inspection." Does **not** license claims about long-run variance or broad Interactivity coverage — this is one generated block. | `docs/wordpress/v1-completion-todo.md` | `evidence/wordpress-skill-candidate-eval/generated-block-interactivity-full-profile-20260621/scorecard.md` |
-| P2 | A generated block survives WordPress' deprecation path | One legacy serialized fixture migrated through the deprecation path into current saved markup and correct frontend output | Licenses: "we can prove a saved-content migration rather than assert it." Does **not** license a claim about arbitrary third-party legacy markup. | `docs/wordpress/v1-completion-todo.md` | `evidence/wordpress-skill-candidate-eval/generated-block-deprecation-full-profile-20260621/scorecard.md` |
-| P3 | A generated plugin's ability is discoverable and executable through the WordPress MCP Adapter | Installed the adapter, listed the default server, called `tools/list` through `wp mcp-adapter serve`, discovered the generated MCP-public ability, and executed it via `mcp-adapter-execute-ability` — plus WPCS/PHPCS and Plugin Check | Licenses: "the modern agent surface is proven end-to-end for generated code." Does **not** license claims about adapter stability — the adapter emitted upstream PHP deprecation notices, recorded as adapter/runtime risk rather than generated-plugin failure. | `docs/wordpress/v1-completion-todo.md` | `evidence/wordpress-skill-candidate-eval/generated-mcp-adapter-full-profile-20260621/scorecard.md` |
-| P4 | A generated AI Client provider registers and answers a real prompt call | Activated a deterministic no-auth provider in WordPress `7.0`, verified `wp_ai_client_prompt()` and the default registry, confirmed provider and connector registration, invoked the generated helper, and matched exact expected output | Licenses: "the AI Client provider boundary is proven for a deterministic provider." Does **not** license any claim about credentialed third-party provider behavior, which remains explicit negative space. | `docs/wordpress/v1-completion-todo.md` | `evidence/wordpress-skill-candidate-eval/generated-ai-client-provider-full-profile-20260621/scorecard.md` |
+| P1 | A generated block's Interactivity API behavior worked in a real browser (June 2026) | Playwright clicked the built block's button in WordPress `7.0` and asserted `context.count` moved `0` → `1`, with no page or console errors, after passing block build, static certification, WPCS/PHPCS, Plugin Check, editor insertion, and frontend render | Licenses: "in June 2026, a generated Interactivity block was verified by execution, not by inspection." Does **not** license claims about long-run variance or broad Interactivity coverage — this is one generated block. Does **not** license a claim that the proof reproduces today; see the note above this table. | `docs/wordpress/v1-completion-todo.md` | `evidence/wordpress-skill-candidate-eval/generated-block-interactivity-full-profile-20260621/scorecard.md` |
+| P2 | A generated block survived WordPress' deprecation path (June 2026) | One legacy serialized fixture migrated through the deprecation path into current saved markup and correct frontend output | Licenses: "in June 2026, we proved a saved-content migration rather than asserting it." Does **not** license a claim about arbitrary third-party legacy markup. Does **not** license a claim that the proof reproduces today; see the note above this table. | `docs/wordpress/v1-completion-todo.md` | `evidence/wordpress-skill-candidate-eval/generated-block-deprecation-full-profile-20260621/scorecard.md` |
+| P3 | A generated plugin's ability was discovered and executed through the WordPress MCP Adapter (June 2026) | Installed the adapter, listed the default server, called `tools/list` through `wp mcp-adapter serve`, discovered the generated MCP-public ability, and executed it via `mcp-adapter-execute-ability` — plus WPCS/PHPCS and Plugin Check | Licenses: "in June 2026, the MCP Adapter surface was proven end-to-end for a generated plugin: discovery and execution through the adapter's own tools." Does **not** license a claim of direct Abilities API execution outside the adapter, which this run did not request; that is why its scorecard lists "not Abilities API execution proof" (see "Recorded discrepancy: the P3 scorecard" below). Does **not** license claims about adapter stability — the adapter emitted upstream PHP deprecation notices, recorded as adapter/runtime risk rather than generated-plugin failure. Does **not** license a claim that the proof reproduces today; see the note above this table. | `docs/wordpress/v1-completion-todo.md` | `evidence/wordpress-skill-candidate-eval/generated-mcp-adapter-full-profile-20260621/scorecard.md` |
+| P4 | A generated AI Client provider registered and answered a real prompt call (June 2026) | Activated a deterministic no-auth provider in WordPress `7.0`, verified `wp_ai_client_prompt()` and the default registry, confirmed provider and connector registration, invoked the generated helper, and matched exact expected output | Licenses: "in June 2026, the AI Client provider boundary was proven for a deterministic provider." Does **not** license any claim about credentialed third-party provider behavior, which remains explicit negative space. Does **not** license a claim that the proof reproduces today; see the note above this table. | `docs/wordpress/v1-completion-todo.md` | `evidence/wordpress-skill-candidate-eval/generated-ai-client-provider-full-profile-20260621/scorecard.md` |
 | P5 | A local open-weights model (llama-70b) converges to a clean artifact through the repair loop | Iterative repair against persisted PHPCS diagnostics and WPCS repair hints, reaching zero errors on every macOS-reachable gate, then handed to the no-secrets Linux CI lane for the gates a laptop cannot run | Licenses: "the deterministic feedback loop carries a local model to a clean artifact." Does **not** license a full-profile pass claim — the Linux-only gates are handed off precisely because they were not run locally. Read this row with the most caution of any here: its iteration archive is under gitignored `evals/results/` and exists only on the machine that ran it. The converged packet it produced *is* tracked, at `evals/handoff/abilities-llama70b-20260825/`, but that is the output, not the run record. | `docs/wordpress/repair-loop-levers-reland-2026-08-24.md` | local-only |
+
+### Recorded discrepancy: the P3 scorecard
+
+Found by a claims audit on 2026-09-27. P3's own scorecard,
+`evidence/wordpress-skill-candidate-eval/generated-mcp-adapter-full-profile-20260621/scorecard.md`,
+lists "not Abilities API execution proof" under Negative Space, while P3 above
+says the ability was executed through the adapter. Both are accurate, and they
+describe two different paths:
+
+- **Recorded:** execution through the adapter. The same run's `runtime-smoke.json`
+  records the `mcp_execute_public_ability` check as `pass`. The adapter's
+  `mcp-adapter-execute-ability` tool returned `success: true` with the expected
+  marker `Runtime MCP smoke`, and the check requires that marker and no JSON-RPC
+  error.
+- **Not recorded:** direct Abilities API execution, the harness's separate
+  `--execute-post-summary-ability` smoke. `run_wordpress_runtime_smoke.py` adds
+  "not Abilities API execution proof" whenever that flag is not set
+  (`evals/harness/run_wordpress_runtime_smoke.py`, the negative-space block),
+  and this run recorded `execute_post_summary_ability: false`. The scorecard's
+  "Abilities smoke: `pass`" is the registration check, not an execution.
+
+The scorecard stays as recorded. Run records under `evidence/` are not
+rewritten after the fact. That is a convention, not a gate: no validator hashes
+those files. Since the public import no run record there has been modified,
+and N10 left its drifted contract files alone for the same reason. This note is
+where the two readings are reconciled. The negative-space line is a harness
+label for a smoke nobody requested. It is not a finding that execution failed,
+and it does not narrow what P3 recorded.
 
 ---
 
@@ -108,19 +155,27 @@ is not a boundary.
 - **Sample sizes are small and stated per row.** Several findings are n=1
   fixture. They are recorded as directional evidence, not as effects.
 - **The judge was internal and uncalibrated** wherever a judge was used at all.
-  The deterministic gates (N7, P1–P5) do not use a judge, which is why they
-  carry more weight here than the judged rows.
+  The deterministic gates and oracles (N6, N7, N9–N11, P1–P5) do not use a
+  judge, which is why they carry more weight here than the judged rows.
 - **Nothing here measures delivery outcomes.** No row connects to client
   satisfaction, project velocity, defect rates in production, or cost. Those are
   the questions a buyer actually has, and this log does not answer them.
-- **No null result's raw archive is in this repository.** Eight of the nine
-  null rows are `monorepo-internal` and the ninth is `local-only`: you are
-  reading our analysis of our data, not our data. Four of five positive rows
-  bundle their archive; the fifth is `local-only` too. Read those ten rows
-  accordingly — they are the ones you cannot currently check for yourself. N9 is
-  the mildest case: its scan is regenerated by a documented command in seconds
-  rather than retrieved from an archive, which is why nothing was written to
-  gitignored `evals/results/` to be cited later and found missing.
+- **Nine of the eleven null results have no raw archive in this repository.**
+  N1–N8 are `monorepo-internal` and N9 is `local-only`: for those you are
+  reading our analysis of our data, not our data. N10 and N11 are the in-repo
+  exceptions, and both are about the output-contract oracle rather than skill
+  quality. N10's archive is the committed saved outputs it replayed. N11's cell
+  names the regression test that pins 2,000 of the 42,000 seeded documents;
+  the full random sweeps and the before-and-after comparison against the
+  replaced PR #49 mask are not stored. Four of five positive rows bundle their
+  archive; the fifth is `local-only` too. Read those ten unarchived rows
+  accordingly — they are the ones you cannot currently check for yourself. N9
+  is the mildest case: its scan is regenerated by a documented command in
+  seconds rather than retrieved from an archive, which is why nothing was
+  written to gitignored `evals/results/` to be cited later and found missing.
+- **A bundled archive is not a reproducible run.** P1–P4 can be re-read here
+  but not re-run today, because their runtime oracles are blocked on the
+  isolated path (see the note above the positive table).
 
 ## Related
 
